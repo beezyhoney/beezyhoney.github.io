@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://sleostanley.github.io/beezyhoney/sitemap-index.xml
+Sitemap: https://beezyhoney.github.io/sitemap-index.xml

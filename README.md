@@ -6,7 +6,7 @@ Static site for Beezy Honey (Abinash Honey Farming), built with [Astro](https://
 
 ```bash
 npm install
-npm run dev      # http://localhost:4321/beezyhoney/
+npm run dev      # http://localhost:4321/
 npm run build    # outputs dist/
 ```
 
@@ -20,6 +20,6 @@ npm run build    # outputs dist/
 
 ## Deploy
 
-Live at https://sleostanley.github.io/beezyhoney/ (repository `sleostanley/beezyhoney`). Every push to `main` builds the site and deploys it through `.github/workflows/deploy.yml`. In the repository settings, Pages → Source must be **GitHub Actions**. `base` in `astro.config.mjs` must match the repository name.
+Live at https://beezyhoney.github.io/ (repository `beezyhoney/beezyhoney.github.io`). Every push to `main` builds the site and deploys it through `.github/workflows/deploy.yml`. In the repository settings, Pages → Source must be **GitHub Actions**. The repository must be named `beezyhoney.github.io` in the `beezyhoney` organization, because the site is served from the root (no `base` in `astro.config.mjs`).
 
 For a custom domain: add `public/CNAME` with the domain, set `site` to `https://your-domain` and `base` to `'/'` in `astro.config.mjs`, and update `public/robots.txt`.

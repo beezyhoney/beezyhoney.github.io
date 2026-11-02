@@ -11,7 +11,7 @@ export const SITE = {
   fssai: '22425032000995',
 };
 
-/** Prefix a site path with the GitHub Pages base path. `link('/shop/')` → `/beezyhoney/shop/` */
+/** Prefix a site path with the base path, if the site has one. `link('/shop/')` → `/shop/` at the root */
 export const link = (path: string) => import.meta.env.BASE_URL.replace(/\/$/, '') + path;
 
 /** WhatsApp chat link with a pre-filled message */

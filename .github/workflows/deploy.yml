@@ -1,6 +1,6 @@
 name: Deploy to GitHub Pages
 
-# Every push to main builds the site and publishes it to https://sleostanley.github.io/beezyhoney/
+# Every push to main builds the site and publishes it to https://beezyhoney.github.io/
 on:
   push:
     branches: [main]
