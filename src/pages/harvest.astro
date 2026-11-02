@@ -1,0 +1,82 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import PhotoSlider from '../components/PhotoSlider.astro';
+import { link } from '../data/site';
+
+const sections = [
+  {
+    id: 'apiary', title: 'In the Apiary', sub: 'Hives among the coconut palms', shop: false,
+    text: 'Our bee boxes stand in the shade of coconut palms. The bees fill the frames, cap each cell with fresh white wax when the honey is ready, and only then do we lift the comb, uncap it by hand and pack it.',
+    photos: [
+      { src: 'beekeeper.jpg', caption: 'Bee boxes under the coconut palms' },
+      { src: 'brood-bees.jpg', caption: 'Bees at work on the comb' },
+      { src: 'capped-comb.jpg', caption: 'Honey cells capped with fresh wax' },
+      { src: 'bee-on-comb.jpg', caption: 'A worker bee on new white comb' },
+      { src: 'bees-on-comb.jpg', caption: 'Bees on a frame of golden comb' },
+      { src: 'bees-cut-comb.jpg', caption: 'Bees on freshly cut comb' },
+    ],
+  },
+  {
+    id: 'comb-honey', title: 'Comb Honey', sub: 'Boxes of 100 g · 250 g · 500 g · with comb', shop: true,
+    text: 'Our single-flower and seasonal honeys are packed with a piece of the comb, in clear boxes so you can see exactly what you are getting. Each harvest follows a bloom: drumstick trees, sunflower and mustard fields, coriander, or the mix of wildflowers a season brings.',
+    photos: [
+      { src: 'comb-box-side.jpg', caption: 'Comb honey, seen through the side of the box' },
+      { src: 'murungai-box.jpg', caption: 'Moringa honey comb' },
+      { src: 'moringa-hex-shelf.jpg', caption: 'Moringa and multifloral comb boxes on our shelf' },
+      { src: 'forest-comb.jpg', caption: 'Forest honey comb' },
+      { src: 'sunflower-box.jpg', caption: 'Sunflower honey comb' },
+      { src: 'native-box.jpg', caption: 'Burrow (native bee) honey comb' },
+    ],
+  },
+  {
+    id: 'wild-rare', title: 'Wild & Rare', sub: 'Small seasonal harvests', shop: true,
+    text: 'Some honey only comes from the wild. Forest honey from rock bee combs high in the trees, kombu honey from the dwarf bee’s single comb on a branch, dammar honey from the stingless bee’s tiny resin pots, and Neela Kurinji honey from the hills of the Western Ghats, where the kurinji shrub blooms together only about once every twelve years. Harvests are small and depend on the season.',
+    photos: [
+      { src: 'kombu-comb.jpg', caption: 'Kombu: a dwarf bee comb on its branch' },
+      { src: 'dammar-pots.jpg', caption: 'Dammar honey pots of the stingless bee' },
+      { src: 'stingless-apiary.jpg', caption: 'Stingless bee boxes among the coconut palms' },
+      { src: 'kurinji-flower.jpg', caption: 'A honey bee visiting kurinji flowers' },
+      { src: 'dammar-entrance.jpg', caption: 'Stingless bees at their resin entrance' },
+    ],
+  },
+  {
+    id: 'from-the-hive', title: 'From the Hive', sub: 'Beeswax candles · 10 g honey sticks', shop: true,
+    text: 'Pure beeswax becomes candles that burn clean with a soft honey scent. Our honey also comes in 10 g sticks, sealed and ready for tea, tiffin boxes, travel and return gifts.',
+    photos: [
+      { src: 'beeswax-candle-honey.jpg', caption: 'A pure beeswax candle with comb honey' },
+      { src: 'honey-sticks-box.jpg', caption: 'Honey sticks: box of 10 × 10 g' },
+      { src: 'gift-bag.jpg', caption: 'A Beezy gift bag with honey bottles' },
+      { src: 'gift-jar.jpg', caption: 'A small honey jar, ready to gift' },
+      { src: 'dipper-comb.jpg', caption: 'Comb honey and a honey dipper' },
+      { src: 'honey-tea.jpg', caption: 'One stick is just right for a cup of tea' },
+    ],
+  },
+];
+---
+<Base title="Harvest" page="harvest" description="How Beezy Honey is harvested and packed: raw comb honey, wild and stingless-bee honey, beeswax candles and honey sticks.">
+  <PageHero title="Harvest" overlay="The bounty of the hive." image="hero-harvest.jpg" alt="A frame of capped honeycomb being uncapped with a knife" position="50% 50%" />
+
+  <section class="intro wrap">
+    <span class="intro-mark" aria-hidden="true"></span>
+    <p class="t-lead wide" data-split="lines">Every box starts with the bees: the flowers they visit, the season they work in, and the comb they build. We keep the honey raw and unheated, and pack most of it with the comb, close to the way it came out of the hive.</p>
+  </section>
+
+  {sections.map((s) => (
+    <>
+      <section class="h-section wrap" id={s.id} aria-labelledby={`${s.id}-title`}>
+        <h2 class="t-h2" id={`${s.id}-title`} data-split="chars">{s.title}</h2>
+        <p class="h-sub eyebrow" data-fade>{s.sub}</p>
+        <p class="t-lead" data-split="lines">{s.text}</p>
+        {s.shop && <a class="pill" href={link(`/shop/#${s.id}`)} data-fade>See the products</a>}
+      </section>
+      <PhotoSlider photos={s.photos} label={`${s.title} photos`} />
+    </>
+  ))}
+</Base>
+
+<style>
+  .h-section { display: grid; justify-items: center; gap: 22px; text-align: center; padding-top: clamp(70px, 9vw, 140px); }
+  .h-section .t-lead { max-width: 36ch; }
+  .h-sub { color: var(--honey-deep); }
+</style>

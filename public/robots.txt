@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://sleostanley.github.io/beezyhoney/sitemap-index.xml

@@ -1,0 +1,215 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../../layouts/Base.astro';
+import Icon from '../../components/Icon.astro';
+import PhotoSlider from '../../components/PhotoSlider.astro';
+import OtherProducts from '../../components/OtherProducts.astro';
+import { PRODUCTS, GRADES, CATEGORIES, productName, type Product } from '../../data/products';
+import { SITE, link, waLink } from '../../data/site';
+import { img } from '../../lib/images';
+
+export function getStaticPaths() {
+  return PRODUCTS.map((p) => ({ params: { slug: p.slug }, props: { p } }));
+}
+interface Props { p: Product }
+const { p } = Astro.props;
+const category = CATEGORIES.find((c) => c.id === p.category)!;
+const defaultPack = p.packs.includes('250 g') ? '250 g' : p.packs[0];
+const fullName = productName(p);
+const directMsg = `Hi Beezy Honey! I'd like to order:\n1. ${fullName} – ${defaultPack} × 1\n\nPlease share the price and delivery details.`;
+const grade = p.colour;
+---
+<Base title={p.name} page="product" description={`${p.tagline} ${p.name} from Beezy Honey: ${p.specs.map((s) => s[1].toLowerCase()).slice(1, 3).join(', ')}. Order on WhatsApp.`}>
+  <article style={`--tone:${p.tone}`}>
+    <section class="p-hero page-top wrap">
+      <h1 class="t-giant p-title" data-split="chars" data-now>{p.name}</h1>
+      <div class="p-stage">
+        <a class="p-side" href={link(`/shop/#${p.category}`)}>{category.name}<span>{p.kind}</span></a>
+        <figure class="p-photo" data-rise>
+          <Image src={img(p.photo)} alt={p.gallery[0]?.caption ?? p.name} widths={[500, 800, 1100]} sizes="(max-width: 760px) 72vw, 32vw" loading="eager" />
+        </figure>
+        <p class="p-side right">Made by<span>{SITE.farm}</span></p>
+      </div>
+    </section>
+
+    <section class="intro wrap">
+      <span class="badge">{p.badge}</span>
+      <p class="t-lead wide" data-split="lines">{p.about}</p>
+    </section>
+
+    <section class="p-meta wrap" aria-label="Product details">
+      <div class="meta-col" data-fade>
+        <h2 class="eyebrow">Useful details</h2>
+        <dl class="specs">
+          {p.specs.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}
+        </dl>
+        {grade && (
+          <div class="grade">
+            <p class="grade-label"><span class="eyebrow">Colour grade</span> {GRADES[grade[0]][0]}{grade[0] !== grade[1] && ` – ${GRADES[grade[1]][0]}`}</p>
+            <div class="grade-bar" role="img" aria-label={`Honey colour scale from water white to dark amber; this honey is ${GRADES[grade[0]][0]} to ${GRADES[grade[1]][0]}`}>
+              {GRADES.map(([, c], i) => <i style={`background:${c}`} class={i >= grade[0] && i <= grade[1] ? 'on' : undefined}></i>)}
+            </div>
+            <p class="grade-ends"><span>Water white</span><span>Dark amber</span></p>
+          </div>
+        )}
+      </div>
+      <div class="meta-col" data-fade data-delay="0.1">
+        <h2 class="eyebrow">Why you’ll love it</h2>
+        <ul class="love">{p.love.map((l) => <li>{l}</li>)}</ul>
+        <h2 class="eyebrow">{p.useHead ?? 'How to enjoy'}</h2>
+        <p>{p.use}</p>
+        <h2 class="eyebrow">Storage</h2>
+        <p>{p.store}</p>
+      </div>
+    </section>
+
+    <section class="order wrap" id="order" aria-labelledby="order-title">
+      <div class="order-card" data-fade>
+        <div class="order-copy">
+          <h2 id="order-title" class="t-display">Order {p.name}</h2>
+          <p>Choose a pack and add it to your order, or message us straight away. We reply on WhatsApp with the price and delivery details.</p>
+        </div>
+        <form class="order-form" data-order data-slug={p.slug} data-name={fullName}>
+          <fieldset class="packs">
+            <legend class="eyebrow">Pack</legend>
+            {p.packs.map((k) => (
+              <label class="pack-opt"><input type="radio" name="pack" value={k} checked={k === defaultPack} /><span>{k}</span></label>
+            ))}
+          </fieldset>
+          <div class="qty-row">
+            <label class="eyebrow" for={`qty-${p.slug}`}>Quantity</label>
+            <div class="qty">
+              <button type="button" data-step="-1" aria-label="One less">−</button>
+              <input id={`qty-${p.slug}`} name="qty" value="1" inputmode="numeric" pattern="[0-9]*" maxlength="2" />
+              <button type="button" data-step="1" aria-label="One more">+</button>
+            </div>
+          </div>
+          <div class="order-actions">
+            <button type="submit" class="btn btn-honey"><Icon name="bag" /><span data-label>Add to order</span></button>
+            <a class="btn btn-wa" data-direct href={waLink(directMsg)} target="_blank" rel="noopener"><Icon name="whatsapp" />Order now on WhatsApp</a>
+          </div>
+          <p class="added" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+
+    <PhotoSlider photos={p.gallery} label={`${p.name} photos`} />
+    <OtherProducts current={p.slug} />
+  </article>
+</Base>
+
+<style>
+  .p-hero { text-align: center; }
+  .p-title { position: relative; z-index: 1; font-size: clamp(3.4rem, 12.5vw, 12.5rem); }
+  .p-stage { position: relative; z-index: 2; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px; margin-top: clamp(-90px, -6vw, -30px); }
+  .p-side { font-family: var(--f-display); font-size: clamp(1.2rem, 2vw, 1.8rem); line-height: 1.15; text-decoration: none; text-align: left; color: var(--cocoa); }
+  .p-side span { display: block; font-family: var(--f-body); font-size: .9rem; color: var(--ink-2); margin-top: 6px; }
+  a.p-side:hover { color: var(--honey-deep); }
+  .p-side.right { text-align: right; }
+  .p-photo { width: clamp(240px, 32vw, 460px); aspect-ratio: 1; border-radius: var(--radius-photo); overflow: hidden; background: var(--tone); box-shadow: 0 40px 80px rgba(43, 26, 16, .22); }
+  .p-photo :global(img) { width: 100%; height: 100%; object-fit: cover; }
+
+  .badge { display: inline-flex; padding: 6px 16px; border: 1px solid var(--honey); border-radius: 999px; color: var(--honey-deep); font-weight: 700; font-size: .85rem; }
+
+  .p-meta { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(32px, 6vw, 110px); padding-bottom: clamp(60px, 8vw, 120px); }
+  .meta-col { display: grid; gap: 16px; align-content: start; min-width: 0; }
+  .meta-col h2:not(:first-child) { margin-top: 18px; }
+  .specs { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--rule); }
+  .specs div { padding: 16px 16px 16px 0; border-bottom: 1px solid var(--rule); }
+  .specs div:nth-child(odd) { border-right: 1px solid var(--rule); }
+  .specs div:nth-child(even) { padding-left: 16px; }
+  .specs dt { font-size: .74rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); }
+  .specs dd { font-size: 1.12rem; font-weight: 600; line-height: 1.3; margin-top: 4px; }
+  .grade { margin-top: 10px; }
+  .grade-label { font-weight: 600; margin-bottom: 10px; }
+  .grade-bar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; height: 18px; }
+  .grade-bar i { border-radius: 4px; opacity: .45; }
+  .grade-bar i.on { opacity: 1; outline: 2px solid var(--choc); outline-offset: 1px; }
+  .grade-ends { display: flex; justify-content: space-between; font-size: .8rem; color: var(--ink-3); margin-top: 6px; }
+  .love li { position: relative; padding: 9px 0 9px 26px; border-bottom: 1px solid var(--rule); font-weight: 500; }
+  .love li::before { content: ""; position: absolute; left: 2px; top: 1.05em; width: 10px; height: 11px; background: var(--honey); clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+
+  .order-card { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(28px, 5vw, 80px); padding: clamp(28px, 5vw, 70px); border-radius: var(--radius); background: var(--tone); }
+  .order-copy { display: grid; gap: 18px; align-content: start; }
+  .order-copy .t-display { color: var(--choc); font-size: clamp(2rem, 4.4vw, 4rem); }
+  .order-form { display: grid; gap: 22px; align-content: start; min-width: 0; }
+  .packs { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+  .packs legend { margin-bottom: 10px; padding: 0; }
+  .pack-opt { position: relative; cursor: pointer; }
+  .pack-opt input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+  .pack-opt span { display: inline-flex; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--choc); font-weight: 700; background: var(--paper); transition: background-color .25s, color .25s; }
+  .pack-opt input:checked + span { background: var(--choc); color: var(--cream); }
+  .pack-opt input:focus-visible + span { outline: 2px solid var(--honey-deep); outline-offset: 3px; }
+  .qty-row { display: flex; align-items: center; gap: 16px; }
+  .qty-row .qty { background: var(--paper); height: 46px; }
+  .order-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .added { min-height: 1.5em; font-weight: 600; color: var(--honey-deep); }
+
+  @media (max-width: 760px) {
+    .p-stage { grid-template-columns: 1fr 1fr; margin-top: 18px; }
+    .p-photo { grid-column: 1 / -1; grid-row: 1; justify-self: center; width: 72vw; }
+    .p-side { grid-row: 2; }
+    .p-meta, .order-card { grid-template-columns: 1fr; }
+    .order-actions .btn { width: 100%; }
+  }
+</style>
+
+<script>
+  import { gsap, onReady, reducedMotion } from '../../scripts/motion';
+  import { cart, orderLink } from '../../scripts/cart';
+
+  const form = document.querySelector<HTMLFormElement>('[data-order]');
+  if (form) {
+    const qty = form.querySelector<HTMLInputElement>('input[name="qty"]')!;
+    const direct = form.querySelector<HTMLAnchorElement>('[data-direct]')!;
+    const label = form.querySelector<HTMLElement>('[data-label]')!;
+    const status = form.querySelector<HTMLElement>('.added')!;
+    const read = () => ({
+      slug: form.dataset.slug!,
+      name: form.dataset.name!,
+      pack: (form.querySelector<HTMLInputElement>('input[name="pack"]:checked')?.value) ?? '',
+      qty: Math.max(1, Math.min(99, parseInt(qty.value, 10) || 1)),
+    });
+    const sync = () => { direct.href = orderLink([read()]); };
+    // The quantity box shows what is already in the order for the chosen pack,
+    // and the button then updates that quantity instead of adding on top of it.
+    const fromCart = (resetQty: boolean) => {
+      const { slug, pack } = read();
+      const inOrder = cart.find(slug, pack);
+      if (inOrder) {
+        qty.value = String(inOrder.qty);
+        label.textContent = 'Update order';
+        status.textContent = `In your order: ${pack} × ${inOrder.qty}`;
+      } else {
+        if (resetQty) qty.value = '1';
+        label.textContent = 'Add to order';
+        status.textContent = '';
+      }
+      sync();
+    };
+    form.querySelectorAll<HTMLInputElement>('input[name="pack"]').forEach((r) => r.addEventListener('change', () => fromCart(true)));
+    qty.addEventListener('input', sync);
+    qty.addEventListener('blur', () => { qty.value = String(read().qty); sync(); });
+    form.querySelectorAll<HTMLButtonElement>('[data-step]').forEach((b) => b.addEventListener('click', () => {
+      qty.value = String(Math.max(1, Math.min(99, read().qty + Number(b.dataset.step))));
+      sync();
+    }));
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const item = read();
+      cart.set(item);
+      status.textContent = `Your order now has ${item.pack} × ${item.qty}`;
+      window.dispatchEvent(new CustomEvent('cart:open'));
+    });
+    window.addEventListener('cart:change', () => fromCart(false));
+    fromCart(true);
+  }
+
+  onReady(() => {
+    if (reducedMotion()) return;
+    const photo = document.querySelector('[data-rise]');
+    if (!photo) return;
+    gsap.fromTo(photo, { yPercent: 35, autoAlpha: 0 }, { yPercent: 0, autoAlpha: 1, duration: 1.4, ease: 'expo.out', delay: 0.25 });
+    gsap.to(photo, { y: -70, ease: 'none', scrollTrigger: { trigger: '.p-hero', start: 'top top', end: 'bottom top', scrub: true } });
+  });
+</script>

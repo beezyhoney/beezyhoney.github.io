@@ -1,0 +1,16 @@
+---
+import { Image } from 'astro:assets';
+import { img } from '../lib/images';
+
+interface Props { title: string; overlay?: string; image?: string; alt?: string; position?: string }
+const { title, overlay, image, alt = '', position = '50% 50%' } = Astro.props;
+---
+<section class="page-top wrap">
+  <h1 class="t-giant page-title" data-split="chars" data-now>{title}</h1>
+  {image && (
+    <figure class="hero-card" data-hero-card>
+      <Image src={img(image)} alt={alt} widths={[640, 1024, 1600, 2200]} sizes="100vw" loading="eager" data-parallax="5" style={`object-position:${position}`} />
+      {overlay && <p class="overlay" data-split="lines">{overlay}</p>}
+    </figure>
+  )}
+</section>

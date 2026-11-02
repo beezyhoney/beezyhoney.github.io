@@ -1,0 +1,78 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import { SITE, waLink, WA_MESSAGES } from '../data/site';
+import { img } from '../lib/images';
+
+const proposals = [
+  {
+    eyebrow: 'Visit & taste', title: 'Farm visit & honey tasting', image: 'visit-beekeeper.jpg', alt: 'A Beezy beekeeper among bee boxes under coconut palms',
+    text: `Come to ${SITE.farm}, see how comb honey is harvested and packed, and taste our honeys side by side with the people who make them.`,
+    details: [['Good for', 'Families, schools and small groups'], ['You taste', 'Seasonal comb honeys and wild honeys'], ['Booking', 'By appointment. Message us with your date and group size']],
+    cta: 'Book a visit on WhatsApp', msg: WA_MESSAGES.visit,
+  },
+  {
+    eyebrow: 'Celebrate', title: 'Gifts & return gifts', image: 'gift-bag-square.jpg', still: true, alt: 'A Beezy Honey gift bag with a heart-shaped honey bottle and small jars',
+    text: 'Honey sticks and small comb boxes make return gifts guests actually use. Tell us the occasion, the number of guests and the date, and we will suggest the right packs.',
+    details: [['Good for', 'Weddings, housewarmings, birthdays, festivals'], ['Popular picks', 'Honey sticks (box of 10), 100 g comb boxes, beeswax candles'], ['Order', 'On WhatsApp, a few days before your function']],
+    cta: 'Plan gifts on WhatsApp', msg: WA_MESSAGES.gifts,
+  },
+  {
+    eyebrow: 'In quantity', title: 'Bulk & corporate orders', image: 'bulk-jars.jpg', alt: 'A pyramid of Beezy multifloral honey jars',
+    text: 'Larger quantities for offices, hotels, cafés, shops and festive hampers. Mix honeys, candles and honey sticks to suit your order.',
+    details: [['Good for', 'Corporate gifting, hotels and cafés, resellers'], ['Products', 'Any Beezy honey, beeswax candles, honey sticks'], ['Quote', 'On WhatsApp, with quantities and your city']],
+    cta: 'Ask for a bulk quote', msg: WA_MESSAGES.bulk,
+  },
+];
+---
+<Base title="Experience" page="experience" description="Visit Abinash Honey Farming for a honey tasting, plan honey return gifts, or place a bulk or corporate order with Beezy Honey on WhatsApp.">
+  <PageHero title="Experience" overlay="Taste it where it’s made." image="hero-experience.jpg" alt="Shelves of Beezy honey comb boxes" position="50% 50%" />
+
+  <section class="intro wrap">
+    <span class="intro-mark" aria-hidden="true"></span>
+    <p class="t-lead wide" data-split="lines">Honey makes more sense when you can see the comb, smell the wax and taste three honeys side by side. Visit us, bring Beezy Honey to your next celebration, or stock it for your team or shop.</p>
+  </section>
+
+  <section class="proposals wrap" aria-labelledby="proposals-title">
+    <h2 id="proposals-title" class="t-h2" data-split="chars">Discover our experiences</h2>
+    <ol class="prop-list">
+      {proposals.map((p, i) => (
+        <li class={`prop${i % 2 ? ' flip' : ''}`}>
+          <figure class={`prop-photo${p.still ? ' still' : ''}`}><Image src={img(p.image)} alt={p.alt} widths={[600, 1000, 1400]} sizes="(max-width: 760px) 100vw, 50vw" data-parallax={p.still ? undefined : '2.5'} /></figure>
+          <div class="prop-text">
+            <p class="eyebrow" data-fade>{p.eyebrow}</p>
+            <h3 class="t-display" data-split="lines">{p.title}</h3>
+            <p data-fade>{p.text}</p>
+            <dl data-fade>{p.details.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+            <a class="btn btn-wa" href={waLink(p.msg)} target="_blank" rel="noopener" data-fade><Icon name="whatsapp" />{p.cta}</a>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </section>
+</Base>
+
+<style>
+  .proposals { text-align: center; }
+  .prop-list { display: grid; gap: clamp(70px, 9vw, 140px); margin-top: clamp(50px, 7vw, 110px); text-align: left; }
+  .prop { display: grid; grid-template-columns: 1.1fr 1fr; gap: clamp(28px, 5vw, 90px); align-items: center; }
+  .prop.flip .prop-photo { order: 2; }
+  .prop-photo { position: relative; aspect-ratio: 1; border-radius: var(--radius-photo); overflow: hidden; background: var(--cream-2); }
+  .prop-photo :global(img) { position: absolute; inset: -3% 0; width: 100%; height: 106%; object-fit: cover; }
+  /* shown at natural size: no parallax zoom */
+  .prop-photo.still :global(img) { inset: 0; height: 100%; }
+  .prop-text { display: grid; gap: 18px; justify-items: start; min-width: 0; }
+  .prop-text .t-display { color: var(--choc); }
+  .prop-text dl { width: 100%; border-top: 1px solid var(--rule); }
+  .prop-text dl div { display: grid; grid-template-columns: 9rem 1fr; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+  .prop-text dt { font-size: .76rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); padding-top: 3px; }
+  .prop-text dd { font-weight: 500; }
+  @media (max-width: 760px) {
+    .prop { grid-template-columns: 1fr; }
+    .prop.flip .prop-photo { order: 0; }
+    .prop-text dl div { grid-template-columns: 1fr; gap: 2px; }
+    .prop-text .btn { width: 100%; }
+  }
+</style>

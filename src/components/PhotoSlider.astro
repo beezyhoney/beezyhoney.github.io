@@ -1,0 +1,25 @@
+---
+import { Image } from 'astro:assets';
+import Icon from './Icon.astro';
+import { img } from '../lib/images';
+
+interface Props { photos: { src: string; caption: string }[]; label: string }
+const { photos, label } = Astro.props;
+---
+<section class="slider" data-slider aria-label={label}>
+  <div class="slider-track" tabindex="0" aria-label={`${label}. Use the left and right arrow keys to browse the photos.`}>
+    {photos.map((p) => (
+      <figure data-fade>
+        <Image src={img(p.src)} alt={p.caption} widths={[480, 800, 1200, 1600]} sizes="(max-width: 760px) 86vw, 50vw" />
+        <figcaption>{p.caption}</figcaption>
+      </figure>
+    ))}
+  </div>
+  {photos.length > 1 && (
+    <div class="slider-nav">
+      <span class="hint">Use ← → to browse the photos</span>
+      <button type="button" class="round" data-prev aria-label="Previous photo"><Icon name="arrow-left" /></button>
+      <button type="button" class="round" data-next aria-label="Next photo"><Icon name="arrow-right" /></button>
+    </div>
+  )}
+</section>

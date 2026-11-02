@@ -1,0 +1,218 @@
+---
+import '@fontsource/bodoni-moda/400.css';
+import '@fontsource/bodoni-moda/400-italic.css';
+import '@fontsource/bodoni-moda/500.css';
+import '@fontsource/mukta-malar/400.css';
+import '@fontsource/mukta-malar/500.css';
+import '@fontsource/mukta-malar/600.css';
+import '@fontsource/mukta-malar/700.css';
+import 'lenis/dist/lenis.css';
+import '../styles/global.css';
+import { Image, getImage } from 'astro:assets';
+import Icon from '../components/Icon.astro';
+import { SITE, link, waLink, WA_MESSAGES } from '../data/site';
+import { img } from '../lib/images';
+
+interface Props {
+  title: string;
+  description: string;
+  page: 'home' | 'shop' | 'product' | 'harvest' | 'experience' | 'about' | 'contact' | '404';
+  footer?: boolean;
+}
+const { title, description, page, footer = true } = Astro.props;
+const fullTitle = page === 'home' ? `${SITE.name} | Raw comb honey, wild honey & beeswax` : `${title} | ${SITE.name}`;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const ogImage = new URL(link('/og-image.jpg'), Astro.site);
+const seal = img('logo-seal.png');
+const wordmark = img('logo-wordmark.png');
+const curtainSeal = await getImage({ src: img('logo-seal-square.png'), width: 440, format: 'webp' });
+
+const nav = [
+  { href: '/', label: 'Home', id: 'home' },
+  { href: '/shop/', label: 'Shop', id: 'shop' },
+  { href: '/harvest/', label: 'Harvest', id: 'harvest' },
+  { href: '/experience/', label: 'Experience', id: 'experience' },
+];
+const current = page === 'product' ? 'shop' : page;
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: SITE.name,
+  alternateName: SITE.farm,
+  url: new URL(link('/'), Astro.site).href,
+  logo: new URL(link('/apple-touch-icon.png'), Astro.site).href,
+  foundingDate: String(SITE.established),
+  telephone: SITE.phoneTel,
+  sameAs: [SITE.instagramUrl],
+};
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/png" href={link('/favicon.png')} />
+    <link rel="apple-touch-icon" href={link('/apple-touch-icon.png')} />
+    <meta name="theme-color" content="#FBF3E6" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    <script is:inline>
+      (function () {
+        var d = document.documentElement;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        d.classList.add('js-motion');
+        try {
+          if (!sessionStorage.getItem('beezy-visited')) d.classList.add('is-first-visit');
+          else if (sessionStorage.getItem('beezy-nav')) d.classList.add('is-arriving');
+        } catch (e) {}
+        setTimeout(function () {
+          if (!d.classList.contains('motion-ready')) d.classList.remove('js-motion', 'is-first-visit', 'is-arriving');
+        }, 5000);
+      })();
+    </script>
+  </head>
+  <body data-page={page}>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <div class="preloader" aria-hidden="true">
+      <div class="preloader-seal">
+        <Image class="ghost" src={seal} alt="" width={340} loading="eager" />
+        <Image class="fill" src={seal} alt="" width={340} loading="eager" />
+      </div>
+      <span class="preloader-count">0%</span>
+    </div>
+    <div class="curtain" aria-hidden="true">
+      <svg class="curtain-comb" width="100%" height="100%">
+        <defs>
+          <pattern id="curtain-comb" width="51.96" height="90" patternUnits="userSpaceOnUse">
+            <path d="M25.98 0L51.96 15V45L25.98 60L0 45V15ZM25.98 60V90" fill="none" stroke="currentColor" stroke-width="1.2" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#curtain-comb)" />
+      </svg>
+      <svg class="curtain-front" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 100V100H100V100Z" /></svg>
+      <!-- disc and seal spin together around the drawing's centre (130,130) -->
+      <svg class="curtain-mark" viewBox="0 0 260 260">
+        <defs><filter id="curtain-shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#2B1A10" flood-opacity=".28" /></filter></defs>
+        <circle class="curtain-disc" cx="130" cy="130" r="86" filter="url(#curtain-shadow)" />
+        <g class="curtain-spin"><image href={curtainSeal.src} x="30" y="30" width="200" height="200" /></g>
+      </svg>
+    </div>
+
+    <header class="site-header">
+      <div class="header-left">
+        <a class="bni-link" href={link('/about/#bni-title')} aria-label="Proud BNI member, read more">
+          <Image class="bni-logo" src={img('bni-member.png')} alt="" width={160} loading="eager" />
+        </a>
+      </div>
+      <a class="brand" href={link('/')} aria-label="Beezy Honey, home">
+        <Image class="brand-seal" src={seal} alt="" width={120} loading="eager" />
+        <span class="brand-word" style={`--mask:url(${wordmark.src})`}></span>
+      </a>
+      <div class="header-right">
+        <button type="button" class="pill cart-pill" data-cart-open aria-controls="cart" aria-expanded="false">
+          <Icon name="bag" /><span class="label">Your order</span><span class="count" data-cart-count data-empty="true">0</span><span class="sr-only"> items, open order</span>
+        </button>
+        <button type="button" class="menu-btn" data-menu-toggle aria-controls="menu" aria-expanded="false">
+          <span class="pill">Menu</span><span class="dot" aria-hidden="true">◆</span>
+        </button>
+      </div>
+    </header>
+
+    <nav class="menu" id="menu" aria-label="Main" data-lenis-prevent>
+      <ul class="menu-list">
+        {nav.map((n) => (
+          <li><a href={link(n.href)} aria-current={current === n.id ? 'page' : undefined}>{n.label}</a></li>
+        ))}
+      </ul>
+      <div class="menu-foot">
+        <a href={link('/about/')}>About</a>
+        <a href={link('/contact/')}>Contact</a>
+        <a href={SITE.instagramUrl} target="_blank" rel="noopener">Instagram ↗</a>
+        <a class="btn btn-choc" href={waLink(WA_MESSAGES.general)} target="_blank" rel="noopener"><Icon name="whatsapp" />Chat on WhatsApp</a>
+      </div>
+    </nav>
+
+    <main id="main">
+      <slot />
+    </main>
+
+    {footer && (
+      <footer class="site-footer">
+        <div class="footer-cta">
+          <p class="eyebrow" style="color:var(--amber)">Order on WhatsApp</p>
+          <p class="t-display">Taste the hive, straight from the comb.</p>
+          <a class="btn btn-honey" href={waLink(WA_MESSAGES.general)} target="_blank" rel="noopener"><Icon name="whatsapp" />Message us on {SITE.phoneDisplay}</a>
+        </div>
+        <div class="footer-grid">
+          <div>
+            <h3>Shop</h3>
+            <ul>
+              <li><a href={link('/shop/#comb-honey')}>Comb Honey</a></li>
+              <li><a href={link('/shop/#wild-rare')}>Wild &amp; Rare</a></li>
+              <li><a href={link('/shop/#from-the-hive')}>From the Hive</a></li>
+            </ul>
+          </div>
+          <div>
+            <h3>Beezy Honey</h3>
+            <ul>
+              <li><a href={link('/harvest/')}>Harvest</a></li>
+              <li><a href={link('/experience/')}>Experience</a></li>
+              <li><a href={link('/about/')}>About</a></li>
+              <li><a href={link('/contact/')}>Contact</a></li>
+            </ul>
+          </div>
+          <div>
+            <h3>Talk to us</h3>
+            <ul>
+              <li><a href={`tel:${SITE.phoneTel}`}>{SITE.phoneDisplay}</a></li>
+              <li><a href={SITE.instagramUrl} target="_blank" rel="noopener">@{SITE.instagram}</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer-legal">
+          <span>© {new Date().getFullYear()} {SITE.name} · {SITE.farm} · Est. {SITE.established}</span>
+          <span>FSSAI Lic. No. {SITE.fssai}</span>
+        </div>
+      </footer>
+    )}
+
+    <a class="wa-float" href={waLink(WA_MESSAGES.general)} target="_blank" rel="noopener" aria-label="Chat with Beezy Honey on WhatsApp">
+      <Icon name="whatsapp" /><span>Chat on WhatsApp</span>
+    </a>
+
+    <div class="scrim" aria-hidden="true"></div>
+    <aside class="cart" id="cart" aria-label="Your order" data-lenis-prevent>
+      <div class="cart-head">
+        <h2>Your order</h2>
+        <button type="button" class="icon-btn" data-cart-close aria-label="Close order"><Icon name="close" /></button>
+      </div>
+      <div class="cart-body">
+        <p class="cart-empty" data-cart-empty>Your order is empty. Pick a honey from the <a href={link('/shop/')}>shop</a> and it will show up here.</p>
+        <ol class="cart-list" data-cart-list></ol>
+      </div>
+      <div class="cart-foot" data-cart-foot hidden>
+        <div class="fields">
+          <div class="field"><label for="cart-name">Your name</label><input id="cart-name" name="name" autocomplete="name" /></div>
+          <div class="field"><label for="cart-pin">Pincode</label><input id="cart-pin" name="pincode" inputmode="numeric" autocomplete="postal-code" maxlength="6" /></div>
+        </div>
+        <a class="btn btn-wa" data-cart-send href={waLink(WA_MESSAGES.general)} target="_blank" rel="noopener"><Icon name="whatsapp" />Send order on WhatsApp</a>
+        <p class="cart-note">WhatsApp opens with your order typed out. Send it, and we reply with the price and delivery details.</p>
+        <button type="button" class="cart-clear" data-cart-clear>Clear order</button>
+      </div>
+    </aside>
+
+    <script>
+      import '../scripts/site';
+    </script>
+  </body>
+</html>

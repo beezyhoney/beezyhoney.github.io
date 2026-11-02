@@ -1,0 +1,52 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import { SITE, waLink, WA_MESSAGES } from '../data/site';
+import { img } from '../lib/images';
+---
+<Base title="Contact" page="contact" description={`Contact Beezy Honey on WhatsApp or call ${SITE.phoneDisplay}. Instagram @${SITE.instagram}. FSSAI Lic. No. ${SITE.fssai}.`}>
+  <section class="contact page-top wrap">
+    <h1 class="t-giant" data-split="chars" data-now>Contact</h1>
+    <p class="c-lead t-display" data-split="lines" data-now data-delay="0.4">Beezy Honey starts in the hive and travels by word of mouth. Say hello.</p>
+
+    <div class="c-grid">
+      <div class="c-block c-main" data-fade>
+        <h2 class="eyebrow">Orders &amp; questions</h2>
+        <p class="c-big">WhatsApp</p>
+        <p>Message us for prices, orders, gifts and bulk enquiries. We reply as soon as we can.</p>
+        <a class="btn btn-wa" href={waLink(WA_MESSAGES.general)} target="_blank" rel="noopener"><Icon name="whatsapp" />{SITE.phoneDisplay}</a>
+      </div>
+      <div class="c-block" data-fade data-delay="0.08">
+        <h2 class="eyebrow">Call</h2>
+        <a class="c-big" href={`tel:${SITE.phoneTel}`}>{SITE.phoneDisplay}</a>
+      </div>
+      <div class="c-block c-insta" data-fade data-delay="0.16">
+        <h2 class="eyebrow">Instagram</h2>
+        <a class="c-big" href={SITE.instagramUrl} target="_blank" rel="noopener">@{SITE.instagram}</a>
+        <Image class="qr" src={img('instagram-qr.png')} alt={`QR code for Instagram @${SITE.instagram}`} width={240} />
+      </div>
+      <div class="c-block" data-fade data-delay="0.08">
+        <h2 class="eyebrow">Farm</h2>
+        <p class="c-big">{SITE.farm}</p>
+        <p>Est. {SITE.established} · FSSAI Lic. No. {SITE.fssai}</p>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .contact { text-align: center; }
+  .c-lead { color: var(--choc); max-width: 20ch; margin: clamp(28px, 4vw, 56px) auto 0; font-size: clamp(1.9rem, 4.2vw, 4rem); text-transform: none; }
+  .c-grid { margin-top: clamp(60px, 8vw, 120px); display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; text-align: left; }
+  .c-block { display: grid; gap: 12px; align-content: start; justify-items: start; padding: clamp(22px, 3vw, 36px); border-radius: var(--radius); background: var(--paper); border: 1px solid var(--rule); min-width: 0; }
+  .c-main { grid-row: span 2; background: var(--honey); border-color: transparent; }
+  .c-main .eyebrow { color: var(--choc); }
+  .c-big { font-family: var(--f-display); font-size: clamp(1.6rem, 2.6vw, 2.4rem); line-height: 1.1; text-decoration: none; overflow-wrap: anywhere; }
+  a.c-big:hover { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 1px; }
+  .c-main .c-big { font-size: clamp(2.6rem, 5vw, 4.6rem); }
+  .c-insta { grid-row: span 2; }
+  .c-insta :global(.qr) { width: min(200px, 100%); height: auto; mix-blend-mode: multiply; margin-top: 8px; }
+  @media (max-width: 900px) { .c-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) { .c-grid { grid-template-columns: 1fr; } .c-main, .c-insta { grid-row: auto; } }
+</style>

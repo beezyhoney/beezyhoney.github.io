@@ -1,0 +1,22 @@
+---
+import { Image } from 'astro:assets';
+import Icon from './Icon.astro';
+import { img } from '../lib/images';
+import { link } from '../data/site';
+import type { Product } from '../data/products';
+
+interface Props { product: Product; level?: 'h3' | 'h4' }
+const { product: p, level = 'h3' } = Astro.props;
+const Heading = level;
+---
+<a class="p-card" href={link(`/shop/${p.slug}/`)} style={`--tone:${p.tone}`}>
+  <div class="tile">
+    {p.withComb && <span class="tag">With comb</span>}
+    <Image src={img(p.card ?? p.photo)} alt="" widths={[420, 720]} sizes="(max-width: 760px) 80vw, 26vw" />
+  </div>
+  <div class="meta">
+    <Heading>{p.name}</Heading>
+    <span class="arrow" aria-hidden="true"><Icon name="arrow-right" /></span>
+  </div>
+  <p>{p.tagline}</p>
+</a>

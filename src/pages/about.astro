@@ -1,0 +1,86 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import PhotoSlider from '../components/PhotoSlider.astro';
+import { SITE } from '../data/site';
+import { img } from '../lib/images';
+---
+<Base title="About" page="about" description={`Beezy Honey is the honey of ${SITE.farm}, started in ${SITE.established}: raw, real, unpasteurised honey, packed with the comb.`}>
+  <PageHero title="About" overlay={`A promise kept since ${SITE.established}.`} image="hero-about.jpg" alt="Honey bees at work on a comb" position="50% 45%" />
+
+  <section class="intro wrap">
+    <span class="intro-mark" aria-hidden="true"></span>
+    <p class="t-lead wide" data-split="lines">Beezy Honey is the honey of {SITE.farm}, started in {SITE.established}. What began as a small honey farm now brings single-flower comb honeys, rare wild honeys, beeswax candles and honey sticks to families who want honey the way the bees made it.</p>
+  </section>
+
+  <section class="pause wrap" aria-label="Our promise">
+    <p class="t-h2" data-split="lines">Not just honey. A whole season, sealed in the comb.</p>
+  </section>
+
+  <section class="intro wrap">
+    <p class="eyebrow" data-fade>Raw · Real · Unpasteurised</p>
+    <p class="t-lead wide" data-split="lines">Those three words are printed on every label, and they are how we work: no heating, no added sugar or syrup, and no blending away the taste of the flowers. When honey sets thick in the cold months, that is real honey behaving naturally.</p>
+  </section>
+
+  <PhotoSlider label="From our hives" photos={[
+    { src: 'beekeeper.jpg', caption: 'Our bee boxes under the coconut palms' },
+    { src: 'stingless-apiary.jpg', caption: 'Stingless bee boxes for dammar honey' },
+    { src: 'uncapping.jpg', caption: 'Uncapping a frame of comb by hand' },
+    { src: 'bees-on-comb.jpg', caption: 'Bees on a frame of golden comb' },
+    { src: 'bees-cut-comb.jpg', caption: 'Bees on freshly cut comb' },
+    { src: 'dipper-comb.jpg', caption: 'Fresh comb, ready to eat' },
+  ]} />
+
+  <section class="vision wrap" aria-labelledby="vision-title">
+    <div class="vision-text">
+      <h2 id="vision-title" class="t-h2" data-split="chars">Vision</h2>
+      <p class="t-display" data-split="lines">Good honey starts with healthy bees.</p>
+      <p data-fade>We want more people to taste the difference one flower makes, and more bees kept well enough to make it. Every box of Beezy Honey supports beekeeping that respects the hive.</p>
+    </div>
+    <div class="vision-photos">
+      <figure class="v1"><Image src={img('vision-bee.jpg')} alt="A honey bee on fresh white comb" widths={[500, 900, 1120]} sizes="(max-width: 760px) 70vw, 30vw" data-parallax="8" /></figure>
+      <figure class="v2"><Image src={img('set-honey.jpg')} alt="Raw honey that has set thick and creamy, on a dipper" widths={[500, 800]} sizes="(max-width: 760px) 50vw, 24vw" data-parallax="10" /></figure>
+    </div>
+  </section>
+
+  <section class="bni wrap" aria-labelledby="bni-title">
+    <div class="bni-card" data-fade>
+      <Image class="bni-badge" src={img('bni-member.png')} alt="Proud BNI Member badge" widths={[300, 600]} sizes="(max-width: 760px) 60vw, 280px" />
+      <div class="bni-text">
+        <p class="eyebrow">Business network</p>
+        <h2 id="bni-title" class="t-display">Proud BNI member</h2>
+        <p>Beezy Honey is a proud member of BNI (Business Network International), where local business owners grow together through referrals. Like our honey, we believe the best word travels from one trusted person to the next.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="outro wrap" aria-hidden="true">
+    <figure><Image src={img('outro-about.jpg')} alt="" widths={[800, 1200, 1500]} sizes="100vw" data-parallax="6" /></figure>
+  </section>
+</Base>
+
+<style>
+  .pause { padding-block: clamp(50px, 7vw, 110px); text-align: center; }
+  .pause .t-h2 { font-size: clamp(2.6rem, 7.2vw, 7rem); max-width: 16ch; margin-inline: auto; }
+  .vision { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(28px, 6vw, 110px); align-items: center; padding-top: clamp(40px, 6vw, 100px); }
+  .vision-text { display: grid; gap: 22px; min-width: 0; }
+  .vision-text .t-display { color: var(--choc); }
+  .vision-text p:last-child { max-width: 46ch; color: var(--ink-2); }
+  .vision-photos { position: relative; min-height: clamp(380px, 46vw, 680px); }
+  .vision-photos figure { position: absolute; overflow: hidden; border-radius: var(--radius); background: var(--cream-2); }
+  .vision-photos :global(img) { position: absolute; inset: -10% 0; width: 100%; height: 120%; object-fit: cover; }
+  .v1 { top: 0; right: 0; width: 72%; aspect-ratio: 1; border-radius: var(--radius-photo); }
+  .v2 { bottom: 0; left: 0; width: 46%; aspect-ratio: 1; box-shadow: 0 30px 60px rgba(43, 26, 16, .22); }
+  .bni { padding-top: clamp(70px, 9vw, 140px); }
+  .bni-card { display: grid; grid-template-columns: auto 1fr; gap: clamp(28px, 5vw, 80px); align-items: center; padding: clamp(28px, 4vw, 60px); border-radius: var(--radius); background: var(--paper); border: 1px solid var(--rule); }
+  .bni-card :global(.bni-badge) { width: clamp(180px, 22vw, 280px); height: auto; }
+  .bni-text { display: grid; gap: 14px; max-width: 52ch; min-width: 0; }
+  .bni-text .t-display { color: var(--choc); font-size: clamp(2rem, 4vw, 3.6rem); }
+  .bni-text p:last-child { color: var(--ink-2); }
+  @media (max-width: 760px) {
+    .bni-card { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+    .vision { grid-template-columns: 1fr; }
+    .vision-photos { min-height: 110vw; }
+  }
+</style>

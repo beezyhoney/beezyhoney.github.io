@@ -1,0 +1,86 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import ProductCard from '../../components/ProductCard.astro';
+import { CATEGORIES, PRODUCTS } from '../../data/products';
+import { img } from '../../lib/images';
+---
+<Base title="Shop" page="shop" description="Raw comb honey, rare wild honey, beeswax candles and honey sticks from Beezy Honey. Pick your honey and order on WhatsApp.">
+  <PageHero title="Shop" overlay="Straight from the hive, one comb at a time." image="hero-shop.jpg" alt="A clear box of light comb honey held among green leaves" position="50% 42%" />
+
+  <section class="intro wrap">
+    <span class="intro-mark" aria-hidden="true"></span>
+    <p class="t-lead" data-split="lines">Every Beezy honey is raw and never heated, and most come with a piece of real honeycomb in the box. Choose a single-flower honey, a rare wild honey, or something from the hive for your home, then send us your order on WhatsApp.</p>
+  </section>
+
+  <div class="cats">
+    {CATEGORIES.map((c, i) => {
+      const items = PRODUCTS.filter((p) => p.category === c.id);
+      return (
+        <section class={`cat wrap${i % 2 ? ' flip' : ''}`} id={c.id} aria-labelledby={`${c.id}-title`}>
+          <h2 class="t-h2 cat-title" id={`${c.id}-title`} data-split="chars">{c.title}</h2>
+          <div class="cat-intro">
+            <figure class="cat-photo"><Image src={img(c.image)} alt="" widths={[640, 1000, 1400]} sizes="(max-width: 760px) 100vw, 55vw" data-parallax="7" /></figure>
+            <div class="cat-text">
+              <p class="t-lead" data-split="lines">{c.intro}</p>
+              <p class="cat-count eyebrow" data-fade>{items.length} {items.length === 1 ? 'product' : 'products'}</p>
+            </div>
+          </div>
+          <ul class="card-grid">
+            {items.map((p) => <li data-fade><ProductCard product={p} /></li>)}
+          </ul>
+        </section>
+      );
+    })}
+    <nav class="tabs" aria-label="Product categories">
+      <ul>
+        {CATEGORIES.map((c) => <li><a href={`#${c.id}`} data-tab={c.id}>{c.name}</a></li>)}
+      </ul>
+    </nav>
+  </div>
+
+  <section class="outro wrap" aria-hidden="true">
+    <figure><Image src={img('outro-shop.jpg')} alt="" widths={[800, 1400, 2000]} sizes="100vw" data-parallax="6" /></figure>
+  </section>
+</Base>
+
+<style>
+  .cat { padding-block: clamp(60px, 9vw, 140px) 0; }
+  .cat-title { text-align: center; }
+  .cat-intro { display: grid; grid-template-columns: 1.15fr 1fr; gap: clamp(24px, 5vw, 90px); align-items: center; margin-block: clamp(36px, 5vw, 80px); }
+  .flip .cat-intro { grid-template-columns: 1fr 1.15fr; }
+  .flip .cat-photo { order: 2; }
+  .cat-photo { position: relative; aspect-ratio: 4 / 3; border-radius: var(--radius); overflow: hidden; background: var(--cream-2); }
+  .cat-photo :global(img) { position: absolute; inset: -8% 0; width: 100%; height: 116%; object-fit: cover; }
+  .cat-text { display: grid; gap: 20px; min-width: 0; }
+  .cat-text .t-lead { font-size: clamp(1.15rem, 1.7vw, 1.6rem); }
+
+  .tabs { position: sticky; bottom: 24px; z-index: 20; display: flex; justify-content: center; margin-top: 40px; pointer-events: none; }
+  .tabs ul { pointer-events: auto; display: inline-flex; gap: 4px; padding: 6px; border-radius: 999px; background: rgba(255, 251, 244, .92); backdrop-filter: blur(10px); box-shadow: 0 12px 34px rgba(43, 26, 16, .16); }
+  .tabs a { display: block; padding: 10px 18px; border-radius: 999px; font-size: .88rem; font-weight: 700; text-decoration: none; white-space: nowrap; transition: background-color .3s, color .3s; }
+  .tabs a:hover { background: var(--cream-2); }
+  .tabs a[aria-current="true"] { background: var(--honey); color: var(--choc); }
+
+  @media (max-width: 760px) {
+    .cat-intro, .flip .cat-intro { grid-template-columns: 1fr; }
+    .flip .cat-photo { order: 0; }
+    .tabs { bottom: 92px; }
+    .tabs a { padding: 9px 12px; font-size: .8rem; }
+  }
+</style>
+
+<script>
+  import { ScrollTrigger, onReady } from '../../scripts/motion';
+  onReady(() => {
+    const tabs = [...document.querySelectorAll<HTMLAnchorElement>('[data-tab]')];
+    tabs.forEach((tab) => {
+      const section = document.getElementById(tab.dataset.tab!);
+      if (!section) return;
+      ScrollTrigger.create({
+        trigger: section, start: 'top 55%', end: 'bottom 55%',
+        onToggle: (self) => { if (self.isActive) tabs.forEach((t) => t.setAttribute('aria-current', String(t === tab))); },
+      });
+    });
+  });
+</script>

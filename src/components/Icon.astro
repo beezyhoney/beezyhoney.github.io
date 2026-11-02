@@ -1,0 +1,13 @@
+---
+interface Props { name: 'whatsapp' | 'arrow-right' | 'arrow-left' | 'arrow-up-right' | 'close' | 'bag' | 'instagram' }
+const { name } = Astro.props;
+---
+{name === 'whatsapp' && (
+  <svg viewBox="0 0 32 32" aria-hidden="true"><path fill="currentColor" d="M16 3C8.8 3 3 8.6 3 15.5c0 2.5.8 4.8 2.1 6.8L3.5 29l6.9-1.8c1.7.9 3.6 1.4 5.6 1.4 7.2 0 13-5.6 13-12.5S23.2 3 16 3Zm0 23c-1.8 0-3.5-.5-5-1.3l-.4-.2-4.1 1.1 1.1-3.9-.3-.4a9.9 9.9 0 0 1-1.7-5.8C5.6 10 10.3 5.6 16 5.6S26.4 10 26.4 15.5 21.7 26 16 26Z"/><path fill="currentColor" d="M12.2 10.2c-.3-.6-.5-.6-.8-.6h-.7c-.2 0-.6.1-.9.4-.3.3-1.2 1.1-1.2 2.8s1.2 3.2 1.4 3.5c.2.2 2.4 3.8 5.9 5.1 2.9 1.1 3.5.9 4.1.8.6-.1 2-.8 2.3-1.6.3-.8.3-1.4.2-1.6-.1-.1-.3-.2-.7-.4l-2.4-1.1c-.3-.1-.6-.2-.8.2-.2.4-.9 1.1-1.1 1.4-.2.2-.4.3-.8.1-.4-.2-1.5-.5-2.8-1.7-1-.9-1.7-2-1.9-2.4-.2-.4 0-.6.2-.8l.6-.7c.2-.2.2-.4.3-.6.1-.2 0-.5 0-.6l-1-2.5Z"/></svg>
+)}
+{name === 'arrow-right' && (<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>)}
+{name === 'arrow-left' && (<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5m6-6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>)}
+{name === 'arrow-up-right' && (<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7m-8 0h8v8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>)}
+{name === 'close' && (<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>)}
+{name === 'bag' && (<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1 12H6L5 8Zm4 0V6a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>)}
+{name === 'instagram' && (<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor"/></svg>)}

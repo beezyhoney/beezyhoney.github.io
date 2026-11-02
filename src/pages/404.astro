@@ -1,0 +1,22 @@
+---
+import Base from '../layouts/Base.astro';
+import { link } from '../data/site';
+---
+<Base title="Page not found" page="404" description="This page could not be found. Browse Beezy Honey's shop instead.">
+  <section class="nf page-top wrap">
+    <p class="eyebrow">Error 404</p>
+    <h1 class="t-giant" data-split="chars" data-now>Lost in the hive</h1>
+    <p class="t-lead">This page does not exist, or it has moved. The honey is still where it always was.</p>
+    <div class="nf-actions">
+      <a class="btn btn-honey" href={link('/shop/')}>Go to the shop</a>
+      <a class="btn btn-ghost" href={link('/')}>Back to home</a>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .nf { display: grid; justify-items: center; gap: 28px; text-align: center; min-height: 70svh; align-content: center; }
+  .nf .t-giant { font-size: clamp(3rem, 10vw, 10rem); }
+  .nf .t-lead { max-width: 34ch; }
+  .nf-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+</style>

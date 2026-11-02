@@ -1,0 +1,14 @@
+---
+import Base from '../layouts/Base.astro';
+import JarCarousel from '../components/JarCarousel.astro';
+---
+<Base title="Home" page="home" footer={false} description="Beezy Honey from Abinash Honey Farming: raw comb honey, rare wild honey, beeswax candles and honey sticks. Browse and order on WhatsApp.">
+  <JarCarousel />
+</Base>
+
+<style is:global>
+  html:has(body[data-page="home"]) { overflow: hidden; }
+  body[data-page="home"] { height: 100svh; overflow: hidden; }
+  body[data-page="home"] .wa-float { bottom: max(84px, calc(env(safe-area-inset-bottom, 0px) + 76px)); }
+  @media (min-width: 761px) { body[data-page="home"] .wa-float { bottom: max(20px, calc(env(safe-area-inset-bottom, 0px) + 12px)); } }
+</style>

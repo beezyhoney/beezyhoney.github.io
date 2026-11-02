@@ -1,0 +1,28 @@
+---
+import ProductCard from './ProductCard.astro';
+import Icon from './Icon.astro';
+import { PRODUCTS } from '../data/products';
+
+interface Props { current: string }
+const { current } = Astro.props;
+const others = PRODUCTS.filter((p) => p.slug !== current);
+---
+<section class="others" data-slider aria-labelledby="others-title">
+  <div class="wrap others-head">
+    <h2 id="others-title" class="t-display" data-split="lines">The other products</h2>
+    <div class="others-nav">
+      <button type="button" class="round" data-prev aria-label="Previous products"><Icon name="arrow-left" /></button>
+      <button type="button" class="round" data-next aria-label="Next products"><Icon name="arrow-right" /></button>
+    </div>
+  </div>
+  <div class="slider-track" tabindex="0" aria-label="Other products. Use the left and right arrow keys to scroll.">
+    {others.map((p) => <figure><ProductCard product={p} /></figure>)}
+  </div>
+</section>
+
+<style>
+  .others { padding-top: clamp(70px, 9vw, 140px); }
+  .others-head { display: flex; justify-content: space-between; align-items: end; gap: 20px; padding-bottom: 28px; }
+  .others-nav { display: flex; gap: 8px; }
+  .others :global(.slider-track figure) { width: clamp(240px, 24vw, 340px); }
+</style>
