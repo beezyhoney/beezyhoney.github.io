@@ -3,7 +3,7 @@ import { Image } from 'astro:assets';
 import Base from '../layouts/Base.astro';
 import PageHero from '../components/PageHero.astro';
 import Icon from '../components/Icon.astro';
-import { SITE, waLink, WA_MESSAGES } from '../data/site';
+import { SITE, link, waLink, WA_MESSAGES } from '../data/site';
 import { img } from '../lib/images';
 
 const proposals = [
@@ -17,7 +17,7 @@ const proposals = [
     eyebrow: 'Celebrate', title: 'Gifts & return gifts', image: 'gift-bag-square.jpg', still: true, alt: 'A Beezy Honey gift bag with a heart-shaped honey bottle and small jars',
     text: 'Honey sticks and small comb boxes make return gifts guests actually use. Tell us the occasion, the number of guests and the date, and we will suggest the right packs.',
     details: [['Good for', 'Weddings, housewarmings, birthdays, festivals'], ['Popular picks', 'Honey sticks (box of 10), 100 g comb boxes, beeswax candles'], ['Order', 'On WhatsApp, a few days before your function']],
-    cta: 'Plan gifts on WhatsApp', msg: WA_MESSAGES.gifts,
+    cta: 'Plan gifts on WhatsApp', msg: WA_MESSAGES.gifts, more: { label: 'Build a gift box', href: link('/gift-box/') },
   },
   {
     eyebrow: 'In quantity', title: 'Bulk & corporate orders', image: 'bulk-jars.jpg', alt: 'A pyramid of Beezy multifloral honey jars',
@@ -46,7 +46,10 @@ const proposals = [
             <h3 class="t-display" data-split="lines">{p.title}</h3>
             <p data-fade>{p.text}</p>
             <dl data-fade>{p.details.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
-            <a class="btn btn-wa" href={waLink(p.msg)} target="_blank" rel="noopener" data-fade><Icon name="whatsapp" />{p.cta}</a>
+            <div class="prop-actions" data-fade>
+              <a class="btn btn-wa" href={waLink(p.msg)} target="_blank" rel="noopener"><Icon name="whatsapp" />{p.cta}</a>
+              {p.more && <a class="btn btn-ghost" href={p.more.href}>{p.more.label}</a>}
+            </div>
           </div>
         </li>
       ))}
@@ -69,10 +72,11 @@ const proposals = [
   .prop-text dl div { display: grid; grid-template-columns: 9rem 1fr; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--rule); }
   .prop-text dt { font-size: .76rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); padding-top: 3px; }
   .prop-text dd { font-weight: 500; }
+  .prop-actions { display: flex; flex-wrap: wrap; gap: 10px; }
   @media (max-width: 760px) {
     .prop { grid-template-columns: 1fr; }
     .prop.flip .prop-photo { order: 0; }
     .prop-text dl div { grid-template-columns: 1fr; gap: 2px; }
-    .prop-text .btn { width: 100%; }
+    .prop-text .btn, .prop-actions { width: 100%; }
   }
 </style>

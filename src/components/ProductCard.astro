@@ -4,14 +4,19 @@ import Icon from './Icon.astro';
 import { img } from '../lib/images';
 import { link } from '../data/site';
 import type { Product } from '../data/products';
+import { BLOOM, BLOOM_NOTE } from '../data/features';
 
 interface Props { product: Product; level?: 'h3' | 'h4' }
 const { product: p, level = 'h3' } = Astro.props;
 const Heading = level;
+// seasonal honeys only: "In bloom now" is switched on in the browser when the visitor's month matches
+const bloom = BLOOM[p.slug];
+const bloomMonths = Array.isArray(bloom) && !BLOOM_NOTE[p.slug] ? bloom.join(',') : '';
 ---
 <a class="p-card" href={link(`/shop/${p.slug}/`)} style={`--tone:${p.tone}`}>
   <div class="tile">
     {p.withComb && <span class="tag">With comb</span>}
+    {bloomMonths && <span class="tag bloom-tag" data-bloom-months={bloomMonths} hidden>In bloom now</span>}
     <Image src={img(p.card ?? p.photo)} alt="" widths={[420, 720]} sizes="(max-width: 760px) 80vw, 26vw" />
   </div>
   <div class="meta">

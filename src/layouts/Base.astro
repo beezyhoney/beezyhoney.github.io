@@ -11,12 +11,13 @@ import '../styles/global.css';
 import { Image, getImage } from 'astro:assets';
 import Icon from '../components/Icon.astro';
 import { SITE, link, waLink, WA_MESSAGES } from '../data/site';
+import { PRODUCTS } from '../data/products';
 import { img } from '../lib/images';
 
 interface Props {
   title: string;
   description: string;
-  page: 'home' | 'shop' | 'product' | 'harvest' | 'experience' | 'about' | 'contact' | '404';
+  page: 'home' | 'shop' | 'product' | 'harvest' | 'experience' | 'about' | 'contact' | '404' | 'finder' | 'gift' | 'jar';
   footer?: boolean;
 }
 const { title, description, page, footer = true } = Astro.props;
@@ -26,12 +27,23 @@ const ogImage = new URL(link('/og-image.jpg'), Astro.site);
 const seal = img('logo-seal.png');
 const wordmark = img('logo-wordmark.png');
 const curtainSeal = await getImage({ src: img('logo-seal-square.png'), width: 440, format: 'webp' });
+// small product photos for the order drawer, keyed by product slug
+const cartThumbs = Object.fromEntries(await Promise.all(PRODUCTS.map(async (p) => [
+  p.slug,
+  { src: (await getImage({ src: img(p.photo), width: 160, format: 'webp' })).src, href: link(`/shop/${p.slug}/`) },
+])));
 
 const nav = [
   { href: '/', label: 'Home', id: 'home' },
   { href: '/shop/', label: 'Shop', id: 'shop' },
   { href: '/harvest/', label: 'Harvest', id: 'harvest' },
   { href: '/experience/', label: 'Experience', id: 'experience' },
+];
+const tools = [
+  { href: '/honey-finder/', label: 'Honey Finder' },
+  { href: '/gift-box/', label: 'Gift Box' },
+  { href: '/know-your-jar/', label: 'Know Your Jar' },
+  { href: '/harvest/#bloom-calendar', label: 'Bloom Calendar' },
 ];
 const current = page === 'product' ? 'shop' : page;
 const jsonLd = {
@@ -113,6 +125,12 @@ const jsonLd = {
         <a class="bni-link" href={link('/about/#bni-title')} aria-label="Proud BNI member, read more">
           <Image class="bni-logo" src={img('bni-member.png')} alt="" width={160} loading="eager" />
         </a>
+        {page === 'home' && (
+          <nav class="home-tools" aria-label="Helpful tools">
+            <a class="pill" href={link('/honey-finder/')} data-tool="finder"><Icon name="spark" /><span>Honey Finder</span></a>
+            <a class="pill" href={link('/gift-box/')} data-tool="gift"><Icon name="gift" /><span>Gift Box</span></a>
+          </nav>
+        )}
       </div>
       <a class="brand" href={link('/')} aria-label="Beezy Honey, home">
         <Image class="brand-seal" src={seal} alt="" width={120} loading="eager" />
@@ -133,6 +151,9 @@ const jsonLd = {
         {nav.map((n) => (
           <li><a href={link(n.href)} aria-current={current === n.id ? 'page' : undefined}>{n.label}</a></li>
         ))}
+      </ul>
+      <ul class="menu-tools" aria-label="Helpful tools">
+        {tools.map((t) => <li><a href={link(t.href)}>{t.label}</a></li>)}
       </ul>
       <div class="menu-foot">
         <a href={link('/about/')}>About</a>
@@ -158,14 +179,19 @@ const jsonLd = {
             <h3>Shop</h3>
             <ul>
               <li><a href={link('/shop/#comb-honey')}>Comb Honey</a></li>
+              <li><a href={link('/shop/#blossom-honey')}>Blossom Honey</a></li>
               <li><a href={link('/shop/#wild-rare')}>Wild &amp; Rare</a></li>
               <li><a href={link('/shop/#from-the-hive')}>From the Hive</a></li>
+              <li><a href={link('/honey-finder/')}>Honey Finder</a></li>
+              <li><a href={link('/gift-box/')}>Gift Box</a></li>
             </ul>
           </div>
           <div>
             <h3>Beezy Honey</h3>
             <ul>
               <li><a href={link('/harvest/')}>Harvest</a></li>
+              <li><a href={link('/harvest/#bloom-calendar')}>Bloom Calendar</a></li>
+              <li><a href={link('/know-your-jar/')}>Know Your Jar</a></li>
               <li><a href={link('/experience/')}>Experience</a></li>
               <li><a href={link('/about/')}>About</a></li>
               <li><a href={link('/contact/')}>Contact</a></li>
@@ -200,11 +226,8 @@ const jsonLd = {
         <p class="cart-empty" data-cart-empty>Your order is empty. Pick a honey from the <a href={link('/shop/')}>shop</a> and it will show up here.</p>
         <ol class="cart-list" data-cart-list></ol>
       </div>
+      <script type="application/json" id="cart-thumbs" set:html={JSON.stringify(cartThumbs)} />
       <div class="cart-foot" data-cart-foot hidden>
-        <div class="fields">
-          <div class="field"><label for="cart-name">Your name</label><input id="cart-name" name="name" autocomplete="name" /></div>
-          <div class="field"><label for="cart-pin">Pincode</label><input id="cart-pin" name="pincode" inputmode="numeric" autocomplete="postal-code" maxlength="6" /></div>
-        </div>
         <a class="btn btn-wa" data-cart-send href={waLink(WA_MESSAGES.general)} target="_blank" rel="noopener"><Icon name="whatsapp" />Send order on WhatsApp</a>
         <p class="cart-note">WhatsApp opens with your order typed out. Send it, and we reply with the price and delivery details.</p>
         <button type="button" class="cart-clear" data-cart-clear>Clear order</button>

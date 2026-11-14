@@ -1,0 +1,118 @@
+---
+import { PRODUCTS } from '../data/products';
+import { BLOOM, BLOOM_NOTE, MONTHS, bloomText } from '../data/features';
+import { link } from '../data/site';
+
+const rows = PRODUCTS.filter((p) => BLOOM[p.slug]).map((p) => {
+  const months = BLOOM[p.slug];
+  return { slug: p.slug, name: p.name, href: link(`/shop/${p.slug}/`), all: months === 'all', months: months === 'all' ? [] : months, note: BLOOM_NOTE[p.slug] ?? '', text: bloomText(months) };
+});
+---
+<section class="bloom wrap" id="bloom-calendar" aria-labelledby="bloom-title" data-bloom-cal>
+  <h2 class="t-h2" id="bloom-title" data-split="chars">Bloom calendar</h2>
+  <p class="t-lead bc-lead" data-split="lines">Every honey follows a flower. Here is when each one usually blooms.</p>
+
+  <div class="bc-months" role="group" aria-label="Choose a month">
+    {MONTHS.map((m, i) => <button type="button" class="bc-month" data-month={i + 1} aria-pressed="false"><span aria-hidden="true">{m.slice(0, 3)}</span><span class="sr-only">{m}</span></button>)}
+  </div>
+  <p class="bc-now" data-bloom-now aria-live="polite"></p>
+
+  <div class="bc-scroll" tabindex="0" aria-label="Bloom calendar table, scrolls sideways">
+    <table class="bc-table">
+      <caption class="sr-only">Usual flowering months for each Beezy honey</caption>
+      <thead>
+        <tr>
+          <th scope="col">Honey</th>
+          {MONTHS.map((m, i) => <th scope="col" data-col={i + 1}><abbr title={m}>{m.slice(0, 1)}</abbr></th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr>
+            <th scope="row"><a href={r.href}>{r.name}</a><span>{r.note || r.text}</span></th>
+            {MONTHS.map((m, i) => {
+              const on = r.all || r.months.includes(i + 1);
+              return <td data-col={i + 1} class={on ? (r.all ? 'on all' : r.note ? 'on rare' : 'on') : undefined}>{on && <span class="sr-only">{m}</span>}</td>;
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  <ul class="bc-key" aria-label="Key">
+    <li><i class="k-on"></i>Usual flowering months</li>
+    <li><i class="k-all"></i>Flowers most of the year</li>
+    <li><i class="k-rare"></i>Rare bloom</li>
+  </ul>
+  <p class="bc-foot">Flowering seasons shift a little with the rains and the weather each year.</p>
+</section>
+<script type="application/json" id="bloom-data" set:html={JSON.stringify(rows).replace(/</g, '\\u003c')} />
+
+<style>
+  .bloom { display: grid; justify-items: center; gap: 24px; padding-block: clamp(80px, 10vw, 150px) clamp(60px, 8vw, 110px); text-align: center; }
+  .bc-lead { max-width: 30ch; }
+  .bc-months { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 760px; }
+  .bc-month { min-width: 56px; height: 42px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--rule); background: var(--paper); font: inherit; font-weight: 700; color: var(--choc); cursor: pointer; transition: background-color .25s, color .25s; }
+  .bc-month:hover { border-color: var(--honey); }
+  .bc-month[aria-pressed="true"] { background: var(--choc); border-color: var(--choc); color: var(--cream); }
+  .bc-month.today { box-shadow: inset 0 -3px 0 var(--honey); }
+  .bc-now { max-width: 60ch; min-height: 3em; font-size: 1.05rem; }
+  .bc-now :global(a) { font-weight: 700; color: var(--honey-deep); }
+  .bc-now :global(.muted) { color: var(--ink-2); }
+
+  .bc-scroll { width: 100%; max-width: 1100px; overflow-x: auto; border-radius: var(--radius); background: var(--paper); box-shadow: 0 24px 60px rgba(43, 26, 16, .08); }
+  .bc-table { width: 100%; min-width: 640px; border-collapse: separate; border-spacing: 0; text-align: left; }
+  .bc-table th, .bc-table td { padding: 0; border-bottom: 1px solid var(--rule); }
+  .bc-table thead th { padding: 14px 0 10px; font-size: .78rem; font-weight: 700; letter-spacing: .1em; color: var(--ink-3); text-align: center; }
+  .bc-table thead th:first-child { text-align: left; padding-left: 20px; }
+  .bc-table abbr { text-decoration: none; }
+  .bc-table tbody th { position: sticky; left: 0; z-index: 1; background: var(--paper); padding: 12px 16px 12px 20px; min-width: 190px; font-weight: 400; }
+  .bc-table tbody th a { display: block; font-family: var(--f-display); font-size: 1.15rem; line-height: 1.15; text-decoration: none; color: var(--choc); }
+  .bc-table tbody th a:hover { color: var(--honey-deep); }
+  .bc-table tbody th span { display: block; font-size: .78rem; color: var(--ink-3); }
+  .bc-table td { position: relative; width: 6.5%; height: 52px; }
+  .bc-table td.on::before { content: ""; position: absolute; inset: 14px 2px; border-radius: 6px; background: var(--honey); }
+  .bc-table td.all::before { background: var(--amber); opacity: .45; }
+  .bc-table td.rare::before { background: transparent; border: 2px dashed var(--honey-deep); }
+  .bc-table .now { background: rgba(242, 182, 50, .16); }
+  .bc-table thead th.now { color: var(--choc); }
+  .bc-table tbody tr:last-child th, .bc-table tbody tr:last-child td { border-bottom: 0; }
+  .bc-key { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; font-size: .88rem; color: var(--ink-2); }
+  .bc-key li { display: flex; align-items: center; gap: 8px; }
+  .bc-key i { width: 22px; height: 12px; border-radius: 4px; }
+  .k-on { background: var(--honey); }
+  .k-all { background: var(--amber); opacity: .45; }
+  .k-rare { border: 2px dashed var(--honey-deep); }
+  .bc-foot { font-size: .9rem; color: var(--ink-3); }
+</style>
+
+<script>
+  const cal = document.querySelector<HTMLElement>('[data-bloom-cal]');
+  const dataEl = document.getElementById('bloom-data');
+  if (cal && dataEl) {
+    const rows = JSON.parse(dataEl.textContent!) as { slug: string; name: string; href: string; all: boolean; months: number[]; note: string }[];
+    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const out = cal.querySelector<HTMLElement>('[data-bloom-now]')!;
+    const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+    const links = (list: typeof rows) => list.map((r) => `<a href="${esc(r.href)}">${esc(r.name)}</a>`).join(', ');
+    const current = new Date().getMonth() + 1;
+
+    const select = (m: number) => {
+      cal.querySelectorAll<HTMLButtonElement>('.bc-month').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.month) === m)));
+      cal.querySelectorAll<HTMLElement>('[data-col]').forEach((c) => c.classList.toggle('now', Number(c.dataset.col) === m));
+      const seasonal = rows.filter((r) => !r.all && !r.note && r.months.includes(m));
+      const allYear = rows.filter((r) => r.all);
+      const name = MONTHS[m - 1];
+      out.innerHTML = (seasonal.length
+        ? `In bloom in ${name}: ${links(seasonal)}.`
+        : `<span class="muted">No seasonal blooms in ${name}.</span>`)
+        + (allYear.length ? ` <span class="muted">All year:</span> ${links(allYear)}.` : '');
+    };
+    cal.querySelector<HTMLButtonElement>(`.bc-month[data-month="${current}"]`)?.classList.add('today');
+    cal.addEventListener('click', (e) => {
+      const b = (e.target as Element).closest<HTMLButtonElement>('.bc-month');
+      if (b) select(Number(b.dataset.month));
+    });
+    select(current);
+  }
+</script>

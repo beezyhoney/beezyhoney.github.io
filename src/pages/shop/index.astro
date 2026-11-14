@@ -5,6 +5,7 @@ import PageHero from '../../components/PageHero.astro';
 import ProductCard from '../../components/ProductCard.astro';
 import { CATEGORIES, PRODUCTS } from '../../data/products';
 import { img } from '../../lib/images';
+import { link } from '../../data/site';
 ---
 <Base title="Shop" page="shop" description="Raw comb honey, rare wild honey, beeswax candles and honey sticks from Beezy Honey. Pick your honey and order on WhatsApp.">
   <PageHero title="Shop" overlay="Straight from the hive, one comb at a time." image="hero-shop.jpg" alt="A clear box of light comb honey held among green leaves" position="50% 42%" />
@@ -12,6 +13,21 @@ import { img } from '../../lib/images';
   <section class="intro wrap">
     <span class="intro-mark" aria-hidden="true"></span>
     <p class="t-lead" data-split="lines">Every Beezy honey is raw and never heated, and most come with a piece of real honeycomb in the box. Choose a single-flower honey, a rare wild honey, or something from the hive for your home, then send us your order on WhatsApp.</p>
+  </section>
+
+  <section class="helpers wrap" aria-label="Help choosing">
+    <a class="helper" href={link('/honey-finder/')} data-fade>
+      <span class="eyebrow">Not sure which honey?</span>
+      <b>Take the Honey Finder</b>
+      <span>Four quick questions, and we match you with the right honey.</span>
+      <i aria-hidden="true">→</i>
+    </a>
+    <a class="helper" href={link('/gift-box/')} data-fade data-delay="0.1">
+      <span class="eyebrow">Planning gifts?</span>
+      <b>Build a gift box</b>
+      <span>Pick two to four honeys for weddings, festivals or your team.</span>
+      <i aria-hidden="true">→</i>
+    </a>
   </section>
 
   <div class="cats">
@@ -46,6 +62,14 @@ import { img } from '../../lib/images';
 </Base>
 
 <style>
+  .helpers { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 1100px; margin: 0 auto; }
+  .helper { position: relative; display: grid; gap: 6px; padding: clamp(22px, 3vw, 34px); padding-right: 76px; border-radius: var(--radius); background: var(--paper); text-decoration: none; color: var(--choc); box-shadow: 0 18px 44px rgba(43, 26, 16, .08); transition: transform .5s var(--ease), box-shadow .5s var(--ease); }
+  .helper b { font-family: var(--f-display); font-weight: 400; font-size: clamp(1.6rem, 2.6vw, 2.2rem); line-height: 1.1; }
+  .helper span:last-of-type { color: var(--ink-2); }
+  .helper i { position: absolute; right: 24px; top: 50%; translate: 0 -50%; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: var(--honey); font-style: normal; font-weight: 700; transition: transform .5s var(--ease); }
+  .helper:hover { transform: translateY(-3px); box-shadow: 0 24px 54px rgba(43, 26, 16, .14); }
+  .helper:hover i { transform: rotate(-45deg); }
+  @media (max-width: 760px) { .helpers { grid-template-columns: 1fr; } }
   .cat { padding-block: clamp(60px, 9vw, 140px) 0; }
   .cat-title { text-align: center; }
   .cat-intro { display: grid; grid-template-columns: 1.15fr 1fr; gap: clamp(24px, 5vw, 90px); align-items: center; margin-block: clamp(36px, 5vw, 80px); }

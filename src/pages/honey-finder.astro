@@ -1,0 +1,299 @@
+---
+import Base from '../layouts/Base.astro';
+import { FINDER_QUESTIONS } from '../data/features';
+import { link } from '../data/site';
+import { clientProducts, toJson } from '../lib/clientProducts';
+
+const products = await clientProducts();
+const labels = Object.fromEntries(FINDER_QUESTIONS.map((q) => [q.id, Object.fromEntries(q.options.map((o) => [o.value, o.label]))]));
+const total = FINDER_QUESTIONS.length;
+---
+<Base title="Honey Finder" page="finder" description="Not sure which honey to pick? Answer four quick questions and the Beezy Honey Finder matches you with the honey that suits your taste.">
+  <section class="page-top wrap f-head">
+    <h1 class="t-giant page-title" data-split="chars" data-now>Honey Finder</h1>
+    <p class="t-lead" data-fade>Four quick questions, and we’ll match you with the Beezy honey that suits you best.</p>
+  </section>
+
+  <section class="wrap" aria-label="Honey Finder quiz">
+    <div class="f-card" data-finder>
+      <div class="f-top">
+        <p class="f-count eyebrow" data-count aria-live="polite">Question 1 of {total}</p>
+        <div class="f-bar" aria-hidden="true"><i data-bar></i></div>
+      </div>
+
+      {FINDER_QUESTIONS.map((q, i) => (
+        <div class="f-step" data-step={i} role="group" aria-labelledby={`fq-${q.id}`} hidden={i > 0}>
+          <h2 class="f-q" id={`fq-${q.id}`} tabindex="-1">{q.title}</h2>
+          <div class={`f-options n${q.options.length}`}>
+            {q.options.map((o) => (
+              <button type="button" class="f-opt" data-q={q.id} data-v={o.value} aria-pressed="false">
+                <b>{o.label}</b><span>{o.hint}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      <div class="f-results" data-results hidden>
+        <p class="eyebrow">Your match</p>
+        <h2 class="f-q" tabindex="-1" data-results-title>We think you’ll love</h2>
+        <div class="f-picks" data-picks></div>
+        <p class="f-also" data-also></p>
+      </div>
+
+      <div class="f-nav">
+        <button type="button" class="btn btn-ghost" data-back hidden>← Back</button>
+        <button type="button" class="btn btn-ghost" data-restart hidden>Start again</button>
+        <a class="btn btn-choc" data-gift hidden href={link('/gift-box/')}>Build a gift box with these</a>
+        <a class="f-shop" data-shop hidden href={link('/shop/')}>See all honeys →</a>
+      </div>
+      <noscript><p class="f-noscript">The Honey Finder needs JavaScript. You can still browse every honey in the <a href={link('/shop/')}>shop</a>.</p></noscript>
+    </div>
+  </section>
+
+  <script type="application/json" id="finder-data" set:html={toJson({ products, labels, total })} />
+</Base>
+
+<style>
+  .f-head { display: grid; justify-items: center; gap: 22px; text-align: center; }
+  .f-head .t-lead { max-width: 30ch; }
+  .f-card {
+    max-width: 980px; margin: clamp(36px, 5vw, 70px) auto clamp(80px, 10vw, 150px);
+    padding: clamp(24px, 4vw, 56px); border-radius: var(--radius); background: var(--paper);
+    box-shadow: 0 30px 70px rgba(43, 26, 16, .1); display: grid; gap: clamp(22px, 3vw, 34px);
+  }
+  .f-top { display: grid; gap: 10px; }
+  .f-bar { height: 6px; border-radius: 999px; background: var(--cream-2); overflow: hidden; }
+  .f-bar i { display: block; height: 100%; width: 25%; border-radius: inherit; background: var(--honey); transition: width .5s var(--ease); }
+  .f-q { font-family: var(--f-display); font-weight: 400; font-size: clamp(1.9rem, 4vw, 3.2rem); line-height: 1.05; color: var(--choc); outline: none; }
+  .f-step { display: grid; gap: clamp(18px, 2.4vw, 28px); }
+  .f-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .f-options.n5 { grid-template-columns: repeat(3, 1fr); }
+  .f-opt {
+    display: grid; gap: 4px; text-align: left; padding: 18px 20px; min-height: 84px;
+    border: 1px solid var(--rule); border-radius: 18px; background: var(--cream);
+    font: inherit; color: var(--choc); cursor: pointer;
+    transition: border-color .25s, background-color .25s, transform .4s var(--ease);
+  }
+  .f-opt b { font-family: var(--f-display); font-weight: 400; font-size: 1.35rem; line-height: 1.1; }
+  .f-opt span { font-size: .92rem; color: var(--ink-2); line-height: 1.35; }
+  .f-opt:hover { border-color: var(--honey); transform: translateY(-2px); }
+  .f-opt[aria-pressed="true"] { background: var(--honey); border-color: var(--honey); }
+  .f-opt[aria-pressed="true"] span { color: var(--choc); }
+  .f-step.enter, .f-results.enter { animation: f-in .45s var(--ease) both; }
+  @keyframes f-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  .f-results { display: grid; gap: 16px; }
+  .f-picks { display: grid; gap: 16px; margin-top: 8px; }
+  .f-picks :global(.f-pick) { display: grid; grid-template-columns: minmax(150px, 230px) 1fr; gap: clamp(16px, 3vw, 32px); padding: clamp(14px, 2vw, 22px); border-radius: 22px; background: var(--tone); align-items: center; }
+  .f-picks :global(.f-pick-photo) { display: block; aspect-ratio: 1; border-radius: 16px; overflow: hidden; }
+  .f-picks :global(.f-pick-photo img) { width: 100%; height: 100%; object-fit: cover; }
+  .f-picks :global(.f-pick-body) { display: grid; gap: 8px; min-width: 0; }
+  .f-picks :global(h3) { font-family: var(--f-display); font-weight: 400; font-size: clamp(1.7rem, 3vw, 2.4rem); line-height: 1.05; }
+  .f-picks :global(h3 a) { text-decoration: none; }
+  .f-picks :global(h3 a:hover) { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+  .f-picks :global(.f-taste) { color: var(--ink-2); }
+  .f-picks :global(.f-why) { display: flex; flex-wrap: wrap; gap: 6px; }
+  .f-picks :global(.f-why li) { padding: 3px 12px; border-radius: 999px; background: rgba(255, 251, 244, .75); font-size: .82rem; font-weight: 700; }
+  .f-picks :global(.f-why li::before) { content: "✓ "; color: var(--honey-deep); }
+  .f-picks :global(.f-buy) { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 6px; }
+  .f-picks :global(.f-packs) { display: flex; flex-wrap: wrap; gap: 6px; border: 0; padding: 0; margin: 0; }
+  .f-picks :global(.f-pack) { position: relative; cursor: pointer; }
+  .f-picks :global(.f-pack input) { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .f-picks :global(.f-pack span) { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--choc); background: var(--paper); font-weight: 700; font-size: .88rem; }
+  .f-picks :global(.f-pack input:checked + span) { background: var(--choc); color: var(--cream); }
+  .f-picks :global(.f-pack input:focus-visible + span) { outline: 2px solid var(--honey-deep); outline-offset: 2px; }
+  .f-picks :global(.f-buy .btn) { min-height: 44px; }
+  .f-picks :global(.f-more) { font-weight: 700; color: var(--honey-deep); text-decoration: none; }
+  .f-picks :global(.f-more:hover) { text-decoration: underline; }
+  .f-picks :global(.f-added) { min-height: 1.4em; font-weight: 600; color: var(--honey-deep); font-size: .92rem; }
+  .f-also { color: var(--ink-2); }
+  .f-also :global(a) { font-weight: 700; color: var(--honey-deep); }
+
+  .f-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .f-nav .btn { min-height: 46px; }
+  .f-shop { margin-left: auto; font-weight: 700; color: var(--honey-deep); text-decoration: none; }
+  .f-shop:hover { text-decoration: underline; }
+  .f-noscript { color: var(--ink-2); }
+
+  @media (max-width: 760px) {
+    .f-options, .f-options.n5 { grid-template-columns: 1fr; }
+    .f-opt { min-height: 0; padding: 14px 16px; }
+    .f-picks :global(.f-pick) { grid-template-columns: 1fr; }
+    .f-picks :global(.f-pick-photo) { aspect-ratio: 4 / 3; }
+    .f-shop { margin-left: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .f-step.enter, .f-results.enter { animation: none; } }
+</style>
+
+<script>
+  import { cart } from '../scripts/cart';
+  import { lenis } from '../scripts/motion';
+
+  interface P {
+    slug: string; name: string; short: string; kind: string; tagline: string; tone: string; href: string; packs: string[];
+    taste: string; colour: [number, number] | null; honey: boolean; thumb: string;
+    profile: { taste: string[]; uses: string[]; rare?: boolean } | null;
+  }
+  type Answers = Partial<Record<'taste' | 'use' | 'shade' | 'rarity', string>>;
+
+  const root = document.querySelector<HTMLElement>('[data-finder]');
+  const dataEl = document.getElementById('finder-data');
+  if (root && dataEl) {
+    const { products, labels, total } = JSON.parse(dataEl.textContent!) as { products: P[]; labels: Record<string, Record<string, string>>; total: number };
+    const steps = [...root.querySelectorAll<HTMLElement>('[data-step]')];
+    const results = root.querySelector<HTMLElement>('[data-results]')!;
+    const picksEl = root.querySelector<HTMLElement>('[data-picks]')!;
+    const alsoEl = root.querySelector<HTMLElement>('[data-also]')!;
+    const count = root.querySelector<HTMLElement>('[data-count]')!;
+    const bar = root.querySelector<HTMLElement>('[data-bar]')!;
+    const back = root.querySelector<HTMLButtonElement>('[data-back]')!;
+    const restart = root.querySelector<HTMLButtonElement>('[data-restart]')!;
+    const giftLink = root.querySelector<HTMLAnchorElement>('[data-gift]')!;
+    const shopLink = root.querySelector<HTMLAnchorElement>('[data-shop]')!;
+    const giftBase = giftLink.getAttribute('href')!;
+    const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+
+    let step = 0;
+    let busy = false;
+    const answers: Answers = {};
+
+    /* ---- scoring ---- */
+    // colour grade steps (0 water white … 6 dark amber) that each answer covers
+    const RANGE: Record<string, [number, number]> = { light: [0, 4], amber: [4, 5], dark: [5, 6] };
+    // 2 when the honey's whole colour range sits inside the answer, 1 when only part of it does
+    const shadeScore = (c: [number, number] | null, shade: string) => {
+      if (shade === 'any' || !c || !RANGE[shade]) return 0;
+      const [a, b] = RANGE[shade];
+      const inside = Math.max(0, Math.min(c[1], b) - Math.max(c[0], a) + 1);
+      return inside === c[1] - c[0] + 1 ? 2 : inside > 0 ? 1 : 0;
+    };
+    const rank = (a: Answers) => {
+      const use = a.use === 'onthego' ? 'daily' : a.use!;
+      return products
+        .map((p, i) => {
+          const pr = p.profile;
+          if (!pr) return null;
+          let s = 0;
+          const why: string[] = [];
+          if (pr.taste.includes(a.taste!)) { s += pr.taste[0] === a.taste ? 5 : 4; why.push(labels.taste[a.taste!]); }
+          if (use === 'gift') { s += pr.uses.includes('gift') ? 3 : 1; if (pr.rare) s += 1; why.push('Lovely as a gift'); }
+          else if (pr.uses.includes(use)) { s += pr.uses[0] === use ? 3 : 2; why.push(labels.use[use]); }
+          const sh = shadeScore(p.colour, a.shade!);
+          s += sh;
+          if (sh === 2) why.push(labels.shade[a.shade!]);
+          if (a.rarity === 'rare') { if (pr.rare) { s += 3; why.push('Rare, small harvests'); } }
+          else s += pr.rare ? -2 : 1;
+          // ties: closer colour first, then the honey with the narrower profile (a more exact match)
+          return { p, s, why, i, sh, spec: pr.taste.length + pr.uses.length };
+        })
+        .filter((r): r is { p: P; s: number; why: string[]; i: number; sh: number; spec: number } => r !== null)
+        .sort((x, y) => y.s - x.s || y.sh - x.sh || x.spec - y.spec || x.i - y.i);
+    };
+
+    /* ---- rendering ---- */
+    const card = (p: P, why: string[], title: string) => `
+      <article class="f-pick" style="--tone:${esc(p.tone)}">
+        <a class="f-pick-photo" href="${esc(p.href)}" tabindex="-1" aria-hidden="true"><img src="${esc(p.thumb)}" alt="" width="520" height="520" loading="lazy"></a>
+        <div class="f-pick-body">
+          <p class="eyebrow">${esc(title)} · ${esc(p.kind)}</p>
+          <h3><a href="${esc(p.href)}">${esc(p.name)}</a></h3>
+          <p class="f-taste">${esc(p.taste || p.tagline)}</p>
+          ${why.length ? `<ul class="f-why" aria-label="Why it matches">${why.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
+          <div class="f-buy">
+            <div class="f-packs" role="radiogroup" aria-label="Pack for ${esc(p.name)}">
+              ${p.packs.map((k, n) => `<label class="f-pack"><input type="radio" name="pack-${esc(p.slug)}" value="${esc(k)}"${(p.packs.includes('250 g') ? k === '250 g' : n === 0) ? ' checked' : ''}><span>${esc(k)}</span></label>`).join('')}
+            </div>
+            <button type="button" class="btn btn-honey" data-add="${esc(p.slug)}">Add to order</button>
+            <a class="f-more" href="${esc(p.href)}">View details →</a>
+          </div>
+          <p class="f-added" role="status" aria-live="polite"></p>
+        </div>
+      </article>`;
+
+    const showResults = () => {
+      const ranked = rank(answers);
+      const top: { p: P; why: string[]; title: string }[] = [];
+      if (answers.use === 'onthego') {
+        const sticks = products.find((p) => p.slug === 'honey-sticks');
+        if (sticks) top.push({ p: sticks, why: [labels.use.onthego, 'Exactly 10 g per stick'], title: 'Best match' });
+        if (ranked[0]) top.push({ p: ranked[0].p, why: ranked[0].why, title: 'For home' });
+      } else {
+        ranked.slice(0, 2).forEach((r, n) => top.push({ p: r.p, why: r.why, title: n === 0 ? 'Best match' : 'Also a great match' }));
+      }
+      const shown = new Set(top.map((t) => t.p.slug));
+      const also = ranked.filter((r) => !shown.has(r.p.slug)).slice(0, 2);
+      picksEl.innerHTML = top.map((t) => card(t.p, t.why, t.title)).join('');
+      alsoEl.innerHTML = also.length ? `You might also like ${also.map((r) => `<a href="${esc(r.p.href)}">${esc(r.p.name)}</a>`).join(' and ')}.` : '';
+      const giftPicks = top.filter((t) => t.p.honey).map((t) => t.p.slug);
+      giftLink.hidden = answers.use !== 'gift' || giftPicks.length === 0;
+      giftLink.href = `${giftBase}?pick=${encodeURIComponent(giftPicks.join(','))}`;
+    };
+
+    const scrollToCard = () => {
+      const top = root.getBoundingClientRect().top;
+      if (top >= 0 && top < window.innerHeight * 0.4) return;
+      if (lenis) lenis.scrollTo(root, { offset: -110, duration: 0.8 });
+      else root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const render = (focus = true) => {
+      const done = step >= total;
+      steps.forEach((s, i) => {
+        const on = i === step;
+        if (on && s.hidden) { s.hidden = false; s.classList.remove('enter'); void s.offsetWidth; s.classList.add('enter'); }
+        if (!on) s.hidden = true;
+      });
+      if (done) {
+        showResults();
+        if (results.hidden) { results.hidden = false; results.classList.remove('enter'); void results.offsetWidth; results.classList.add('enter'); }
+      } else results.hidden = true;
+      count.textContent = done ? 'Your result' : `Question ${step + 1} of ${total}`;
+      bar.style.width = `${(Math.min(step + 1, total) / total) * 100}%`;
+      back.hidden = step === 0;
+      back.textContent = done ? '← Change answers' : '← Back';
+      restart.hidden = !done;
+      shopLink.hidden = !done;
+      if (!done) giftLink.hidden = true;
+      root.querySelectorAll<HTMLButtonElement>('.f-opt').forEach((b) => b.setAttribute('aria-pressed', String(answers[b.dataset.q as keyof Answers] === b.dataset.v)));
+      if (focus) {
+        const heading = done ? results.querySelector<HTMLElement>('[data-results-title]') : steps[step].querySelector<HTMLElement>('.f-q');
+        heading?.focus({ preventScroll: true });
+        scrollToCard();
+      }
+    };
+
+    root.addEventListener('click', (e) => {
+      const t = e.target as Element;
+      const opt = t.closest<HTMLButtonElement>('.f-opt');
+      if (opt) {
+        if (busy) return;
+        const q = opt.dataset.q as keyof Answers;
+        answers[q] = opt.dataset.v;
+        root.querySelectorAll<HTMLButtonElement>(`.f-opt[data-q="${q}"]`).forEach((b) => b.setAttribute('aria-pressed', String(b === opt)));
+        busy = true;
+        window.setTimeout(() => { step = Math.min(step + 1, total); busy = false; render(); }, 220);
+        return;
+      }
+      const add = t.closest<HTMLButtonElement>('[data-add]');
+      if (add) {
+        const p = products.find((x) => x.slug === add.dataset.add);
+        const body = add.closest('.f-pick-body');
+        const pack = body?.querySelector<HTMLInputElement>('input[type="radio"]:checked')?.value;
+        if (!p || !pack) return;
+        const qty = (cart.find(p.slug, pack)?.qty ?? 0) + 1;
+        cart.set({ slug: p.slug, name: p.name, pack, qty });
+        const status = body!.querySelector<HTMLElement>('.f-added');
+        if (status) status.textContent = `Added: ${pack} × ${qty} in your order`;
+        window.dispatchEvent(new CustomEvent('cart:open'));
+      }
+    });
+    back.addEventListener('click', () => { if (busy) return; step = Math.max(0, step - 1); render(); });
+    restart.addEventListener('click', () => {
+      (Object.keys(answers) as (keyof Answers)[]).forEach((k) => delete answers[k]);
+      step = 0;
+      render();
+    });
+    render(false);
+  }
+</script>

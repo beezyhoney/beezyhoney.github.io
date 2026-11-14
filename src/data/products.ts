@@ -1,6 +1,6 @@
 // Product content, ported from catalogue/beezy-honey-catalogue.html (English version).
 
-export type CategoryId = 'comb-honey' | 'wild-rare' | 'from-the-hive';
+export type CategoryId = 'comb-honey' | 'blossom-honey' | 'wild-rare' | 'from-the-hive';
 
 export interface Product {
   slug: string;
@@ -37,6 +37,13 @@ export const CATEGORIES: { id: CategoryId; name: string; title: string; intro: s
     image: 'cat-comb.jpg',
   },
   {
+    id: 'blossom-honey',
+    name: 'Blossom Honey',
+    title: 'Blossom Honey',
+    intro: 'Single-flower honeys, each from one kind of bloom: coffee flowers in the shade of forest trees, the lilac karanji tree, litchi orchards in spring and fields of flowering tulasi. Every jar tastes of its flower.',
+    image: 'cat-blossom.jpg',
+  },
+  {
     id: 'wild-rare',
     name: 'Wild & Rare',
     title: 'Wild & Rare',
@@ -59,6 +66,7 @@ export const GRADES: [string, string][] = [
 
 const JAR = ['100 g', '250 g', '500 g'];
 const COMB = 'With honeycomb';
+const BLOSSOM = 'Single-flower honey';
 const HONEY_STORE = 'Store at room temperature with the lid closed. Always use a dry spoon.';
 const COMB_LOVE = 'Real honeycomb in the box: raw and edible';
 
@@ -174,14 +182,94 @@ export const PRODUCTS: Product[] = [
       { src: 'native-honey-jar.jpg', caption: 'Native honey with fresh comb' },
       { src: 'gen-native-tree-hollow.jpg', caption: 'Indian honey bees at a hollow in an old tree' },
       { src: 'gen-native-frame.jpg', caption: 'Lifting a frame of comb from a native bee box' },
-      { src: 'native-box.jpg', caption: 'Burrow (native bee) honey comb, as packed' },
-      { src: 'native-shelf.jpg', caption: 'Native bee comb in clear boxes' },
     ],
     specs: [['Bee', 'Indian honey bee'], ['Colour', 'Light amber to amber'], ['Taste', 'Fresh, sweet, gentle tang'], ['Texture', 'Light and flowing']],
     colour: [4, 5],
     about: 'Native honey comes from the Indian honey bee, which has lived alongside our farms and villages for generations and nests in hollows and burrows. Native bees forage on local flowers close to the hive, so the honey carries the true taste of the land around it. It is usually lighter in body, with a fresh sweetness and a gentle tang.',
     love: ['From the indigenous Indian honey bee', 'Local flowers, the true taste of the land', 'Supports native bee-keeping', 'Native honeycomb in every box'],
     use: 'An everyday honey: take a spoon in warm water, or use it in place of sugar in drinks and home remedies.',
+    packs: JAR, store: HONEY_STORE,
+  },
+  {
+    slug: 'forest-coffee-honey', name: 'Forest Coffee Honey', category: 'blossom-honey', kind: 'Monofloral', badge: BLOSSOM, withComb: false,
+    tagline: 'From coffee flowers in the shade of forest trees.',
+    tone: '#EADFD3', photo: 'coffee-jar.jpg',
+    gallery: [
+      { src: 'coffee-jar.jpg', caption: 'Forest coffee honey with coffee cherries and blossoms' },
+      { src: 'coffee-bees.jpg', caption: 'Honey bees on white coffee flowers' },
+      { src: 'coffee-grove.jpg', caption: 'Bee boxes in a shaded coffee grove' },
+      { src: 'coffee-forest.jpg', caption: 'Bee boxes under tall shade trees, with ripe coffee cherries' },
+      { src: 'cat-blossom.jpg', caption: 'Coffee flowers and cherries beside the bee boxes' },
+      { src: 'coffee-frame.jpg', caption: 'Lifting a frame of honeycomb among the coffee plants' },
+      { src: 'coffee-comb.jpg', caption: 'A frame of honeycomb, fresh from the hive' },
+      { src: 'coffee-straining.jpg', caption: 'Fresh honey strained into a jar' },
+    ],
+    specs: [['Source', 'Coffee flowers under forest shade'], ['Colour', 'Light amber to amber'], ['Taste', 'Caramel with soft fruity notes'], ['Texture', 'Smooth, velvety body']],
+    colour: [4, 5],
+    about: 'Forest coffee honey comes from the white blossoms of coffee plants growing in the shade of tall forest trees. The coffee bushes flower for only a few days after the first rains, filling the grove with a jasmine-like scent, and the bees work the flowers while they last. The honey is light amber to amber, with caramel and soft fruity notes. It does not taste of coffee; it tastes of the flowers.',
+    love: ['Honey from coffee blossoms in shaded forest groves', 'Caramel sweetness with a soft, fruity finish', 'A short flowering season makes every batch special', 'Lovely in black tea and over warm toast'],
+    use: 'Stir into black tea or a cold coffee, drizzle over pancakes and toast, or enjoy a spoonful on its own.',
+    packs: JAR, store: HONEY_STORE,
+  },
+  {
+    slug: 'karanji-honey', name: 'Karanji Honey', category: 'blossom-honey', kind: 'Monofloral', badge: BLOSSOM, withComb: false,
+    tagline: 'From the lilac blossoms of the karanji tree.',
+    tone: '#ECDDEF', photo: 'karanji-trees.jpg',
+    gallery: [
+      { src: 'karanji-trees.jpg', caption: 'Bee boxes under karanji trees in bloom' },
+      { src: 'karanji-bee.jpg', caption: 'A honey bee on karanji flowers' },
+      { src: 'karanji-jars.jpg', caption: 'Karanji honey in glass jars, with fresh blossoms' },
+      { src: 'karanji-branch.jpg', caption: 'A flowering karanji branch above the bee boxes' },
+      { src: 'karanji-grove.jpg', caption: 'An apiary in a flowering karanji grove' },
+      { src: 'karanji-pods.jpg', caption: 'Karanji flowers and its flat seed pods' },
+      { src: 'karanji-jar.jpg', caption: 'Golden karanji honey with honeycomb and karanji flowers' },
+      { src: 'karanji-bee-hives.jpg', caption: 'A honey bee heading for karanji blossoms near the hives' },
+      { src: 'karanji-comb-jar.jpg', caption: 'Karanji honey, fresh comb and blossoms' },
+      { src: 'karanji-frame.jpg', caption: 'Checking a frame of honeycomb' },
+    ],
+    specs: [['Source', 'Karanji (pungai) tree flowers'], ['Colour', 'Amber to dark amber'], ['Taste', 'Rich, with a gentle sharp finish'], ['Texture', 'Thick and smooth']],
+    colour: [5, 6],
+    about: 'Karanji honey is gathered from the flowers of the karanji tree, known in Tamil as pungai, a hardy shade tree that grows along roads, farm edges and village tanks. When it blooms, the tree is covered in clusters of lilac and white flowers that bees visit from morning to evening. The honey is amber to dark amber, with a rich, full taste and a gentle sharp finish.',
+    love: ['Single-flower honey from karanji blossoms', 'Rich, full taste with a gentle bite', 'From a hardy tree of Indian villages', 'Lovely with ginger and lemon in warm water'],
+    use: 'Mix with ginger and lemon in warm water, or stir into herbal kashayam once it has cooled a little.',
+    packs: JAR, store: HONEY_STORE,
+  },
+  {
+    slug: 'litchi-honey', name: 'Litchi Honey', category: 'blossom-honey', kind: 'Monofloral', badge: BLOSSOM, withComb: false,
+    tagline: 'Floral honey from litchi orchards in bloom.',
+    tone: '#F5DEDA', photo: 'litchi-orchard.jpg',
+    gallery: [
+      { src: 'litchi-orchard.jpg', caption: 'Bee boxes in a litchi orchard, with ripening fruit' },
+      { src: 'litchi-flowers.jpg', caption: 'Litchi blossoms above the hives' },
+      { src: 'litchi-frame.jpg', caption: 'A frame of honeycomb, full of bees' },
+      { src: 'litchi-jar.jpg', caption: 'Fresh honey flowing from the comb into a jar' },
+    ],
+    specs: [['Source', 'Litchi flowers'], ['Colour', 'Extra light amber to light amber'], ['Taste', 'Floral and gently fruity'], ['Texture', 'Smooth, may set creamy']],
+    colour: [3, 4],
+    about: 'Litchi honey is made when bees visit the small, creamy flowers of litchi trees, a few months before the fruit ripens. The orchards bloom for a short season, so the harvest is quick and seasonal. It is light amber, with a floral, gently fruity taste and an aroma that recalls the litchi blossom itself. Like many light honeys, it can set into a soft cream over time, which is natural.',
+    love: ['Single-flower honey from litchi orchards', 'Light, floral and gently fruity', 'Mild enough for the whole family', 'Turns plain curd and fruit into a dessert'],
+    use: 'Drizzle over curd, fruit salad or pancakes, or stir into lemon juice and iced tea.',
+    packs: JAR, store: HONEY_STORE,
+  },
+  {
+    slug: 'tulasi-honey', name: 'Tulasi Honey', category: 'blossom-honey', kind: 'Monofloral', badge: BLOSSOM, withComb: false,
+    tagline: 'Honey from the blossoms of holy basil.',
+    tone: '#E1E9D6', photo: 'tulasi-bees.jpg',
+    gallery: [
+      { src: 'tulasi-bees.jpg', caption: 'Honey bees on tulasi flowers' },
+      { src: 'tulasi-hives.jpg', caption: 'Bee boxes in a field of flowering tulasi' },
+      { src: 'tulasi-closeup.jpg', caption: 'A honey bee on a tulasi flower spike' },
+      { src: 'tulasi-jar.jpg', caption: 'Tulasi honey with fresh tulasi leaves' },
+      { src: 'tulasi-field.jpg', caption: 'Tulasi in bloom, with a bee on its way' },
+      { src: 'tulasi-frame.jpg', caption: 'A frame of honeycomb lifted among the tulasi plants' },
+      { src: 'tulasi-frame-tall.jpg', caption: 'Lifting a frame of honeycomb from the hive' },
+      { src: 'tulasi-straining.jpg', caption: 'Fresh honey dripping through a strainer into a jar' },
+    ],
+    specs: [['Source', 'Tulasi (holy basil) flowers'], ['Colour', 'Amber to dark amber'], ['Taste', 'Sweet, with a soft herbal note'], ['Texture', 'Thick and smooth']],
+    colour: [5, 6],
+    about: 'Tulasi honey comes from bees that forage on the small purple-white flower spikes of tulasi, the holy basil grown in courtyards and fields across India. Tulasi flowers through a long part of the year, and the bees visit it steadily. The honey is amber to dark amber, sweet with a soft herbal, slightly peppery note that carries a hint of the plant itself.',
+    love: ['Single-flower honey from tulasi blossoms', 'Sweet, with a soft herbal note', 'Made for warm drinks on cool mornings', 'A thoughtful gift for the family'],
+    use: 'Stir into warm water with a few tulasi leaves and a slice of ginger, or add to herbal tea once it has cooled a little.',
     packs: JAR, store: HONEY_STORE,
   },
   {
@@ -236,11 +324,18 @@ export const PRODUCTS: Product[] = [
   {
     slug: 'beeswax-candles', name: 'Beeswax Candles', category: 'from-the-hive', kind: 'From the hive', badge: 'Paraffin-free · Pollution-free', withComb: false,
     tagline: 'Natural light, without the pollution.',
-    tone: '#F3E4C6', photo: 'beeswax-candle-honey.jpg',
+    tone: '#F3E4C6', photo: 'candles-trio.jpg',
     gallery: [
-      { src: 'beeswax-candle-honey.jpg', caption: 'A pure beeswax candle with comb honey' },
+      { src: 'candles-trio.jpg', caption: 'Honeycomb beeswax candles with honey and fresh comb' },
+      { src: 'candles-tray.jpg', caption: 'Pure beeswax candles on a wooden tray' },
+      { src: 'candles-group.jpg', caption: 'Honeycomb pillars, a beehive candle and fresh comb' },
+      { src: 'candles-making.jpg', caption: 'Rolling a sheet of beeswax into a candle by hand' },
+      { src: 'candles-bee-block.jpg', caption: 'Honeycomb candles with a bee-stamped block of beeswax' },
+      { src: 'candles-tealight.jpg', caption: 'Beeswax candles and a tealight, lit for the evening' },
+      { src: 'candles-gift.jpg', caption: 'A beeswax candle tied with twine, ready to gift' },
+      { src: 'candles-shapes.jpg', caption: 'Rose and pine-cone shaped beeswax candles' },
+      { src: 'beeswax-blocks.jpg', caption: 'Blocks and pellets of pure beeswax' },
       { src: 'gen-candles-lit.jpg', caption: 'Beeswax candles glowing at dusk' },
-      { src: 'gen-beeswax-raw.jpg', caption: 'Raw beeswax, ready to become candles' },
     ],
     specs: [['Material', 'Pure beeswax'], ['Burn', 'Clean, very little smoke'], ['Scent', 'Light natural honey'], ['Best for', 'Pooja, dining, gifting']],
     about: 'Our candles are made from pure beeswax, the natural wax bees make to build their honeycomb. Unlike paraffin candles, which come from petroleum, they burn slowly and cleanly with very little smoke, giving a warm golden glow and a soft honey scent with no added fragrance.',
@@ -253,11 +348,17 @@ export const PRODUCTS: Product[] = [
   {
     slug: 'honey-sticks', name: 'Honey Sticks', category: 'from-the-hive', kind: 'Single-serve sachets', badge: '10 g per stick', withComb: false,
     tagline: 'One stick, one serving, no mess.',
-    tone: '#FBE6C0', photo: 'honey-sticks-box.jpg',
+    tone: '#FBE6C0', photo: 'sticks-cup.jpg',
     gallery: [
+      { src: 'sticks-cup.jpg', caption: 'Honey sticks in a kraft cup, ready to share' },
       { src: 'honey-sticks-box.jpg', caption: 'Beezy honey sticks: box of 10 × 10 g' },
-      { src: 'gen-sticks-pouch.jpg', caption: 'Honey sticks for the tiffin box or the road' },
-      { src: 'gen-sticks-tea.jpg', caption: 'Squeeze a stick straight into your tea' },
+      { src: 'sticks-clover.jpg', caption: 'Honey sticks with a honey dipper and clover flowers' },
+      { src: 'sticks-tea-glass.jpg', caption: 'A honey stick in a glass of warm tea' },
+      { src: 'sticks-squeeze-tea.jpg', caption: 'Squeeze a stick straight into your tea' },
+      { src: 'sticks-backpack.jpg', caption: 'A few sticks in your bag for the day' },
+      { src: 'sticks-bowl.jpg', caption: 'Honey sticks in a wooden bowl, with a jar of honey' },
+      { src: 'sticks-comb.jpg', caption: 'Honey sticks with fresh honeycomb' },
+      { src: 'sticks-on-comb.jpg', caption: 'Honey from a stick, drizzled over fresh comb' },
       { src: 'honey-tea.jpg', caption: 'One stick is just right for a cup of tea' },
     ],
     specs: [['Net weight', '10 g per stick'], ['Serving', 'About 1½ teaspoons'], ['Box', '10 sticks (100 g)'], ['Inside', 'Natural honey']],

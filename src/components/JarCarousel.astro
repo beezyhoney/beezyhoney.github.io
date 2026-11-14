@@ -41,6 +41,7 @@ const data = PRODUCTS.map((p) => ({ name: p.name, kind: p.kind, href: link(`/sho
         </div>
       </div>
     </div>
+    <a class="cap-cta" data-cap-cta href={link(`/shop/${first.slug}/`)}>View &amp; order <Icon name="arrow-right" /></a>
     <div class="controls">
       <button type="button" class="round" data-prev aria-label="Previous product"><Icon name="arrow-left" /></button>
       <span class="counter"><b data-index>01</b> / {String(n).padStart(2, '0')}</span>
@@ -48,16 +49,26 @@ const data = PRODUCTS.map((p) => ({ name: p.name, kind: p.kind, href: link(`/sho
     </div>
   </div>
 
-  <p class="scroll-hint" aria-hidden="true">Scroll to discover</p>
+  <div class="swipe-hint" data-swipe-hint hidden aria-hidden="true">
+    <div class="sh-pill">
+      <span class="sh-touch"><i class="sh-trail"></i><i class="sh-dot"></i></span>
+      <span class="sh-mouse"><i class="sh-wheel"></i></span>
+      <span><span class="h-mouse">Scroll to explore</span><span class="h-touch">Swipe to explore</span></span>
+    </div>
+  </div>
+
+  <p class="scroll-hint" aria-hidden="true"><span class="h-mouse">Scroll or use the arrows</span><span class="h-touch">Swipe for more honey</span></p>
 </section>
 <script type="application/json" id="carousel-data" set:html={JSON.stringify(data)} />
 
 <style>
   .carousel { position: relative; isolation: isolate; height: 100svh; min-height: 560px; overflow: hidden; color: var(--choc); touch-action: none; }
+  /* Elements that GSAP scales or moves are centred with margins, never with the CSS translate
+     property: GSAP folds that into its own transform and can lose the -50% on some window sizes. */
   .disc {
     --size: max(118vmin, 82vh);
     position: absolute; left: 50%; top: 44%;
-    width: var(--size); aspect-ratio: 1; translate: -50% 0;
+    width: var(--size); aspect-ratio: 1; margin-left: calc(var(--size) / -2);
     border-radius: 50%; background: var(--cocoa); color: var(--honey);
   }
   .ring { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -70,7 +81,7 @@ const data = PRODUCTS.map((p) => ({ name: p.name, kind: p.kind, href: link(`/sho
     --size: min(40svh, 32vw, 480px);
     position: absolute; left: 50%; top: 42%;
     width: var(--size); aspect-ratio: 1;
-    translate: -50% -50%;
+    margin: calc(var(--size) / -2) 0 0 calc(var(--size) / -2);
     will-change: transform;
   }
   .slide-card { display: block; width: 100%; height: 100%; border-radius: var(--radius-photo); overflow: hidden; background: var(--tone); box-shadow: 0 40px 70px rgba(43, 26, 16, .35); }
@@ -86,6 +97,36 @@ const data = PRODUCTS.map((p) => ({ name: p.name, kind: p.kind, href: link(`/sho
   .cap-name { font-family: var(--f-display); font-weight: 400; font-size: clamp(2rem, 4.2vw, 3.6rem); line-height: 1.05; }
   .cap-name a { text-decoration: none; }
   .cap-name a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+  .cap-cta {
+    display: inline-flex; align-items: center; gap: 10px; height: 46px; padding: 0 22px; border-radius: 999px;
+    background: var(--amber); color: var(--choc); font-size: .8rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; text-decoration: none;
+    transition: background .3s, color .3s;
+  }
+  .cap-cta :global(svg) { width: 16px; height: 16px; transition: translate .3s var(--ease); }
+  .cap-cta:hover { background: var(--cream); }
+  .cap-cta:hover :global(svg) { translate: 4px 0; }
+  .h-touch { display: none; }
+  @media (hover: none) { .h-mouse { display: none; } .h-touch { display: inline; } }
+
+  /* first visit: a little guide on the centre card (finger dot on touch screens, mouse on laptops) */
+  /* the outer box only fades (GSAP leaves its centring alone); the pill inside does the scaling */
+  .swipe-hint { position: absolute; left: 50%; top: 42%; translate: -50% -50%; z-index: 130; pointer-events: none; visibility: hidden; }
+  .sh-pill {
+    display: flex; align-items: center; gap: 12px; padding: 10px 20px 10px 14px; border-radius: 999px;
+    background: rgba(43, 26, 16, .62); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    color: var(--cream); font-size: .76rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; white-space: nowrap;
+  }
+  .swipe-hint[hidden] { display: none; }
+  .swipe-hint i { position: absolute; display: block; }
+  .sh-touch { display: none; position: relative; width: 52px; height: 28px; }
+  .sh-dot { top: 4px; right: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--cream); box-shadow: 0 0 0 5px rgba(251, 243, 230, .25); animation: sh-dot 1.1s var(--ease) infinite; }
+  .sh-trail { top: 13px; right: 12px; width: 30px; height: 2px; border-radius: 2px; background: linear-gradient(to left, rgba(251, 243, 230, .8), rgba(251, 243, 230, 0)); transform-origin: right; animation: sh-trail 1.1s var(--ease) infinite; }
+  .sh-mouse { position: relative; width: 18px; height: 28px; border: 2px solid var(--cream); border-radius: 10px; }
+  .sh-wheel { left: 50%; top: 5px; width: 3px; height: 6px; margin-left: -1.5px; border-radius: 2px; background: var(--cream); animation: sh-wheel 1.1s ease-in-out infinite; }
+  @media (hover: none) { .sh-mouse { display: none; } .sh-touch { display: block; } }
+  @keyframes sh-dot { 0% { transform: none; opacity: 0; } 15% { opacity: 1; } 70% { transform: translateX(-30px); opacity: 1; } 100% { transform: translateX(-30px); opacity: 0; } }
+  @keyframes sh-trail { 0%, 15% { transform: scaleX(0); opacity: 1; } 70% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+  @keyframes sh-wheel { 0% { transform: none; opacity: 1; } 70% { transform: translateY(8px); opacity: 0; } 100% { opacity: 0; } }
   .controls { display: flex; align-items: center; gap: 16px; }
   .controls .round { border-color: rgba(251, 243, 230, .5); color: var(--cream); width: 46px; height: 46px; }
   .controls .round:hover { background: var(--cream); color: var(--choc); }
@@ -93,9 +134,19 @@ const data = PRODUCTS.map((p) => ({ name: p.name, kind: p.kind, href: link(`/sho
   .counter b { font-weight: 400; color: var(--amber); }
   .scroll-hint { position: absolute; left: 50%; bottom: 20px; translate: -50% 0; font-size: .74rem; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--cream); opacity: .8; z-index: 120; white-space: nowrap; }
 
+  /* short laptop screens (e.g. 1366 x 768): smaller, higher cards and a tighter caption so they never touch */
+  @media (min-width: 761px) and (max-height: 760px) {
+    .slide { --size: min(34svh, 32vw, 480px); top: 38%; }
+    .swipe-hint { top: 38%; }
+    .caption { gap: 10px; }
+    .cap-name { font-size: clamp(2rem, min(4.2vw, 7svh), 3.6rem); }
+  }
+  @media (min-width: 761px) and (max-height: 620px) { .slide { --size: min(31svh, 32vw, 480px); } }
+
   @media (max-width: 760px) {
     .slide { --size: min(38svh, 76vw, 360px); top: 40%; }
     .caption { bottom: 64px; }
+    .swipe-hint { top: 40%; }
     .scroll-hint { bottom: 26px; left: var(--gutter); translate: none; }
   }
 </style>
@@ -112,25 +163,26 @@ const data = PRODUCTS.map((p) => ({ name: p.name, kind: p.kind, href: link(`/sho
     const capTrack = root.querySelector<HTMLElement>('.cap-track')!;
     let capItem = root.querySelector<HTMLElement>('.cap-item')!;
     const counter = root.querySelector<HTMLElement>('[data-index]')!;
+    const cta = root.querySelector<HTMLAnchorElement>('[data-cap-cta]')!;
     const n = slides.length;
     const state = { p: 0 };
     let current = 0;
-    let busy = false;
+    let target = 0; // where the cards are heading (whole number, not wrapped)
+    let tween: gsap.core.Tween | null = null;
     let ready = false;
-    let queued = 0;
     let capTl: gsap.core.Timeline | null = null;
     const html = document.documentElement;
+    const wrap = (i: number) => ((i % n) + n) % n;
+    const spacing = () => slides[0].offsetWidth * (window.innerWidth < 760 ? 0.92 : 1.12);
 
     const layout = () => {
-      const w = window.innerWidth;
-      const card = slides[0].offsetWidth;
-      const spacing = w < 760 ? card * 0.92 : card * 1.12;
+      const space = spacing();
       slides.forEach((el, i) => {
         let d = (((i - state.p) % n) + n) % n;
         if (d > n / 2) d -= n;
         const a = Math.abs(d);
         gsap.set(el, {
-          x: d * spacing,
+          x: d * space,
           y: a * a * 26 + a * 20,
           rotation: d * 12,
           scale: 1 - Math.min(a, 2.5) * 0.19,
@@ -146,6 +198,8 @@ const data = PRODUCTS.map((p) => ({ name: p.name, kind: p.kind, href: link(`/sho
     const showCaption = (i: number, dir: number) => {
       const d = data[i];
       counter.textContent = String(i + 1).padStart(2, '0');
+      cta.href = d.href;
+      cta.setAttribute('aria-label', `View and order ${d.name}`);
       links.forEach((l, k) => (l.tabIndex = k === i ? 0 : -1));
       capTl?.progress(1).kill();
       const prev = capItem;
@@ -160,74 +214,156 @@ const data = PRODUCTS.map((p) => ({ name: p.name, kind: p.kind, href: link(`/sho
       capItem = next;
       if (reducedMotion()) { prev.remove(); return; }
       capTl = gsap.timeline({ onComplete: () => prev.remove() })
-        .fromTo(next, { yPercent: dir * 110 }, { yPercent: 0, duration: 0.95, ease: 'power3.inOut' }, 0)
-        .to(prev, { yPercent: -dir * 110, duration: 0.95, ease: 'power3.inOut' }, 0);
+        .fromTo(next, { yPercent: dir * 110 }, { yPercent: 0, duration: 0.6, ease: 'power3.out' }, 0)
+        .to(prev, { yPercent: -dir * 110, duration: 0.6, ease: 'power3.out' }, 0);
     };
 
-    // queue: arrow buttons and keys remember one extra press made during a move; scrolling never queues
-    const go = (dir: number, queue = true) => {
-      if (!ready || html.classList.contains('is-menu-open') || html.classList.contains('is-cart-open')) return;
-      if (busy) { if (queue) queued = dir; return; }
-      busy = true;
-      const target = Math.round(state.p) + dir;
-      current = ((target % n) + n) % n;
-      showCaption(current, dir);
-      gsap.to(state, {
-        p: target, duration: reducedMotion() ? 0 : 0.95, ease: 'power3.inOut',
-        onUpdate: layout,
-        onComplete: () => {
-          busy = false;
-          if (queued) { const next = queued; queued = 0; go(next); }
-        },
-      });
+    const blocked = () => !ready || html.classList.contains('is-menu-open') || html.classList.contains('is-cart-open') || html.classList.contains('is-touring');
+
+    // Glide to a slide. A new move can start at any time: it takes over from wherever the cards are,
+    // so quick presses and swipes are never ignored. The ease starts fast so the cards react at once.
+    const moveTo = (to: number, duration = 0.6) => {
+      tween?.kill();
+      const dir = to > target ? 1 : to < target ? -1 : Math.sign(to - state.p) || 1;
+      target = to;
+      if (wrap(to) !== current) { current = wrap(to); showCaption(current, dir); }
+      tween = gsap.to(state, { p: to, duration: reducedMotion() ? 0 : duration, ease: 'power3.out', onUpdate: layout, onComplete: () => { tween = null; } });
     };
+    const go = (dir: number) => { if (!blocked()) moveTo(target + dir); };
 
     layout();
     window.addEventListener('resize', layout);
     root.querySelector('[data-prev]')!.addEventListener('click', () => go(-1));
     root.querySelector('[data-next]')!.addEventListener('click', () => go(1));
     document.addEventListener('keydown', (e) => {
-      if (e.repeat || (e.target as HTMLElement).closest('input, textarea, .menu, .cart')) return;
+      if (e.repeat || (e.target instanceof Element && e.target.closest('input, textarea, .menu, .cart'))) return;
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); go(1); }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); go(-1); }
     });
 
-    // Mouse wheel and touchpad: one scroll moves exactly one product. A single scroll arrives as a
-    // stream of wheel events (several wheel clicks, or a touchpad flick with its slow inertia tail).
-    // Only an event after a real pause starts a new scroll; everything else in the stream is ignored.
-    const PAUSE = 380;
-    let lastWheel = -Infinity;
+    // Mouse wheel and touchpad. A scroll arrives as a stream of wheel events, and a touchpad flick
+    // keeps sending smaller and smaller events after the fingers lift (its glide). One flick must
+    // move one product, but scrolling on and on must keep moving. A move starts when:
+    //  - the stream starts after a pause, or turns round;
+    //  - a mouse wheel clicks again after a short break;
+    //  - a new flick lands on top of the last one's glide (the events suddenly grow again);
+    //  - the fingers or wheel keep going at full strength (not a fading glide), every MOVE_GAP.
+    const QUIET = 380;    // ms without events that ends a stream
+    const FLICK_GAP = 260; // ms after a move before a new flick or a turn can move again
+    const MOVE_GAP = 420; // ms between two moves made by steady scrolling
+    const STEP = 280;     // px of steady scrolling for one more product
+    const hist: number[] = [];
+    let lastEvent = -Infinity, lastMove = -Infinity, lastDir = 0, travelled = 0;
+    const mean = (a: number[]) => a.reduce((s, v) => s + v, 0) / Math.max(1, a.length);
     root.addEventListener('wheel', (e) => {
       e.preventDefault();
       const now = performance.now();
-      const pause = now - lastWheel;
-      lastWheel = now;
-      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-      if (busy || pause < PAUSE || Math.abs(delta) < 2) return;
-      go(delta > 0 ? 1 : -1, false);
+      let delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if (e.deltaMode === 1) delta *= 33; else if (e.deltaMode === 2) delta *= window.innerHeight;
+      const size = Math.abs(delta), dir = Math.sign(delta);
+      const gap = now - lastEvent;
+      lastEvent = now;
+      const fresh = gap > QUIET;
+      if (fresh) { hist.length = 0; travelled = 0; }
+      if (size < 1) return;
+      hist.push(size); if (hist.length > 8) hist.shift();
+      travelled += size;
+      const turned = dir !== lastDir; lastDir = dir;
+      const recent = mean(hist.slice(-3)), before = mean(hist.slice(-8, -3));
+      const since = now - lastMove;
+      const notch = size >= 60 && gap >= 120 && since > 250; // one mouse-wheel click
+      const newFlick = hist.length >= 6 && recent > before * 1.6 && recent > 8;
+      const steady = hist.length >= 6 && recent >= before * 0.9 && recent >= 10 && travelled > STEP;
+      if (fresh || notch || (since > FLICK_GAP && ((turned && size >= 4) || newFlick)) || (since > MOVE_GAP && steady)) {
+        lastMove = now; travelled = 0;
+        go(dir);
+      }
     }, { passive: false });
 
-    // Touch: one swipe (up or left = next) moves one product, decided when the finger lifts
-    let touchStart: { x: number; y: number } | null = null;
-    root.addEventListener('touchstart', (e) => { touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }, { passive: true });
-    root.addEventListener('touchmove', (e) => { if (touchStart) e.preventDefault(); }, { passive: false });
-    root.addEventListener('touchend', (e) => {
-      if (!touchStart) return;
-      const t = e.changedTouches[0];
-      const dx = touchStart.x - t.clientX;
-      const dy = touchStart.y - t.clientY;
-      touchStart = null;
-      const d = Math.abs(dx) > Math.abs(dy) ? dx : dy;
-      if (Math.abs(d) > 40) go(d > 0 ? 1 : -1, false);
-    });
+    // Touch: the cards follow the finger while it moves (left or up = next), then snap to the
+    // nearest product, carried on by a quick flick. A tap with no movement still opens the product.
+    let drag: { x: number; y: number; p: number; axis: 'x' | 'y' | null; last: number; lastT: number; v: number } | null = null;
+    let dragged = false;
+    root.addEventListener('touchstart', (e) => {
+      if (blocked() || e.touches.length > 1) { drag = null; return; }
+      tween?.kill(); tween = null;
+      const t = e.touches[0];
+      drag = { x: t.clientX, y: t.clientY, p: state.p, axis: null, last: 0, lastT: performance.now(), v: 0 };
+      dragged = false;
+    }, { passive: true });
+    root.addEventListener('touchmove', (e) => {
+      if (!drag) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      const dx = drag.x - t.clientX, dy = drag.y - t.clientY;
+      if (!drag.axis) { if (Math.max(Math.abs(dx), Math.abs(dy)) < 6) return; drag.axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'; }
+      dragged = true;
+      const moved = drag.axis === 'x' ? dx : dy;
+      const now = performance.now();
+      drag.v = (moved - drag.last) / Math.max(1, now - drag.lastT); // px per ms
+      drag.last = moved; drag.lastT = now;
+      state.p = drag.p + moved / spacing();
+      layout();
+    }, { passive: false });
+    const endDrag = () => {
+      if (!drag) return;
+      const d = drag; drag = null;
+      if (!d.axis) { if (tween === null && state.p !== target) moveTo(target, 0.35); return; }
+      const from = Math.round(d.p);
+      const flick = performance.now() - d.lastT < 80 ? d.v : 0;
+      let to = Math.round(state.p + (flick * 160) / spacing());
+      if (to === from && Math.abs(d.last) > 24) to = from + Math.sign(d.last);
+      to = Math.max(from - 3, Math.min(from + 3, to));
+      target = Math.round(state.p); // the caption direction is worked out from where the finger left the cards
+      moveTo(to, 0.45);
+    };
+    root.addEventListener('touchend', endDrag);
+    root.addEventListener('touchcancel', endDrag);
+    // a swipe that starts on a card must not open that product when the finger lifts
+    root.addEventListener('click', (e) => { if (dragged) { e.preventDefault(); e.stopPropagation(); dragged = false; } }, true);
+
+    // First visit only: once the cards have landed, they nudge towards the next product a few times
+    // while a small guide shows how to move through them. Any touch, scroll, click or key ends it,
+    // and it is never shown again in this browser.
+    const HINT_KEY = 'beezy-hint-seen';
+    const hint = root.querySelector<HTMLElement>('[data-swipe-hint]')!;
+    let hintTl: gsap.core.Timeline | null = null;
+    let interacted = false;
+    const hintSeen = () => { try { return localStorage.getItem(HINT_KEY) === '1'; } catch { return true; } };
+    const markHintSeen = () => { try { localStorage.setItem(HINT_KEY, '1'); } catch { /* storage blocked */ } };
+    // the feature tour (FeatureTour.astro) waits for this, so the two never show at the same time
+    let hintFinished = false;
+    const hintDone = () => { if (!hintFinished) { hintFinished = true; window.dispatchEvent(new CustomEvent('home:hint-done')); } };
+    const hideHint = () => {
+      hintTl?.kill(); hintTl = null;
+      if (hint.hidden) { hintDone(); return; }
+      gsap.to(hint, { autoAlpha: 0, duration: 0.3, onComplete: () => { hint.hidden = true; hintDone(); } });
+      if (!tween && !drag && Math.abs(state.p - target) > 0.001) moveTo(target, 0.3);
+    };
+    const showHint = () => {
+      if (interacted || hintSeen() || blocked()) { hintDone(); return; }
+      markHintSeen();
+      hint.hidden = false;
+      if (reducedMotion()) { gsap.set(hint, { autoAlpha: 1 }); hintTl = gsap.timeline().call(hideHint, [], 3.5); return; }
+      hintTl = gsap.timeline({ onComplete: hideHint })
+        .fromTo(hint, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.45, ease: 'power2.out' }, 0)
+        .fromTo(hint.firstElementChild, { scale: 0.92 }, { scale: 1, duration: 0.45, ease: 'power2.out' }, 0)
+        .to(state, { p: target + 0.16, duration: 0.55, ease: 'power2.inOut', repeat: 5, yoyo: true, onUpdate: layout }, 0.25)
+        .to({}, { duration: 0.5 });
+    };
+    const endHint = () => { interacted = true; markHintSeen(); hideHint(); };
+    ['wheel', 'touchstart', 'pointerdown', 'keydown'].forEach((t) => window.addEventListener(t, endHint, { capture: true, once: true, passive: true }));
 
     onReady(() => {
       ready = true;
+      gsap.delayedCall(reducedMotion() ? 0.8 : 2.2, showHint);
       if (reducedMotion()) return;
+      // cards rise in from the centre outwards, left and right side together
+      const dist = (i: number) => Math.abs(i > n / 2 ? i - n : i);
       gsap.timeline()
         .from('.disc', { scale: 0.7, autoAlpha: 0, duration: 1.4, ease: 'expo.out' }, 0)
-        .from(slides.map((s) => s.querySelector('.slide-card')), { yPercent: 60, autoAlpha: 0, duration: 1.3, ease: 'expo.out', stagger: 0.05 }, 0.15)
-        .from('.controls, .scroll-hint', { autoAlpha: 0, duration: 0.8 }, 0.9);
+        .from(slides.map((s) => s.querySelector('.slide-card')), { yPercent: 60, autoAlpha: 0, duration: 1.3, ease: 'expo.out', stagger: (i: number) => dist(i) * 0.09 }, 0.15)
+        .from('.cap-cta, .controls, .scroll-hint', { autoAlpha: 0, duration: 0.8 }, 0.9);
       capTl = gsap.timeline({ delay: 0.6 }).fromTo(capItem, { yPercent: 110 }, { yPercent: 0, duration: 0.9, ease: 'expo.out' });
     });
   }

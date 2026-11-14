@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import PageHero from '../components/PageHero.astro';
 import PhotoSlider from '../components/PhotoSlider.astro';
+import BloomCalendar from '../components/BloomCalendar.astro';
 import { link } from '../data/site';
 
 const sections = [
@@ -30,6 +31,18 @@ const sections = [
     ],
   },
   {
+    id: 'blossom-honey', title: 'Blossom Honey', sub: 'Single-flower honey · 100 g · 250 g · 500 g', shop: true,
+    text: 'Each of these honeys follows a single bloom: coffee flowers in the shade of forest trees, karanji trees covered in lilac blossoms, litchi orchards in early spring and fields of flowering tulasi. The bees bring back a honey that tastes of that one flower.',
+    photos: [
+      { src: 'coffee-bees.jpg', caption: 'Honey bees on white coffee flowers' },
+      { src: 'karanji-grove.jpg', caption: 'An apiary in a flowering karanji grove' },
+      { src: 'litchi-flowers.jpg', caption: 'Litchi blossoms above the hives' },
+      { src: 'tulasi-hives.jpg', caption: 'Bee boxes in a field of flowering tulasi' },
+      { src: 'coffee-straining.jpg', caption: 'Fresh honey strained into a jar' },
+      { src: 'tulasi-field.jpg', caption: 'Tulasi in bloom, with a bee on its way' },
+    ],
+  },
+  {
     id: 'wild-rare', title: 'Wild & Rare', sub: 'Small seasonal harvests', shop: true,
     text: 'Some honey only comes from the wild. Forest honey from rock bee combs high in the trees, kombu honey from the dwarf bee’s single comb on a branch, dammar honey from the stingless bee’s tiny resin pots, and Neela Kurinji honey from the hills of the Western Ghats, where the kurinji shrub blooms together only about once every twelve years. Harvests are small and depend on the season.',
     photos: [
@@ -44,7 +57,7 @@ const sections = [
     id: 'from-the-hive', title: 'From the Hive', sub: 'Beeswax candles · 10 g honey sticks', shop: true,
     text: 'Pure beeswax becomes candles that burn clean with a soft honey scent. Our honey also comes in 10 g sticks, sealed and ready for tea, tiffin boxes, travel and return gifts.',
     photos: [
-      { src: 'beeswax-candle-honey.jpg', caption: 'A pure beeswax candle with comb honey' },
+      { src: 'candles-trio.jpg', caption: 'Honeycomb beeswax candles with honey and fresh comb' },
       { src: 'honey-sticks-box.jpg', caption: 'Honey sticks: box of 10 × 10 g' },
       { src: 'gift-bag.jpg', caption: 'A Beezy gift bag with honey bottles' },
       { src: 'gift-jar.jpg', caption: 'A small honey jar, ready to gift' },
@@ -73,6 +86,8 @@ const sections = [
       <PhotoSlider photos={s.photos} label={`${s.title} photos`} />
     </>
   ))}
+
+  <BloomCalendar />
 </Base>
 
 <style>

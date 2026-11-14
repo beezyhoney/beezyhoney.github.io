@@ -1,0 +1,151 @@
+---
+// One-time tour of the site's helpers for first-time visitors on the home page.
+// Starts after the carousel's swipe hint is done and the visitor has stopped scrolling for a moment.
+const steps = [
+  { target: '[data-tool="finder"]', title: 'Honey Finder', text: 'Not sure which honey to pick? Answer four quick questions and we’ll match you with the right one.' },
+  { target: '[data-tool="gift"]', title: 'Gift Box', text: 'Build a box of two to four honeys for weddings, festivals or your team, and send it to us on WhatsApp.' },
+  { target: '.menu-btn', title: 'More in the menu', text: 'Know Your Jar looks up the batch number on your label, and the Bloom Calendar shows which flowers are in season.' },
+];
+---
+<div class="tour" data-tour hidden>
+  <div class="tour-hole" data-hole></div>
+  <div class="tour-tip" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-text" data-tip>
+    <i class="tour-arrow" data-arrow aria-hidden="true"></i>
+    <p class="tour-count eyebrow" data-count></p>
+    <h2 class="tour-title" id="tour-title" data-title></h2>
+    <p class="tour-text" id="tour-text" data-text></p>
+    <div class="tour-actions">
+      <button type="button" class="tour-skip" data-skip>Skip tour</button>
+      <button type="button" class="btn btn-honey" data-next>Next</button>
+    </div>
+  </div>
+</div>
+<script type="application/json" id="tour-data" set:html={JSON.stringify(steps).replace(/</g, '\\u003c')} />
+
+<style>
+  .tour { position: fixed; inset: 0; z-index: 95; }
+  .tour-hole {
+    position: fixed; border-radius: 999px; pointer-events: none;
+    box-shadow: 0 0 0 3px var(--amber), 0 0 0 200vmax rgba(43, 26, 16, .62);
+    transition: top .45s var(--ease), left .45s var(--ease), width .45s var(--ease), height .45s var(--ease);
+  }
+  .tour-tip {
+    position: fixed; width: min(340px, calc(100vw - 32px)); padding: 20px 20px 16px; border-radius: 20px;
+    background: var(--paper); color: var(--choc); box-shadow: 0 24px 60px rgba(0, 0, 0, .3);
+    display: grid; gap: 8px; transition: top .45s var(--ease), left .45s var(--ease), opacity .3s;
+  }
+  .tour-arrow { position: absolute; width: 16px; height: 16px; background: var(--paper); transform: rotate(45deg); top: -7px; left: 30px; border-radius: 3px; }
+  .tour-tip.above .tour-arrow { top: auto; bottom: -7px; }
+  .tour-title { font-family: var(--f-display); font-weight: 400; font-size: 1.7rem; line-height: 1.05; }
+  .tour-text { color: var(--ink-2); line-height: 1.5; }
+  .tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
+  .tour-actions .btn { min-height: 44px; }
+  .tour-skip { background: none; border: 0; padding: 8px 0; font: inherit; font-weight: 600; color: var(--ink-3); text-decoration: underline; cursor: pointer; }
+  .tour.enter .tour-tip { animation: tour-in .4s var(--ease) both; }
+  @keyframes tour-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .tour-hole, .tour-tip { transition: none; } .tour.enter .tour-tip { animation: none; } }
+</style>
+
+<script>
+  const tour = document.querySelector<HTMLElement>('[data-tour]');
+  const dataEl = document.getElementById('tour-data');
+  if (tour && dataEl) {
+    // <main> is its own stacking layer under the header; the tour must sit above everything, so it lives on <body>
+    document.body.appendChild(tour);
+    const steps = JSON.parse(dataEl.textContent!) as { target: string; title: string; text: string }[];
+    const KEY = 'beezy-tour-v1';
+    const html = document.documentElement;
+    const hole = tour.querySelector<HTMLElement>('[data-hole]')!;
+    const tip = tour.querySelector<HTMLElement>('[data-tip]')!;
+    const arrow = tour.querySelector<HTMLElement>('[data-arrow]')!;
+    const count = tour.querySelector<HTMLElement>('[data-count]')!;
+    const title = tour.querySelector<HTMLElement>('[data-title]')!;
+    const text = tour.querySelector<HTMLElement>('[data-text]')!;
+    const next = tour.querySelector<HTMLButtonElement>('[data-next]')!;
+    const skip = tour.querySelector<HTMLButtonElement>('[data-skip]')!;
+    const seen = () => { try { return localStorage.getItem(KEY) === 'done'; } catch { return true; } };
+    const markSeen = () => { try { localStorage.setItem(KEY, 'done'); } catch { /* storage blocked */ } };
+
+    let index = -1;
+    let lastInput = 0;
+    let waiting: number | undefined;
+    ['wheel', 'touchstart', 'touchmove', 'keydown', 'pointerdown'].forEach((t) => window.addEventListener(t, () => { lastInput = performance.now(); }, { passive: true, capture: true }));
+
+    const visible = (el: Element | null) => { if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; };
+    const targetOf = (i: number) => document.querySelector<HTMLElement>(steps[i].target);
+
+    const place = () => {
+      const el = targetOf(index);
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const pad = 6;
+      hole.style.top = `${r.top - pad}px`; hole.style.left = `${r.left - pad}px`;
+      hole.style.width = `${r.width + pad * 2}px`; hole.style.height = `${r.height + pad * 2}px`;
+      const tw = tip.offsetWidth, th = tip.offsetHeight, gap = 16, edge = 16;
+      const below = r.bottom + pad + gap + th <= window.innerHeight - edge || r.top - pad - gap - th < edge;
+      const top = below ? r.bottom + pad + gap : r.top - pad - gap - th;
+      const center = r.left + r.width / 2;
+      const left = Math.max(edge, Math.min(window.innerWidth - tw - edge, center - tw / 2));
+      tip.style.top = `${Math.max(edge, top)}px`; tip.style.left = `${left}px`;
+      tip.classList.toggle('above', !below);
+      arrow.style.left = `${Math.max(18, Math.min(tw - 34, center - left - 8))}px`;
+    };
+
+    const show = (i: number) => {
+      // skip any step whose button is not on screen (for example, a narrow layout without it)
+      while (i < steps.length && !visible(targetOf(i))) i++;
+      if (i >= steps.length) { end(); return; }
+      index = i;
+      const total = steps.length;
+      count.textContent = `${i + 1} of ${total}`;
+      title.textContent = steps[i].title;
+      text.textContent = steps[i].text;
+      next.textContent = i === total - 1 ? 'Got it' : 'Next';
+      place();
+      next.focus({ preventScroll: true });
+    };
+
+    function end() {
+      markSeen();
+      tour.hidden = true;
+      tour.classList.remove('enter');
+      html.classList.remove('is-touring');
+      index = -1;
+      window.removeEventListener('resize', place);
+      document.removeEventListener('keydown', onKey, true);
+    }
+
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { e.preventDefault(); end(); return; }
+      if (e.key === 'Tab') { // keep focus inside the tour box
+        e.preventDefault();
+        (document.activeElement === next ? skip : next).focus();
+        return;
+      }
+      if (e.key !== 'Enter' && e.key !== ' ') e.stopPropagation(); // arrow keys must not move the carousel behind
+    }
+
+    const start = () => {
+      if (seen() || index >= 0) return;
+      html.classList.add('is-touring');
+      tour.hidden = false;
+      tour.classList.add('enter');
+      window.addEventListener('resize', place);
+      document.addEventListener('keydown', onKey, true);
+      show(0);
+    };
+
+    // wait until the visitor is idle, the page is in view and no menu or order drawer is open
+    const ready = () => !document.hidden && performance.now() - lastInput > 1500
+      && !html.classList.contains('is-menu-open') && !html.classList.contains('is-cart-open');
+    const waitThenStart = () => {
+      if (seen()) return;
+      window.clearInterval(waiting);
+      waiting = window.setInterval(() => { if (ready()) { window.clearInterval(waiting); start(); } }, 400);
+    };
+
+    next.addEventListener('click', () => (index >= steps.length - 1 ? end() : show(index + 1)));
+    skip.addEventListener('click', end);
+    if (!seen()) window.addEventListener('home:hint-done', () => window.setTimeout(waitThenStart, 900), { once: true });
+  }
+</script>

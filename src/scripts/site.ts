@@ -1,5 +1,5 @@
 import { gsap, initReveals, lenis, reducedMotion, refreshSoon, startSmoothScroll } from './motion';
-import { cart, orderLink, savedFields, saveFields } from './cart';
+import { cart, orderLink } from './cart';
 
 const html = document.documentElement;
 const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector<T>(sel);
@@ -131,7 +131,7 @@ function menu() {
   const panel = $('#menu');
   if (!btn || !panel) return;
   const label = $('.pill', btn);
-  const links = $$('.menu-list a, .menu-foot > *', panel);
+  const links = $$('.menu-list a, .menu-tools a, .menu-foot > *', panel);
   let open = false;
   let tl: gsap.core.Timeline | null = null;
 
@@ -170,12 +170,9 @@ function cartDrawer() {
   const empty = $('[data-cart-empty]', drawer)!;
   const foot = $('[data-cart-foot]', drawer)!;
   const send = $<HTMLAnchorElement>('[data-cart-send]', drawer)!;
-  const nameIn = $<HTMLInputElement>('#cart-name', drawer)!;
-  const pinIn = $<HTMLInputElement>('#cart-pin', drawer)!;
   const counts = $$('[data-cart-count]');
-  const saved = savedFields();
-  nameIn.value = saved.name ?? '';
-  pinIn.value = saved.pin ?? '';
+  // product photo (small WebP made at build time) and page for every product slug
+  const thumbs: Record<string, { src: string; href: string }> = JSON.parse($('#cart-thumbs')?.textContent || '{}');
   drawer.inert = true;
 
   const render = () => {
@@ -186,16 +183,16 @@ function cartDrawer() {
     foot.hidden = items.length === 0;
     list.innerHTML = items.map((it, i) => `
       <li>
+        ${thumbs[it.slug] ? `<a class="th" href="${thumbs[it.slug].href}" tabindex="-1" aria-hidden="true"><img src="${thumbs[it.slug].src}" alt="" width="64" height="64"></a>` : '<span class="th"></span>'}
         <span class="nm">${escapeHtml(it.name)}</span>
-        <button type="button" class="rm" data-act="remove" data-i="${i}">Remove</button>
-        <span class="pk">${escapeHtml(it.pack)}</span>
+        <span class="meta"><span class="pk">${escapeHtml(it.pack)}</span><button type="button" class="rm" data-act="remove" data-i="${i}">Remove</button></span>
         <span class="qty" role="group" aria-label="Quantity for ${escapeHtml(it.name)}, ${escapeHtml(it.pack)}">
           <button type="button" data-act="dec" data-i="${i}" aria-label="One less">−</button>
           <output>${it.qty}</output>
           <button type="button" data-act="inc" data-i="${i}" aria-label="One more">+</button>
         </span>
       </li>`).join('');
-    send.href = orderLink(items, nameIn.value, pinIn.value);
+    send.href = orderLink(items);
     send.setAttribute('aria-disabled', String(items.length === 0));
   };
 
@@ -209,10 +206,6 @@ function cartDrawer() {
     if (b.dataset.act === 'inc') cart.setQty(i, it.qty + 1);
     if (b.dataset.act === 'dec') cart.setQty(i, it.qty - 1);
   });
-  [nameIn, pinIn].forEach((input) => input.addEventListener('input', () => {
-    saveFields({ name: nameIn.value, pin: pinIn.value });
-    send.href = orderLink(cart.items(), nameIn.value, pinIn.value);
-  }));
   $('[data-cart-clear]', drawer)?.addEventListener('click', () => cart.clear());
 
   let lastFocus: HTMLElement | null = null;
@@ -259,6 +252,15 @@ function sliders() {
 }
 
 /* ---------- boot ---------- */
+/* ---------- "In bloom now" tags: shown when the visitor's month is in the honey's flowering months ---------- */
+function bloomTags() {
+  const month = new Date().getMonth() + 1;
+  $$<HTMLElement>('[data-bloom-months]').forEach((el) => {
+    el.hidden = !el.dataset.bloomMonths!.split(',').map(Number).includes(month);
+  });
+}
+
+bloomTags();
 startSmoothScroll();
 headerState();
 menu();

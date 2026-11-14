@@ -1,0 +1,192 @@
+---
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import { BATCHES } from '../data/batches';
+import { PRODUCTS } from '../data/products';
+import { link, waLink } from '../data/site';
+import { clientProducts, toJson } from '../lib/clientProducts';
+
+// Check every batch at build time, so a typo stops the build instead of showing a broken result
+const keyOf = (code: string) => code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+const seen = new Set<string>();
+for (const b of BATCHES) {
+  const where = `src/data/batches.ts, batch "${b.code}"`;
+  if (!keyOf(b.code ?? '')) throw new Error(`${where}: the code is empty`);
+  if (seen.has(keyOf(b.code))) throw new Error(`${where}: this code is listed twice`);
+  seen.add(keyOf(b.code));
+  if (!PRODUCTS.some((p) => p.slug === b.product)) throw new Error(`${where}: unknown product "${b.product}" (use a slug from products.ts)`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.packed) || Number.isNaN(Date.parse(b.packed))) throw new Error(`${where}: packed must look like 2026-11-10`);
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(b.bestBefore)) throw new Error(`${where}: bestBefore must look like 2028-11`);
+  if (!b.harvested?.trim()) throw new Error(`${where}: harvested is empty`);
+}
+const products = (await clientProducts()).map(({ slug, name, href, thumb, tone, source, kind }) => ({ slug, name, href, thumb, tone, source, kind }));
+---
+<Base title="Know Your Jar" page="jar" description="Look up the batch number on your Beezy Honey label to see when your honey was harvested and packed.">
+  <section class="page-top wrap j-head">
+    <h1 class="t-giant page-title" data-split="chars" data-now>Know Your Jar</h1>
+    <p class="t-lead" data-fade>Every Beezy pack has a batch number on its label. Type it in to see when your honey was harvested and packed.</p>
+  </section>
+
+  <section class="wrap j-wrap" aria-label="Batch lookup">
+    <div class="j-card">
+      <form class="j-form" data-jar-form novalidate>
+        <label class="eyebrow" for="batch-code">Batch number</label>
+        <div class="j-row">
+          <input id="batch-code" name="batch" maxlength="30" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="e.g. MUR-2611-01" aria-describedby="batch-help" />
+          <button type="submit" class="btn btn-honey">Look up</button>
+        </div>
+        <p id="batch-help" class="j-help">It’s written in the <b>Batch no.</b> box on your label.</p>
+      </form>
+      <div class="j-result" data-jar-result aria-live="polite"></div>
+
+      <figure class="j-label" aria-hidden="true">
+        <div class="j-label-grid"><span class="on">Batch no.</span><span>Packed on</span><span>Best before</span><span class="wide">MRP ₹</span><span>Unit price</span></div>
+        <figcaption>Where to find it: the first box on the back of the label.</figcaption>
+      </figure>
+      <noscript><p class="j-help">The batch lookup needs JavaScript. Message us on WhatsApp with your batch number instead.</p></noscript>
+    </div>
+  </section>
+
+  <script type="application/json" id="jar-data" set:html={toJson({ batches: BATCHES, products, ask: waLink('Hi Beezy Honey! Can you tell me about batch '), shop: link('/shop/') })} />
+  <template id="jar-icons"><Icon name="whatsapp" /></template>
+</Base>
+
+<style>
+  .j-head { display: grid; justify-items: center; gap: 22px; text-align: center; }
+  .j-head .t-lead { max-width: 30ch; }
+  .j-card {
+    max-width: 820px; margin: clamp(36px, 5vw, 70px) auto clamp(80px, 10vw, 150px);
+    padding: clamp(24px, 4vw, 52px); border-radius: var(--radius); background: var(--paper);
+    box-shadow: 0 30px 70px rgba(43, 26, 16, .1); display: grid; gap: 26px;
+  }
+  .j-form { display: grid; gap: 10px; }
+  .j-row { display: flex; gap: 10px; }
+  .j-row input {
+    flex: 1; min-width: 0; height: 56px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--rule);
+    background: var(--cream); font: inherit; font-size: 1.15rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--choc);
+  }
+  .j-row input::placeholder { font-weight: 400; letter-spacing: .02em; text-transform: none; color: var(--ink-3); }
+  .j-row input:focus { outline: 2px solid var(--honey); border-color: transparent; }
+  .j-row .btn { min-height: 56px; }
+  .j-help { color: var(--ink-2); font-size: .95rem; }
+  .j-result:empty { display: none; }
+  .j-result :global(.j-found) { display: grid; grid-template-columns: 170px 1fr; gap: 24px; padding: 22px; border-radius: 22px; background: var(--tone); align-items: start; animation: j-in .45s var(--ease) both; }
+  .j-result :global(.j-photo) { aspect-ratio: 1; border-radius: 16px; overflow: hidden; }
+  .j-result :global(.j-photo img) { width: 100%; height: 100%; object-fit: cover; }
+  .j-result :global(.j-body) { display: grid; gap: 10px; min-width: 0; }
+  .j-result :global(h2) { font-family: var(--f-display); font-weight: 400; font-size: clamp(1.7rem, 3.2vw, 2.4rem); line-height: 1.05; }
+  .j-result :global(h2 a) { text-decoration: none; }
+  .j-result :global(dl) { display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; border-top: 1px solid var(--rule); padding-top: 12px; }
+  .j-result :global(dt) { font-size: .74rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); padding-top: 3px; }
+  .j-result :global(dd) { font-weight: 600; }
+  .j-result :global(.j-state) { justify-self: start; padding: 4px 12px; border-radius: 999px; background: rgba(255, 251, 244, .8); font-size: .85rem; font-weight: 700; }
+  .j-result :global(.j-state.old) { background: #F8DDD6; color: #8A2A12; }
+  .j-result :global(.j-note) { font-family: var(--f-display); font-style: italic; font-size: 1.1rem; }
+  .j-result :global(.j-actions) { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+  .j-result :global(.j-actions .btn) { min-height: 46px; }
+  .j-result :global(.j-miss) { display: grid; gap: 12px; padding: 22px; border-radius: 22px; background: var(--cream); animation: j-in .45s var(--ease) both; }
+  .j-result :global(.j-miss h2) { font-size: 1.6rem; }
+  .j-result :global(.j-miss .btn) { justify-self: start; min-height: 46px; }
+  @keyframes j-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+  .j-label { margin: 0; display: grid; gap: 10px; }
+  .j-label-grid { display: grid; grid-template-columns: repeat(3, 1fr); max-width: 420px; border-top: 1px solid var(--honey-deep); border-left: 1px solid var(--honey-deep); }
+  .j-label-grid span { border-right: 1px solid var(--honey-deep); border-bottom: 1px solid var(--honey-deep); padding: 6px 8px 18px; font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); }
+  .j-label-grid .wide { grid-column: span 2; }
+  .j-label-grid .on { background: var(--amber); color: var(--choc); }
+  .j-label figcaption { font-size: .9rem; color: var(--ink-3); }
+
+  @media (max-width: 760px) {
+    .j-row { flex-direction: column; }
+    .j-row .btn { width: 100%; }
+    .j-result :global(.j-found) { grid-template-columns: 1fr; }
+    .j-result :global(.j-photo) { aspect-ratio: 4 / 3; }
+    .j-result :global(.j-actions .btn) { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) { .j-result :global(.j-found), .j-result :global(.j-miss) { animation: none; } }
+</style>
+
+<script>
+  interface B { code: string; product: string; harvested: string; packed: string; bestBefore: string; note?: string }
+  interface P { slug: string; name: string; href: string; thumb: string; tone: string; source: string; kind: string }
+
+  const form = document.querySelector<HTMLFormElement>('[data-jar-form]');
+  const out = document.querySelector<HTMLElement>('[data-jar-result]');
+  const dataEl = document.getElementById('jar-data');
+  if (form && out && dataEl) {
+    const { batches, products, ask } = JSON.parse(dataEl.textContent!) as { batches: B[]; products: P[]; ask: string; shop: string };
+    const input = form.querySelector<HTMLInputElement>('input')!;
+    const waIcon = (document.getElementById('jar-icons') as HTMLTemplateElement).innerHTML;
+    const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+    // dashes of any kind, spaces and dots are ignored, letters are compared in capitals
+    const keyOf = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const tidy = (s: string) => s.trim().toUpperCase().replace(/[‐-―−]/g, '-').replace(/\s+/g, ' ');
+    const askLink = (code: string) => ask + encodeURIComponent(`${code}?`);
+
+    const fmtDay = (iso: string) => {
+      const [y, m, d] = iso.split('-').map(Number);
+      const t = Date.UTC(y, m - 1, d);
+      return Number.isNaN(t) ? iso : new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    };
+    const fmtMonth = (ym: string) => {
+      const [y, m] = ym.split('-').map(Number);
+      const t = Date.UTC(y, m - 1, 1);
+      return Number.isNaN(t) ? ym : new Date(t).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    };
+    const isPast = (ym: string) => {
+      const [y, m] = ym.split('-').map(Number);
+      const now = new Date();
+      return now.getFullYear() * 12 + now.getMonth() > y * 12 + (m - 1);
+    };
+
+    const show = (raw: string, updateUrl: boolean) => {
+      const code = tidy(raw);
+      if (!keyOf(code)) {
+        out.innerHTML = `<div class="j-miss"><p>Type the batch number from your label, for example <b>MUR-2611-01</b>.</p></div>`;
+        input.focus();
+        return;
+      }
+      if (updateUrl) {
+        const url = new URL(location.href);
+        url.searchParams.set('batch', code);
+        history.replaceState(history.state, '', url);
+      }
+      const b = batches.find((x) => keyOf(x.code) === keyOf(code));
+      const p = b && products.find((x) => x.slug === b.product);
+      if (!b || !p) {
+        out.innerHTML = `
+          <div class="j-miss">
+            <h2>We couldn’t find batch ${esc(code)}</h2>
+            <p>Check the code on your label and try again. New batches are added here shortly after packing, so if your jar is very fresh, just ask us.</p>
+            <a class="btn btn-wa" href="${esc(askLink(code))}" target="_blank" rel="noopener">${waIcon}Ask about this batch</a>
+          </div>`;
+        return;
+      }
+      const old = isPast(b.bestBefore);
+      out.innerHTML = `
+        <article class="j-found" style="--tone:${esc(p.tone)}">
+          <a class="j-photo" href="${esc(p.href)}" tabindex="-1" aria-hidden="true"><img src="${esc(p.thumb)}" alt="" width="520" height="520"></a>
+          <div class="j-body">
+            <p class="eyebrow">Batch ${esc(tidy(b.code))}</p>
+            <h2><a href="${esc(p.href)}">${esc(p.name)}</a></h2>
+            <span class="j-state${old ? ' old' : ''}">${old ? `Past its best-before date (${esc(fmtMonth(b.bestBefore))})` : `Best before ${esc(fmtMonth(b.bestBefore))}`}</span>
+            <dl>
+              ${p.source ? `<dt>From</dt><dd>${esc(p.source)}</dd>` : ''}
+              <dt>Harvested</dt><dd>${esc(b.harvested)}</dd>
+              <dt>Packed on</dt><dd>${esc(fmtDay(b.packed))}</dd>
+              <dt>Best before</dt><dd>${esc(fmtMonth(b.bestBefore))}</dd>
+            </dl>
+            ${b.note ? `<p class="j-note">${esc(b.note)}</p>` : ''}
+            <div class="j-actions">
+              <a class="btn btn-honey" href="${esc(p.href)}#order">Order this honey again</a>
+              <a class="btn btn-wa" href="${esc(askLink(tidy(b.code)))}" target="_blank" rel="noopener">${waIcon}Ask about this batch</a>
+            </div>
+          </div>
+        </article>`;
+    };
+
+    form.addEventListener('submit', (e) => { e.preventDefault(); show(input.value, true); });
+    const fromUrl = new URLSearchParams(location.search).get('batch');
+    if (fromUrl) { input.value = tidy(fromUrl); show(fromUrl, false); }
+  }
+</script>

@@ -3,7 +3,8 @@ import { waLink } from '../data/site';
 export interface CartItem { slug: string; name: string; pack: string; qty: number }
 
 const KEY = 'beezy-cart-v1';
-const FIELDS_KEY = 'beezy-cart-fields';
+// The order form no longer asks for a name and pincode; forget any that an older version saved
+try { localStorage.removeItem('beezy-cart-fields'); } catch { /* storage blocked */ }
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -59,15 +60,9 @@ export const cart = {
   clear() { items = []; commit(); },
 };
 
-export const savedFields = () => read<{ name?: string; pin?: string }>(FIELDS_KEY, {});
-export const saveFields = (f: { name?: string; pin?: string }) => write(FIELDS_KEY, f);
-
-export function orderMessage(list: CartItem[], name = '', pin = '') {
+export function orderMessage(list: CartItem[]) {
   const lines = list.map((i, n) => `${n + 1}. ${i.name} – ${i.pack} × ${i.qty}`);
-  let msg = `Hi Beezy Honey! I'd like to order:\n${lines.join('\n')}`;
-  const extra = [name.trim() && `Name: ${name.trim()}`, pin.trim() && `Pincode: ${pin.trim()}`].filter(Boolean).join('\n');
-  if (extra) msg += `\n\n${extra}`;
-  return `${msg}\n\nPlease share the price and delivery details.`;
+  return `Hi Beezy Honey! I'd like to order:\n${lines.join('\n')}\n\nPlease share the price and delivery details.`;
 }
 
-export const orderLink = (list: CartItem[], name?: string, pin?: string) => waLink(orderMessage(list, name, pin));
+export const orderLink = (list: CartItem[]) => waLink(orderMessage(list));

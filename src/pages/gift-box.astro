@@ -1,0 +1,323 @@
+---
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import { GIFT_SIZES, GIFT_JARS, GIFT_OCCASIONS, GIFT_EXTRAS } from '../data/features';
+import { clientProducts, toJson } from '../lib/clientProducts';
+
+const honeys = (await clientProducts()).filter((p) => p.honey).map(({ slug, name, short, kind, thumb, tone }) => ({ slug, name, short, kind, thumb, tone }));
+const defaults = { size: 3, jar: GIFT_JARS[0] };
+---
+<Base title="Gift Box" page="gift" description="Build a Beezy Honey gift box: pick two to four honeys, add a beeswax candle or honey sticks, and send your gift order on WhatsApp.">
+  <section class="page-top wrap g-head">
+    <h1 class="t-giant page-title" data-split="chars" data-now>Gift Box</h1>
+    <p class="t-lead" data-fade>Build a box of honeys for weddings, festivals or your team. Pick the honeys, tell us how many boxes, and we’ll reply with the price.</p>
+  </section>
+
+  <section class="wrap g-wrap" data-gift aria-label="Gift box builder">
+    <div class="g-builder">
+      <fieldset class="g-step">
+        <legend class="g-h"><span>1</span>Box size</legend>
+        <div class="g-chips">
+          {GIFT_SIZES.map((n) => <label class="g-chip"><input type="radio" name="size" value={n} checked={n === defaults.size} /><span>{n} honeys</span></label>)}
+        </div>
+      </fieldset>
+
+      <fieldset class="g-step">
+        <legend class="g-h"><span>2</span>Pack size</legend>
+        <div class="g-chips">
+          {GIFT_JARS.map((j) => <label class="g-chip"><input type="radio" name="jar" value={j} checked={j === defaults.jar} /><span>{j} each</span></label>)}
+        </div>
+      </fieldset>
+
+      <div class="g-step" role="group" aria-labelledby="g-pick-title">
+        <h2 class="g-h" id="g-pick-title"><span>3</span>Pick your honeys <small data-pick-count aria-live="polite"></small></h2>
+        <ul class="g-grid">
+          {honeys.map((h) => (
+            <li>
+              <button type="button" class="g-honey" data-slug={h.slug} aria-pressed="false" style={`--tone:${h.tone}`}>
+                <img src={h.thumb} alt="" width="520" height="520" loading="lazy" />
+                <b>{h.short}</b><span>{h.kind}</span>
+                <i class="g-tick" aria-hidden="true">✓</i>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p class="g-full" data-full role="status" aria-live="polite"></p>
+      </div>
+
+      <fieldset class="g-step">
+        <legend class="g-h"><span>4</span>Add extras <small>optional, in every box</small></legend>
+        <div class="g-chips">
+          {GIFT_EXTRAS.map((x) => <label class="g-chip"><input type="checkbox" name="extras" value={x} /><span>{x}</span></label>)}
+        </div>
+      </fieldset>
+
+      <div class="g-step">
+        <h2 class="g-h"><span>5</span>Gift details</h2>
+        <div class="g-fields">
+          <div class="g-field">
+            <label for="g-boxes">Number of boxes</label>
+            <div class="qty g-qty">
+              <button type="button" data-boxes-step="-1" aria-label="One box less">−</button>
+              <input id="g-boxes" name="boxes" value="1" inputmode="numeric" maxlength="3" />
+              <button type="button" data-boxes-step="1" aria-label="One box more">+</button>
+            </div>
+          </div>
+          <div class="g-field">
+            <label for="g-occasion">Occasion</label>
+            <select id="g-occasion" name="occasion">
+              <option value="">Choose (optional)</option>
+              {GIFT_OCCASIONS.map((o) => <option value={o}>{o}</option>)}
+            </select>
+          </div>
+          <div class="g-field">
+            <label for="g-date">Needed by</label>
+            <input id="g-date" name="date" type="date" />
+          </div>
+          <div class="g-field wide">
+            <label for="g-msg">Message on the gift card <small data-msg-count>0 / 140</small></label>
+            <textarea id="g-msg" name="message" rows="3" maxlength="140" placeholder="Optional, e.g. Thank you for celebrating with us!"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="g-summary" aria-labelledby="g-sum-title">
+      <div class="g-sum-card">
+        <p class="eyebrow" id="g-sum-title">Your gift box</p>
+        <div class="g-slots" data-slots></div>
+        <ul class="g-lines" data-lines></ul>
+        <p class="g-warn" data-warn role="status" aria-live="polite"></p>
+        <a class="btn btn-wa" data-send href="#" target="_blank" rel="noopener" aria-disabled="true"><Icon name="whatsapp" />Send gift order on WhatsApp</a>
+        <p class="g-note">WhatsApp opens with your gift order typed out. We reply with the price and delivery details.</p>
+        <button type="button" class="g-reset" data-reset>Start over</button>
+      </div>
+    </aside>
+    <noscript><p class="g-note">The gift box builder needs JavaScript. You can plan gifts with us on WhatsApp instead.</p></noscript>
+  </section>
+
+  <script type="application/json" id="gift-data" set:html={toJson({ honeys, sizes: GIFT_SIZES, jars: GIFT_JARS, defaults })} />
+</Base>
+
+<style>
+  .g-head { display: grid; justify-items: center; gap: 22px; text-align: center; }
+  .g-head .t-lead { max-width: 32ch; }
+  .g-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: clamp(24px, 4vw, 56px); align-items: start; margin-block: clamp(36px, 5vw, 70px) clamp(80px, 10vw, 150px); }
+  .g-builder { display: grid; gap: clamp(28px, 3.5vw, 44px); min-width: 0; }
+  .g-step { display: grid; gap: 16px; border: 0; margin: 0; padding: 0; min-width: 0; }
+  .g-h { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; padding: 0; font-family: var(--f-display); font-weight: 400; font-size: clamp(1.6rem, 3vw, 2.3rem); line-height: 1.1; color: var(--choc); }
+  .g-h > span { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--honey); font-family: var(--f-body); font-size: .9rem; font-weight: 700; transform: translateY(-3px); }
+  .g-h small { font-family: var(--f-body); font-size: .85rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+  .g-chips { display: flex; flex-wrap: wrap; gap: 10px; }
+  .g-chip { position: relative; cursor: pointer; }
+  .g-chip input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .g-chip span { display: inline-flex; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--choc); background: var(--paper); font-weight: 700; transition: background-color .25s, color .25s; }
+  .g-chip input:checked + span { background: var(--choc); color: var(--cream); }
+  .g-chip input:focus-visible + span { outline: 2px solid var(--honey-deep); outline-offset: 3px; }
+
+  .g-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .g-honey {
+    position: relative; width: 100%; display: grid; gap: 2px; padding: 10px 10px 14px; text-align: left;
+    border: 2px solid transparent; border-radius: 18px; background: var(--tone); font: inherit; color: var(--choc); cursor: pointer;
+    transition: border-color .25s, transform .4s var(--ease);
+  }
+  .g-honey img { width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; border-radius: 12px; margin-bottom: 8px; }
+  .g-honey b { font-family: var(--f-display); font-weight: 400; font-size: 1.15rem; line-height: 1.1; }
+  .g-honey span { font-size: .8rem; color: var(--ink-2); }
+  .g-honey:hover { transform: translateY(-2px); }
+  .g-honey[aria-pressed="true"] { border-color: var(--choc); }
+  .g-tick { position: absolute; top: 16px; right: 16px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--choc); color: var(--amber); font-style: normal; font-weight: 700; opacity: 0; transform: scale(.4); transition: .3s var(--ease); }
+  .g-honey[aria-pressed="true"] .g-tick { opacity: 1; transform: none; }
+  .g-full { min-height: 1.4em; font-weight: 600; color: var(--honey-deep); }
+
+  .g-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .g-field { display: grid; gap: 6px; align-content: start; min-width: 0; }
+  .g-field.wide { grid-column: 1 / -1; }
+  .g-field label { font-size: .78rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); display: flex; justify-content: space-between; gap: 8px; }
+  .g-field label small { letter-spacing: 0; font-weight: 600; color: var(--ink-3); }
+  .g-field select, .g-field input[type="date"], .g-field textarea {
+    width: 100%; min-width: 0; min-height: 48px; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--rule);
+    background: var(--paper); font: inherit; color: var(--choc);
+  }
+  .g-field textarea { resize: vertical; min-height: 90px; }
+  .g-field select:focus, .g-field input:focus, .g-field textarea:focus { outline: 2px solid var(--honey); border-color: transparent; }
+  .g-qty { height: 48px; background: var(--paper); justify-self: start; }
+  .g-qty input { width: 52px; }
+
+  .g-summary { position: sticky; top: calc(var(--header-h) + 16px); }
+  .g-sum-card { display: grid; gap: 16px; padding: 24px; border-radius: var(--radius); background: var(--paper); box-shadow: 0 30px 70px rgba(43, 26, 16, .12); }
+  .g-slots { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); gap: 8px; }
+  .g-slots :global(button) { position: relative; aspect-ratio: 1; border-radius: 14px; border: 2px dashed var(--rule); background: var(--cream); padding: 0; overflow: hidden; cursor: default; font: inherit; color: var(--ink-3); }
+  .g-slots :global(button.filled) { border: 0; cursor: pointer; background: var(--cream-2); }
+  .g-slots :global(button img) { width: 100%; height: 100%; object-fit: cover; }
+  .g-slots :global(button .x) { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; background: rgba(43, 26, 16, .75); color: #fff; font-size: .8rem; line-height: 22px; text-align: center; }
+  .g-slots :global(button .plus) { font-size: 1.4rem; }
+  .g-lines { display: grid; gap: 6px; font-size: .95rem; }
+  .g-lines :global(li) { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--rule); padding-bottom: 6px; }
+  .g-lines :global(li span:first-child) { color: var(--ink-3); }
+  .g-lines :global(li span:last-child) { font-weight: 600; text-align: right; }
+  .g-warn { min-height: 1.4em; font-weight: 700; color: var(--honey-deep); }
+  .g-sum-card .btn { width: 100%; }
+  .g-note { font-size: .86rem; color: var(--ink-2); line-height: 1.45; }
+  .g-reset { justify-self: center; background: none; border: 0; color: var(--ink-3); text-decoration: underline; cursor: pointer; font: inherit; font-size: .88rem; }
+
+  @media (max-width: 960px) {
+    .g-wrap { grid-template-columns: 1fr; }
+    .g-summary { position: static; }
+  }
+  @media (max-width: 760px) {
+    .g-grid { grid-template-columns: repeat(2, 1fr); }
+    .g-fields { grid-template-columns: 1fr; }
+  }
+</style>
+
+<script>
+  import { waLink } from '../data/site';
+
+  interface H { slug: string; name: string; short: string; kind: string; thumb: string; tone: string }
+  interface State { size: number; jar: string; picks: string[]; extras: string[]; boxes: number; occasion: string; date: string; message: string }
+
+  const root = document.querySelector<HTMLElement>('[data-gift]');
+  const dataEl = document.getElementById('gift-data');
+  if (root && dataEl) {
+    const { honeys, sizes, jars, defaults } = JSON.parse(dataEl.textContent!) as { honeys: H[]; sizes: number[]; jars: string[]; defaults: { size: number; jar: string } };
+    const KEY = 'beezy-giftbox-v1';
+    const bySlug = new Map(honeys.map((h) => [h.slug, h]));
+    const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+    const $ = <T extends Element>(s: string) => root.querySelector<T>(s)!;
+
+    const boxesIn = $<HTMLInputElement>('#g-boxes');
+    const occasionIn = $<HTMLSelectElement>('#g-occasion');
+    const dateIn = $<HTMLInputElement>('#g-date');
+    const msgIn = $<HTMLTextAreaElement>('#g-msg');
+    const slotsEl = $<HTMLElement>('[data-slots]');
+    const linesEl = $<HTMLElement>('[data-lines]');
+    const warnEl = $<HTMLElement>('[data-warn]');
+    const fullEl = $<HTMLElement>('[data-full]');
+    const countEl = $<HTMLElement>('[data-pick-count]');
+    const msgCount = $<HTMLElement>('[data-msg-count]');
+    const send = $<HTMLAnchorElement>('[data-send]');
+
+    const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+    dateIn.min = today();
+    const clampBoxes = (v: unknown) => Math.max(1, Math.min(999, Math.round(Number(v)) || 1));
+
+    const fresh = (): State => ({ size: defaults.size, jar: defaults.jar, picks: [], extras: [], boxes: 1, occasion: '', date: '', message: '' });
+    const clean = (s: Partial<State>): State => {
+      const st = { ...fresh(), ...s };
+      st.size = sizes.includes(Number(st.size)) ? Number(st.size) : defaults.size;
+      st.jar = jars.includes(st.jar) ? st.jar : defaults.jar;
+      st.picks = [...new Set((Array.isArray(st.picks) ? st.picks : []).filter((x) => bySlug.has(x)))].slice(0, st.size);
+      st.extras = (Array.isArray(st.extras) ? st.extras : []).filter((x) => typeof x === 'string');
+      st.boxes = clampBoxes(st.boxes);
+      st.occasion = typeof st.occasion === 'string' ? st.occasion : '';
+      st.date = /^\d{4}-\d{2}-\d{2}$/.test(String(st.date)) && st.date >= today() ? st.date : '';
+      st.message = String(st.message ?? '').slice(0, 140);
+      return st;
+    };
+    const load = (): State => { try { return clean(JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { return fresh(); } };
+    const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* storage blocked */ } };
+
+    let state = load();
+    // honeys handed over from the Honey Finder (?pick=a,b) start a new selection
+    const handed = new URLSearchParams(location.search).get('pick');
+    if (handed) {
+      const picks = handed.split(',').filter((x) => bySlug.has(x));
+      if (picks.length) state = clean({ ...state, size: Math.min(4, Math.max(state.size, picks.length, 2)), picks });
+      const url = new URL(location.href); url.searchParams.delete('pick'); history.replaceState(history.state, '', url);
+    }
+
+    const fmtDate = (iso: string) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); };
+
+    const message = () => {
+      const lines = [`Hi Beezy Honey! I'd like to order gift boxes.`, '', `Each box: ${state.size} honeys, ${state.jar} each`];
+      state.picks.forEach((s, i) => lines.push(`${i + 1}. ${bySlug.get(s)!.name}`));
+      if (state.extras.length) lines.push(`Extras in each box: ${state.extras.join(', ')}`);
+      lines.push(`Number of boxes: ${state.boxes}`);
+      if (state.occasion) lines.push(`Occasion: ${state.occasion}`);
+      if (state.date) lines.push(`Needed by: ${fmtDate(state.date)}`);
+      if (state.message.trim()) lines.push(`Message on the card: "${state.message.trim()}"`);
+      lines.push('', 'Please share the price and delivery details.');
+      return lines.join('\n');
+    };
+
+    const render = () => {
+      // form controls follow the state
+      root.querySelectorAll<HTMLInputElement>('input[name="size"]').forEach((r) => (r.checked = Number(r.value) === state.size));
+      root.querySelectorAll<HTMLInputElement>('input[name="jar"]').forEach((r) => (r.checked = r.value === state.jar));
+      root.querySelectorAll<HTMLInputElement>('input[name="extras"]').forEach((c) => (c.checked = state.extras.includes(c.value)));
+      if (document.activeElement !== boxesIn) boxesIn.value = String(state.boxes);
+      occasionIn.value = state.occasion;
+      dateIn.value = state.date;
+      if (msgIn.value !== state.message) msgIn.value = state.message;
+      msgCount.textContent = `${state.message.length} / 140`;
+      root.querySelectorAll<HTMLButtonElement>('.g-honey').forEach((b) => b.setAttribute('aria-pressed', String(state.picks.includes(b.dataset.slug!))));
+
+      const left = state.size - state.picks.length;
+      countEl.textContent = `${state.picks.length} of ${state.size} picked`;
+      slotsEl.style.setProperty('--n', String(state.size));
+      slotsEl.innerHTML = Array.from({ length: state.size }, (_, i) => {
+        const h = bySlug.get(state.picks[i]);
+        return h
+          ? `<button type="button" class="filled" data-remove="${esc(h.slug)}" aria-label="Remove ${esc(h.name)}" title="Remove ${esc(h.short)}"><img src="${esc(h.thumb)}" alt=""><span class="x" aria-hidden="true">×</span></button>`
+          : `<button type="button" tabindex="-1" aria-hidden="true"><span class="plus">+</span></button>`;
+      }).join('');
+      const row = (k: string, v: string) => `<li><span>${esc(k)}</span><span>${esc(v)}</span></li>`;
+      linesEl.innerHTML = [
+        row('Box', `${state.size} honeys × ${state.jar}`),
+        ...state.picks.map((s, i) => row(`Honey ${i + 1}`, bySlug.get(s)!.name)),
+        state.extras.length ? row('Extras', state.extras.join(', ')) : '',
+        row('Boxes', String(state.boxes)),
+        state.occasion ? row('Occasion', state.occasion) : '',
+        state.date ? row('Needed by', fmtDate(state.date)) : '',
+      ].join('');
+      const ready = left === 0;
+      warnEl.textContent = ready ? 'Your box is ready to send.' : `Pick ${left} more ${left === 1 ? 'honey' : 'honeys'} to fill your box.`;
+      send.setAttribute('aria-disabled', String(!ready));
+      send.tabIndex = ready ? 0 : -1;
+      send.href = ready ? waLink(message()) : '#';
+      save();
+    };
+
+    root.addEventListener('change', (e) => {
+      const t = e.target as HTMLInputElement;
+      if (t.name === 'size') {
+        state.size = Number(t.value);
+        if (state.picks.length > state.size) {
+          const dropped = state.picks.slice(state.size).map((s) => bySlug.get(s)!.short);
+          state.picks = state.picks.slice(0, state.size);
+          fullEl.textContent = `Removed ${dropped.join(', ')} to fit a box of ${state.size}.`;
+        } else fullEl.textContent = '';
+      }
+      if (t.name === 'jar') state.jar = t.value;
+      if (t.name === 'extras') state.extras = [...root.querySelectorAll<HTMLInputElement>('input[name="extras"]:checked')].map((c) => c.value);
+      if (t.name === 'occasion') state.occasion = (t as unknown as HTMLSelectElement).value;
+      if (t.name === 'date') state.date = t.value && t.value >= today() ? t.value : '';
+      if (t.name === 'boxes') state.boxes = clampBoxes(t.value);
+      render();
+    });
+    msgIn.addEventListener('input', () => { state.message = msgIn.value.slice(0, 140); render(); });
+    boxesIn.addEventListener('input', () => { const v = boxesIn.value.replace(/\D/g, ''); if (v !== boxesIn.value) boxesIn.value = v; if (v) { state.boxes = clampBoxes(v); render(); } });
+    boxesIn.addEventListener('blur', () => { state.boxes = clampBoxes(boxesIn.value); boxesIn.value = String(state.boxes); render(); });
+
+    root.addEventListener('click', (e) => {
+      const t = e.target as Element;
+      const honey = t.closest<HTMLButtonElement>('.g-honey');
+      if (honey) {
+        const slug = honey.dataset.slug!;
+        if (state.picks.includes(slug)) { state.picks = state.picks.filter((s) => s !== slug); fullEl.textContent = ''; }
+        else if (state.picks.length < state.size) { state.picks.push(slug); fullEl.textContent = ''; }
+        else fullEl.textContent = `Your box holds ${state.size} honeys. Tap a honey in your box to swap it.`;
+        render();
+        return;
+      }
+      const remove = t.closest<HTMLButtonElement>('[data-remove]');
+      if (remove) { state.picks = state.picks.filter((s) => s !== remove.dataset.remove); fullEl.textContent = ''; render(); return; }
+      const step = t.closest<HTMLButtonElement>('[data-boxes-step]');
+      if (step) { state.boxes = clampBoxes(state.boxes + Number(step.dataset.boxesStep)); render(); return; }
+      if (t.closest('[data-send]') && send.getAttribute('aria-disabled') === 'true') { e.preventDefault(); warnEl.focus?.(); return; }
+      if (t.closest('[data-reset]')) { state = fresh(); fullEl.textContent = ''; render(); }
+    });
+    render();
+  }
+</script>
