@@ -48,8 +48,10 @@
   // Login codes (amendment A1). Deliberately WITHOUT destination/sender restrictions so no email address is
   // committed; Cloudflare only delivers to verified destination addresses of the account.
   "send_email": [{ "name": "LOGIN_MAIL" }],
-  // Custom domains: Cloudflare creates the DNS records and certificates. beezyhoney.in is added at the cutover.
+  // Custom domains: Cloudflare creates the DNS records and certificates. www is redirected to the apex by a zone Redirect Rule.
   "routes": [
+    { "pattern": "beezyhoney.in", "custom_domain": true },
+    { "pattern": "www.beezyhoney.in", "custom_domain": true },
     { "pattern": "next.beezyhoney.in", "custom_domain": true },
     { "pattern": "admin.beezyhoney.in", "custom_domain": true }
   ],
