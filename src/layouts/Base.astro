@@ -18,13 +18,17 @@ import { bakedPriceData, toJson } from '../lib/clientProducts';
 interface Props {
   title: string;
   description: string;
-  page: 'home' | 'shop' | 'product' | 'harvest' | 'experience' | 'about' | 'contact' | '404' | 'finder' | 'gift' | 'jar';
+  page: 'home' | 'shop' | 'product' | 'harvest' | 'experience' | 'about' | 'contact' | '404' | 'finder' | 'gift' | 'jar' | 'guides';
   footer?: boolean;
+  /** og:type; 'website' unless a page says otherwise (guides use 'article') */
+  ogType?: 'website' | 'article';
+  /** social preview image (a site path or absolute URL); the shared /og-image.jpg unless a page gives its own */
+  ogImage?: string;
 }
-const { title, description, page, footer = true } = Astro.props;
+const { title, description, page, footer = true, ogType = 'website' } = Astro.props;
 const fullTitle = page === 'home' ? `${SITE.name} | Raw comb honey, wild honey & beeswax` : `${title} | ${SITE.name}`;
 const canonical = new URL(Astro.url.pathname, Astro.site);
-const ogImage = new URL(link('/og-image.jpg'), Astro.site);
+const ogImage = new URL(Astro.props.ogImage ?? link('/og-image.jpg'), Astro.site);
 const seal = img('logo-seal.png');
 const wordmark = img('logo-wordmark.png');
 const curtainSeal = await getImage({ src: img('logo-seal-square.png'), width: 440, format: 'webp' });
@@ -80,7 +84,7 @@ const jsonLd = {
     <link rel="icon" type="image/png" sizes="64x64" href={link('/favicon.png')} />
     <link rel="apple-touch-icon" href={link('/apple-touch-icon.png')} />
     <meta name="theme-color" content="#FBF3E6" />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
     <meta property="og:site_name" content={SITE.name} />
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
@@ -169,6 +173,7 @@ const jsonLd = {
       </ul>
       <div class="menu-foot">
         <a href={link('/about/')}>About</a>
+        <a href={link('/guides/')}>Guides</a>
         <a href={link('/contact/')}>Contact</a>
         <a href={SITE.instagramUrl} target="_blank" rel="noopener">Instagram ↗</a>
         <a class="btn btn-choc" href={waLink(WA_MESSAGES.general)} target="_blank" rel="noopener"><Icon name="whatsapp" />Chat on WhatsApp</a>
@@ -204,6 +209,7 @@ const jsonLd = {
               <li><a href={link('/harvest/')}>Harvest</a></li>
               <li><a href={link('/harvest/#bloom-calendar')}>Bloom Calendar</a></li>
               <li><a href={link('/know-your-jar/')}>Know Your Jar</a></li>
+              <li><a href={link('/guides/')}>Guides</a></li>
               <li><a href={link('/experience/')}>Experience</a></li>
               <li><a href={link('/about/')}>About</a></li>
               <li><a href={link('/contact/')}>Contact</a></li>

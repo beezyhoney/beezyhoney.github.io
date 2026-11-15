@@ -1,0 +1,72 @@
+---
+import Guide from '../../layouts/Guide.astro';
+import GuideFigure from '../../components/GuideFigure.astro';
+import { guideHref } from '../../data/guides';
+import { link } from '../../data/site';
+---
+<Guide slug="how-to-check-pure-honey">
+  <aside class="g-note" aria-label="In short">
+    <p class="eyebrow">In short</p>
+    <p>No home trick can prove that honey is pure. The water, thumb, flame and paper tests mostly show how thick or dry a honey is, and a well-made syrup can pass them while a real, runny honey fails. Crystallisation is normal. Your best tools are a clear label, a batch number and a producer who answers your questions.</p>
+  </aside>
+
+  <h2>Why everyone wants a simple test</h2>
+  <p>Good honey is valuable, and it can be imitated or stretched with sugar syrups, so it is natural to want a quick kitchen check. Such tricks are everywhere, and they sound convincing because real honey often behaves the way they describe. The trouble is that they test the wrong thing.</p>
+  <p>Most home tests measure thickness or moisture. Pure honey can be thick or runny depending on the flowers, the season and the temperature. Syrups used to stretch honey are made to look and pour like honey. So the result tells you about consistency, not about what is in the jar.</p>
+
+  <h2>The popular home tests, and why they fall short</h2>
+
+  <h3>The water test</h3>
+  <p><strong>The idea:</strong> drop a spoonful of honey into a glass of water. If it sinks in a lump, it is pure; if it dissolves, it is fake.</p>
+  <p><strong>Why it does not work:</strong> honey is heavier than water, so it sinks, but so does any thick sugar syrup, and both dissolve slowly unless you stir. The test mostly shows how thick the sample is.</p>
+
+  <h3>The thumb test</h3>
+  <p><strong>The idea:</strong> put a drop on your thumb. Pure honey stays put; fake honey runs off.</p>
+  <p><strong>Why it does not work:</strong> how far a drop spreads depends on how much water the honey holds and how warm your hand and the room are. Honey from a wet season can be quite runny and still be completely real. A thick syrup will sit on your thumb just as politely.</p>
+
+  <h3>The flame or matchstick test</h3>
+  <p><strong>The idea:</strong> dip a matchstick in honey and strike it. If it lights, the honey is pure, because fake honey contains water.</p>
+  <p><strong>Why it does not work:</strong> all honey contains some water. Whether a match lights depends on how much honey coats it, how dry that honey is, and the match itself. A low-moisture syrup can let a match light, and a perfectly good honey can put one out.</p>
+
+  <h3>The paper test</h3>
+  <p><strong>The idea:</strong> put a drop on blotting paper or a paper towel. Pure honey sits on top; fake honey leaves a wet ring.</p>
+  <p><strong>Why it does not work:</strong> again, it measures water. A thick syrup will not soak in either, and a runny real honey may leave a mark.</p>
+
+  <h3>Other tricks</h3>
+  <p>Others, like the egg-yolk test, the vinegar test or the claim that ants ignore real honey (they do not), are no more reliable. And if a trick says your honey is fake because it went thick in winter, the trick is wrong.</p>
+
+  <h2>How honey is really checked</h2>
+  <p>Food laboratories check honey with instruments, not tricks. They look at things like moisture, the balance of natural sugars, signs that the honey has been overheated, and the pollen in it, which shows which flowers it came from. To find added syrups, some use advanced methods such as isotope testing or NMR. No single test catches everything, so labs often combine several.</p>
+  <p>You cannot do this at home. What you can do is buy in a way that makes cheating hard.</p>
+
+  <h2>Crystallised honey is not fake honey</h2>
+  <p>“My honey has gone thick and grainy. Has it been mixed with sugar?” Almost always, the answer is no. Honey is a very concentrated mix of natural sugars, mostly fructose and glucose, with more sugar than its water can normally keep dissolved. Over time some of the glucose comes out as tiny crystals, and the honey turns cloudy, thick or firm. This is called crystallisation, or setting.</p>
+  <GuideFigure src="set-honey.jpg" shape="tall" position="50% 40%" alt="Thick, creamy set honey falling from a honey dipper into a jar" caption="Set honey: thick, pale and creamy. This is real honey behaving naturally." />
+  <p>How fast it happens depends on the flowers (honeys with more glucose set sooner), on tiny bits of pollen and wax that crystals can grow on, and on temperature. Cool weather speeds it up, which is why honey often sets in winter, and why the fridge is not a good place to keep it.</p>
+  <p>Crystallisation does not spoil honey, and many people prefer the spreadable texture. If you want it runny again, stand the jar in a bowl of warm, not boiling, water and stir now and then with a dry spoon until the crystals melt. Avoid the microwave and direct heat, which can spoil the delicate flavour. The reverse is also true: honey that stays liquid is not automatically pure, as some honeys are simply slow to set.</p>
+
+  <h2>What to look for on the label</h2>
+  <p>A label cannot prove purity, but a careful label is a sign of a careful producer. Look for:</p>
+  <ul>
+    <li><strong>What it is:</strong> the name of the honey and, for a single-flower honey, the flower it comes from.</li>
+    <li><strong>Ingredients:</strong> honey, and nothing else. Words like “syrup”, “added sugar” or “flavour” mean it is not plain honey.</li>
+    <li><strong>A batch or lot number:</strong> a code that ties the jar to one harvest or packing run.</li>
+    <li><strong>Dates:</strong> when it was packed, and a best before date.</li>
+    <li><strong>Net weight and MRP.</strong></li>
+    <li><strong>A food licence number (FSSAI)</strong> and the name and address of the producer or packer, so you know who is responsible for the jar.</li>
+  </ul>
+  <p>Words like “raw”, “natural” and “organic” can be honest descriptions, but they are not tests. A good producer will happily explain what they mean by them.</p>
+
+  <h2>Questions worth asking any honey seller</h2>
+  <ul>
+    <li>Which flowers is this honey from, and when was it harvested?</li>
+    <li>Is it heated, or only strained?</li>
+    <li>Can you tell me about this batch number?</li>
+    <li>Does your honey set in cold weather? (A seller of raw honey should say: yes, sometimes.)</li>
+  </ul>
+  <p>Clear answers to simple questions are worth more than any kitchen test.</p>
+
+  <h2>How we do it at Beezy</h2>
+  <p>Our honey is raw: no heating, no added sugar or syrup, and no blending away the taste of the flowers. Many of our honeys come with a piece of <a href={guideHref('honey-with-comb')}>honeycomb</a>, so you can see the comb the bees built. When our honey sets in the cold months, we leave it be.</p>
+  <p>Every Beezy pack also has a batch number in the first box on the back of the label. Type it into <a href={link('/know-your-jar/')}>Know Your Jar</a> to see when your honey was harvested and packed. Something not right? Message us with the batch number and we will look into it.</p>
+</Guide>

@@ -1,0 +1,52 @@
+---
+import Guide from '../../layouts/Guide.astro';
+import GuideFigure from '../../components/GuideFigure.astro';
+import { guideHref, productHref } from '../../data/guides';
+import { link } from '../../data/site';
+---
+<Guide slug="neela-kurinji-honey">
+  <aside class="g-note" aria-label="In short">
+    <p class="eyebrow">In short</p>
+    <p>Neelakurinji is a hill shrub that flowers together only about once every twelve years, turning whole slopes blue. Honey from those hills is made in small amounts, in a short window, so it is rare. Expect a delicate, floral honey, enjoy it simply, and do not expect every batch to taste exactly the same.</p>
+  </aside>
+
+  <h2>What is Neelakurinji?</h2>
+  <p>Neelakurinji is a shrub that grows on high hill slopes and grasslands. “Neela” means blue. When it flowers, small bell-shaped blossoms in shades of blue and violet cover the plants so thickly that whole hillsides change colour. Botanists call it <i>Strobilanthes kunthiana</i>. It belongs to a large group of related kurinji plants, and several of them flower on long cycles rather than every year.</p>
+  <p>The flower has a long history in the hills. In classical Tamil poetry, kurinji is the flower that stands for the hill landscape, so the name was linked to these slopes long before anyone wrote about its honey.</p>
+
+  <GuideFigure src="gen-kurinji-hills.jpg" alt="Misty green hills with slopes covered in blue-violet kurinji flowers" caption="In a bloom year, kurinji can turn whole slopes blue." />
+
+  <h2>The twelve-year bloom</h2>
+  <p>Most flowering plants bloom every year. Neelakurinji does not. The plants on a hillside grow for years without flowering, then flower together in one season, about once every twelve years. This is called mass flowering. Afterwards the plants set seed, and the long wait begins again.</p>
+  <p>Not every hill keeps the same timetable. Different patches can bloom in different years, and some years bring only scattered flowers. When a big bloom does come, it lasts for a season, and then the slopes go back to green for another decade or so.</p>
+  <p>For honey bees, a bloom like this is a sudden feast: a huge amount of one flower, all at once, on slopes that had none of those flowers the year before.</p>
+
+  <h2>Why Neela Kurinji honey is rare</h2>
+  <p>Bees can only make kurinji honey when kurinji is in flower, and that happens in a narrow window, on particular hills, about once in twelve years. On top of that:</p>
+  <ul>
+    <li>The bloom is often on high, remote slopes, so the bees have to be close to it while it lasts.</li>
+    <li>Bees never visit one flower only. Even in a bloom year, the honey also carries nectar from the other hill flowers around the kurinji.</li>
+    <li>Harvests are small, and once a batch is gone, it can be a long time before the next one.</li>
+  </ul>
+  <p>So it helps to read the name honestly. Neela Kurinji honey is honey from kurinji country: kurinji nectar together with the other hill flowers that bloom alongside it. That is how we describe ours too. The source on our product page reads “Neelakurinji and hill flowers”.</p>
+
+  <h2>What does Neela Kurinji honey taste like?</h2>
+  <p>We keep the tasting notes simple: delicate and floral, with a gentle sweetness. It is a honey to taste on its own before you mix it with anything. Like every wild honey, its colour, thickness and flavour can change from batch to batch, with the season and with whatever else was in flower.</p>
+  <p>We would rather undersell it than promise a flavour you might not find. The best way to get to know it is to taste it side by side with an everyday honey, such as our <a href={productHref('multifloral-honey')}>multifloral honey</a>, and notice the difference for yourself.</p>
+
+  <h2>How to enjoy it</h2>
+  <ul>
+    <li>Straight from the spoon, slowly, at room temperature.</li>
+    <li>A thin drizzle over fresh fruit or thick curd.</li>
+    <li>With plain bread or crackers, where nothing competes with it.</li>
+    <li>Stirred into a warm, not hot, drink at the very end.</li>
+  </ul>
+  <p>Heat dulls delicate flavours, so keep this honey away from cooking and boiling drinks. Store it like any good honey: at room temperature, lid closed, away from sunlight, and always with a dry spoon. If it sets in cool weather, that is natural for raw honey. Our guide on <a href={guideHref('how-to-check-pure-honey')}>how to tell if honey is pure</a> explains why, and how to make it runny again with gentle warmth.</p>
+
+  <h2>Buying Neela Kurinji honey</h2>
+  <p>Because the name is special, it is worth asking a few questions before you buy: when the honey was harvested, which bloom it came from, and whether there is a batch number you can look up. A good producer will be glad you asked.</p>
+  <p>Every Beezy jar carries a batch number. Type it into <a href={link('/know-your-jar/')}>Know Your Jar</a> to see when your honey was harvested and packed, and see when our other honeys usually flower on the <a href={link('/harvest/#bloom-calendar')}>bloom calendar</a>.</p>
+
+  <h2>A gift with a story</h2>
+  <p>Because it is rare and comes in small batches, <a href={productHref('neela-kurinji-honey')}>Neela Kurinji Honey</a> makes a thoughtful gift for honey lovers. Pair it with a familiar honey for a small tasting at home, or build a <a href={link('/gift-box/')}>gift box</a> around it.</p>
+</Guide>

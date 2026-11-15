@@ -1,0 +1,69 @@
+---
+import Guide from '../../layouts/Guide.astro';
+import GuideFigure from '../../components/GuideFigure.astro';
+import { guideHref, productHref } from '../../data/guides';
+import { PRODUCTS } from '../../data/products';
+import { link } from '../../data/site';
+
+// The honeys we pack with comb, straight from the catalogue, so this list stays right when products change.
+const combs = PRODUCTS.filter((p) => p.withComb);
+const hasCandles = PRODUCTS.some((p) => p.slug === 'beeswax-candles');
+---
+<Guide slug="honey-with-comb">
+  <aside class="g-note" aria-label="In short">
+    <p class="eyebrow">In short</p>
+    <p>Comb honey is honey still sealed in the wax cells the bees built. You can eat all of it, wax included: chew a piece and swallow it, or chew it and set the wax aside. Keep it at room temperature with the lid closed, out of the sun and out of the fridge.</p>
+  </aside>
+
+  <h2>What is comb honey?</h2>
+  <p>Inside the hive, bees build honeycomb from beeswax, which they make themselves from wax glands on the underside of their bodies. They shape it into neat six-sided cells, fill the cells with nectar, and fan it with their wings until enough water has gone and it has become honey. Then they seal each full cell with a thin cap of fresh wax. Comb honey is that sealed comb, cut from the frame and packed as it is.</p>
+  <p>Most honey in shops is extracted honey: the comb is uncapped, the honey is spun or drained out and strained, and the liquid goes into jars. With comb honey, the bees’ own wax is the packaging. You will also see honey with a piece of comb in it, where a chunk of comb is packed together with honey. Both let you taste honey about as close as it gets to the way it was in the hive.</p>
+
+  <GuideFigure src="capped-comb.jpg" shape="square" alt="Close-up of honeycomb cells sealed with thin caps of pale wax" caption="Full cells, sealed by the bees with thin caps of fresh wax." />
+
+  <h2>Can you eat the wax?</h2>
+  <p>Yes. Beeswax is edible. It is a natural wax that is also used in food as a glazing agent, for example to give some sweets their shine. Your body does not digest it much; it simply passes through. Eating the soft wax from a piece of comb honey, in the amounts you would eat with a meal, is completely normal, and people have eaten honey in the comb for a very long time.</p>
+  <p>If you would rather not swallow the wax, that is fine too. Chew a piece until the honey is gone, then set the small ball of wax aside, the way you would with a piece of sugarcane. Both ways are right.</p>
+  <p>As with all honey, do not give comb honey to babies under one year old.</p>
+
+  <h2>What does comb honey taste like?</h2>
+  <p>The honey tastes of its flowers, just like honey from a jar. The difference is the texture. As you bite, the thin cell walls give way and the honey floods out. What is left is a soft, slightly chewy wax with a mild taste of its own. Some people love it at the first bite; others come round to it after a few tries.</p>
+
+  <h2>How to eat honey with comb</h2>
+  <p>Cut a piece with a clean, dry knife. Dipping the knife in hot water first, then wiping it dry, helps it slide through the comb cleanly. Then try it:</p>
+  <ul>
+    <li>Straight from a spoon, a small piece at a time.</li>
+    <li>On hot toast, chapati or dosa, so the honey melts into the bread.</li>
+    <li>On a platter with fresh fruit, nuts and paneer or cheese.</li>
+    <li>Over thick curd, yoghurt, oats or a fruit bowl.</li>
+    <li>On pancakes or waffles, in place of syrup.</li>
+  </ul>
+  <p>For drinks, spoon out some of the liquid honey that gathers around the comb and keep the comb itself for eating. Beeswax softens in hot drinks and floats to the top, which is not pleasant in a cup of tea.</p>
+
+  <GuideFigure src="dipper-comb.jpg" shape="tall" position="50% 60%" alt="Pieces of honeycomb on a plate beside a honey dipper and a jar" caption="A few pieces of comb, ready to eat." />
+
+  <h2>How to store comb honey</h2>
+  <ul>
+    <li><strong>Room temperature is best.</strong> Keep the box closed, in a cupboard away from sunlight, the stove and other heat.</li>
+    <li><strong>Skip the fridge.</strong> Cold makes honey crystallise faster and turns the wax hard and brittle.</li>
+    <li><strong>Keep it dry.</strong> Use a clean, dry knife or spoon every time and close the lid straight after. Honey keeps well because it holds very little water; moisture from a wet spoon can make it ferment.</li>
+    <li><strong>Keep strong smells away.</strong> Honey and wax can pick up smells, so do not store the box next to spices, onions or garlic.</li>
+    <li><strong>Use the honey that drains out.</strong> Some honey runs out of cut comb and gathers in the box. That is normal: pour it over your next serving or stir it into a drink.</li>
+  </ul>
+  <p>Kept closed and dry, honey keeps for a long time. Use the best before date on the label as your guide.</p>
+
+  <h2>When comb honey sets</h2>
+  <p>Raw honey can crystallise inside the comb, especially in cool weather. The honey in the cells turns paler, thicker and a little grainy. It is still good to eat, and many people enjoy the crunch. Crystallisation is natural for real honey; our guide on <a href={guideHref('how-to-check-pure-honey')}>how to tell if honey is pure</a> explains why it happens.</p>
+  <p>Do not try to melt it. Beeswax softens with warmth and melts at a little over 60 °C, well below boiling, so heating the box would melt the comb along with the crystals. Enjoy set comb honey as it is. Spread on warm toast, it softens nicely by itself.</p>
+
+  <h2>Why people choose honey with comb</h2>
+  <p>Comb honey is about as close to the hive as honey gets. You can see the cells the bees built and the caps they sealed, and you know the honey came out of a hive. Many people simply like knowing what they are getting, and a box of comb honey looks beautiful on the table or as a gift.</p>
+
+  <h2>Beezy honeys that come with comb</h2>
+  {combs.length > 0 && (
+    <p>Our <a href={link('/shop/#comb-honey')}>Comb Honey</a> range packs single-flower and seasonal honeys with a piece of real honeycomb, in clear boxes so you can see the comb before you open it: {combs.map((p, i) => (
+      <>{i > 0 && (i === combs.length - 1 ? ' and ' : ', ')}<a href={productHref(p.slug)}>{p.name}</a></>
+    ))}.</p>
+  )}
+  <p>Not sure which flower to start with? Our guide to <a href={guideHref('murungai-moringa-honey')}>murungai honey</a> is a good place to begin, or let the <a href={link('/honey-finder/')}>Honey Finder</a> suggest one for you.{hasCandles && <> And if you love the smell of fresh comb, beeswax is also what our <a href={productHref('beeswax-candles')}>beeswax candles</a> are made of.</>}</p>
+</Guide>
