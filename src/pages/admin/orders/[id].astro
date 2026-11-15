@@ -1,0 +1,641 @@
+---
+// Order detail (design §2.4, §5 screen 3): the "always go by this page" banner, the price-mismatch warning, items
+// (editable while New), delivery and discount, payments, customer and gift details, the state's main button
+// (Confirm / Packed / Sent / Delivered), Confirmed & paid, Undo confirm, Cancel (asking "Did the jars come back to
+// stock?" after Sent or Delivered), Not a real order, test mark, Duplicate, invoice, stock moves and the history.
+// Every button is a plain form posting _action here; then a 303 back with a flash (422 with the typed values when
+// something must be fixed). Owner and helper.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Badge from '../../../admin/components/Badge.astro';
+import ConfirmButton from '../../../admin/components/ConfirmButton.astro';
+import DateInput from '../../../admin/components/DateInput.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import MoneyInput from '../../../admin/components/MoneyInput.astro';
+import QtyStepper from '../../../admin/components/QtyStepper.astro';
+import Select from '../../../admin/components/Select.astro';
+import TextField from '../../../admin/components/TextField.astro';
+import Toggle from '../../../admin/components/Toggle.astro';
+import { failureFlash, redirectWithFlash, takeFlash, type Flash } from '../../../admin/flash';
+import { ageShort, dateIST, dateTimeIST, dayIST, inr, inrInput } from '../../../admin/format';
+import { newFormKey, readForm, type FormReader } from '../../../admin/forms';
+import { lineErrorPart, lineFieldFor, lineRowPrefixes, readLineForm } from '../../../admin/ops/orderForm';
+import { packChoices, packGroups } from '../../../admin/ops/data';
+import { METHODS, S } from '../../../admin/ops/strings';
+import { paymentState } from '../../../admin/status';
+import { toId, type Failure } from '../../../server/db';
+import {
+  addPayment, advanceOrder, cancelOrder, confirmOrder, duplicateOrder, getOrder, markReplied, markSpam, PAYMENT_METHODS,
+  restoreOrder, saveCharges, saveCustomer, saveLines, setTestFlag, undoConfirm, useCustomerPrices, type PaymentMethod,
+} from '../../../server/orders';
+import { handleEffects } from '../../../server/publish';
+import { getSetting } from '../../../server/settings';
+import { timeline } from '../../../server/audit';
+
+const db = env.DB;
+const admin = Astro.locals.admin!;
+const id = toId(Astro.params.id);
+if (!id) return redirectWithFlash(Astro, '/admin/orders/', { key: 'flash.notFound' });
+const SELF = `/admin/orders/${id}/`;
+const ctx = (Astro.locals as { cfContext?: ExecutionContext }).cfContext;
+
+const ACTIONS = ['save_lines', 'use_customer_prices', 'save_charges', 'save_customer', 'confirm', 'confirm_paid', 'undo_confirm',
+  'pay', 'pack', 'ship', 'deliver', 'cancel', 'mark_spam', 'restore', 'mark_test', 'unmark_test', 'duplicate', 'replied', 'unreplied'] as const;
+type Action = (typeof ACTIONS)[number];
+
+let form: FormReader | null = null;
+let failed: Action | null = null;
+let errors: Record<string, string> = {};
+let flash: Flash | null = null;
+let askRestock = false;
+
+const say = (text: string, tone: 'ok' | 'info' | 'warn' | 'error' = 'ok') => redirectWithFlash(Astro, SELF, { text, tone });
+
+if (Astro.request.method === 'POST') {
+  form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  const action = form.action(ACTIONS);
+  if (!action) return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  const version = form.version();
+  const v = version ?? 0;
+  /** a failure: on its field when this form shows it, else as a flash */
+  const fail = (r: Failure, fields: readonly string[], fieldMap: Record<string, string> = {}) => {
+    const mapped = r.field && fieldMap[r.field] ? { ...r, field: fieldMap[r.field] } : r;
+    if (form!.takeFailure(mapped, fields)) { failed = action; return null; }
+    return redirectWithFlash(Astro, SELF, failureFlash(r));
+  };
+  let response: Response | null = null;
+
+  switch (action) {
+    case 'save_lines': {
+      const lines = readLineForm(form);
+      const rows = lineRowPrefixes(form);
+      if (form.ok && !lines.length) form.fail('lines', 'form.required');
+      if (form.ok) {
+        const r = await saveLines(db, admin, { id, version: v, lines });
+        if (r.ok) return say(S.t('order.saved'));
+        const rowField = lineFieldFor(r.field, rows);
+        const target = rowField ? `${rowField}${lineErrorPart(r.message)}` : r.field;
+        response = fail(r.field === 'discountPaise' ? r : { ...r, field: target },
+          [...rows.flatMap((p) => ['price', 'qty', 'variant', 'name', 'pack', 'note'].map((x) => `${p}${x}`)), 'lines']);
+      } else failed = action;
+      break;
+    }
+    case 'use_customer_prices': {
+      const r = await useCustomerPrices(db, admin, { id, version: v });
+      return r.ok ? say(S.t('order.saved')) : redirectWithFlash(Astro, SELF, failureFlash(r));
+    }
+    case 'save_charges': {
+      const delivery = form.paise('delivery') ?? 0;
+      const discount = form.paise('discount') ?? 0;
+      if (form.ok) {
+        const r = await saveCharges(db, admin, { id, version: v, deliveryPaise: delivery, discountPaise: discount });
+        if (r.ok) return say(S.t('order.saved'));
+        response = fail(r, ['delivery', 'discount'], { deliveryPaise: 'delivery', discountPaise: 'discount' });
+      } else failed = action;
+      break;
+    }
+    case 'save_customer': {
+      const input = {
+        name: form.optText('name', { max: 80 }), phone: form.optText('phone', { max: 20 }), address: form.optText('address', { max: 400, multiline: true }),
+        city: form.optText('city', { max: 60 }), note: form.optText('note', { max: 1000, multiline: true }),
+        neededBy: form.date('needed_by'), isBulk: form.bool('is_bulk'),
+      };
+      if (form.ok) {
+        const r = await saveCustomer(db, admin, { id, version: v, ...input });
+        if (r.ok) return say(S.t('order.saved'));
+        response = fail(r, ['name', 'phone', 'address', 'city', 'note', 'needed_by'], { neededBy: 'needed_by' });
+      } else failed = action;
+      break;
+    }
+    case 'confirm':
+    case 'confirm_paid': {
+      let paid: { method: PaymentMethod; reference: string | null; idemKey?: string } | undefined;
+      if (action === 'confirm_paid') {
+        const method = form.choice('cp_method', PAYMENT_METHODS, { required: true });
+        const reference = form.optText('cp_reference', { max: 60 });
+        if (!form.ok || !method) { failed = action; break; }
+        paid = { method, reference, idemKey: form.key() ?? undefined };
+      }
+      const r = await confirmOrder(db, admin, { id, version: v, paid });
+      if (!r.ok) return redirectWithFlash(Astro, SELF, failureFlash(r));
+      if (ctx) await handleEffects(env, ctx, admin, r.value.effects, 'Order confirmed');
+      const detail = await getOrder(db, id);
+      const ref = detail?.order.ref ?? '';
+      if (r.value.negative.length) {
+        return say(S.t('order.confirmedNegative', { ref, list: r.value.negative.map((n) => `${n.amountText} for ${n.name}`).join(', ') }), 'warn');
+      }
+      return say(paid ? S.t('order.confirmedPaid', { ref, amount: inr(r.value.paidPaise) }) : S.t('order.confirmed', { ref }));
+    }
+    case 'undo_confirm': {
+      const r = await undoConfirm(db, admin, { id, version: v });
+      if (!r.ok) return redirectWithFlash(Astro, SELF, failureFlash(r));
+      if (ctx) await handleEffects(env, ctx, admin, r.value.effects, 'Confirm undone');
+      return say(S.t('order.undone'));
+    }
+    case 'pay': {
+      const kind = form.choice('pay_kind', ['received', 'refund'] as const) ?? 'received';
+      const amount = form.paise('amount', { required: true, nonZero: true, min: 1 });
+      const method = form.choice('pay_method', PAYMENT_METHODS, { required: true });
+      const reference = form.optText('reference', { max: 60 });
+      const receivedOn = form.date('received_on', { max: dayIST() });
+      if (form.ok && amount !== null && method) {
+        const signed = kind === 'refund' ? -amount : amount;
+        const r = await addPayment(db, admin, { id, amountPaise: signed, method, reference, receivedOn: receivedOn ?? undefined, idemKey: form.key() ?? undefined });
+        if (r.ok) {
+          if (r.value.duplicate) return say(S.t('order.paymentDuplicate'), 'info');
+          return say(kind === 'refund' ? S.t('order.refundSaved', { amount: inr(amount) })
+            : S.t('order.paymentSaved', { amount: inr(amount), balance: inr(Math.max(0, r.value.balancePaise)) }));
+        }
+        response = fail(r, ['amount', 'pay_method', 'reference', 'received_on'], { amountPaise: 'amount', method: 'pay_method', receivedOn: 'received_on' });
+      } else failed = action;
+      break;
+    }
+    case 'pack':
+    case 'ship':
+    case 'deliver': {
+      const to = action === 'pack' ? 'packed' : action === 'ship' ? 'shipped' : 'delivered';
+      const note = action === 'ship' ? form.optText('ship_note', { max: 200 }) : null;
+      if (!form.ok) { failed = action; break; }
+      const r = await advanceOrder(db, admin, { id, version: v, to, note });
+      if (!r.ok) return redirectWithFlash(Astro, SELF, failureFlash(r));
+      return say(S.t(to === 'packed' ? 'order.packedDone' : to === 'shipped' ? 'order.shippedDone' : 'order.deliveredDone'));
+    }
+    case 'cancel': {
+      const reason = form.optText('reason', { max: 200 });
+      const restockRaw = form.choice('restock', ['yes', 'no'] as const);
+      if (!form.ok) { failed = action; break; }
+      const r = await cancelOrder(db, admin, { id, version: v, reason, restock: restockRaw === null ? undefined : restockRaw === 'yes' });
+      if (r.ok) {
+        if (ctx) await handleEffects(env, ctx, admin, r.value.effects, 'Order cancelled');
+        return say(r.value.restocked ? S.t('order.cancelledStock') : S.t('order.cancelled'));
+      }
+      if (r.error === 'needs_restock_answer') {
+        askRestock = true;
+        form.failText('restock', r.message);
+        failed = action;
+        break;
+      }
+      return redirectWithFlash(Astro, SELF, failureFlash(r));
+    }
+    case 'mark_spam': {
+      const r = await markSpam(db, admin, { id, version: v });
+      return r.ok ? say(S.t('order.spamDone')) : redirectWithFlash(Astro, SELF, failureFlash(r));
+    }
+    case 'restore': {
+      const r = await restoreOrder(db, admin, { id, version: v });
+      return r.ok ? say(S.t('order.restored')) : redirectWithFlash(Astro, SELF, failureFlash(r));
+    }
+    case 'mark_test':
+    case 'unmark_test': {
+      const r = await setTestFlag(db, admin, { id, version: v, isTest: action === 'mark_test' });
+      return r.ok ? say(S.t(action === 'mark_test' ? 'order.testDone' : 'order.testUndone')) : redirectWithFlash(Astro, SELF, failureFlash(r));
+    }
+    case 'replied':
+    case 'unreplied': {
+      const r = await markReplied(db, admin, { id, replied: action === 'replied' });
+      return r.ok ? say(S.t(action === 'replied' ? 'order.repliedDone' : 'order.repliedUndone')) : redirectWithFlash(Astro, SELF, failureFlash(r));
+    }
+    case 'duplicate': {
+      const r = await duplicateOrder(db, admin, { id, idemKey: form.key() ?? undefined });
+      if (!r.ok) return redirectWithFlash(Astro, SELF, failureFlash(r));
+      const from = (await getOrder(db, id))?.order.ref ?? '';
+      return redirectWithFlash(Astro, `/admin/orders/${r.value.id}/`, { text: S.t('order.duplicated', { ref: r.value.ref, from }), tone: 'ok' });
+    }
+  }
+  if (response) return response;
+  errors = form.messages();
+  flash = { tone: askRestock ? 'warn' : 'error', text: askRestock ? S.t('order.restockQ') : S.t('form.fixErrors') };
+  Astro.response.status = 422;
+} else {
+  flash = takeFlash(Astro);
+}
+
+const detail = await getOrder(db, id);
+if (!detail) return redirectWithFlash(Astro, '/admin/orders/', { text: S.t('order.notFound'), tone: 'error' });
+const { order: o, lines, payments, stockMoves, actions } = detail;
+const can = (a: string) => (actions as string[]).includes(a);
+const [packs, history, privacy] = await Promise.all([packChoices(db), timeline(db, 'order', id, 200), getSetting(db, 'privacy')]);
+const groups = packGroups(packs, lines.map((l) => l.variantId), S.t('order.noPrice'));
+const newGroups = packGroups(packs, [], S.t('order.noPrice'));
+const pay = paymentState(o.totalPaise, o.paidPaise);
+const sold = ['confirmed', 'packed', 'shipped', 'delivered'].includes(o.status);
+const raw = (a: Action, name: string, fallback: string) => (form && failed === a ? form.raw(name) : fallback);
+const has = (a: Action) => !!form && failed === a;
+const today = dayIST();
+const mismatchUp = o.priceMismatch && o.shownTotalPaise !== null && o.shownTotalPaise < o.itemsTotalPaise;
+const unknown = o.flags?.unknown?.map((u) => `${u.s} ${u.p}`.trim()) ?? [];
+const soldOut = o.flags?.soldOut ?? [];
+const unavailable = o.flags?.unavailable ?? [];
+const methodOptions = METHODS.map((m) => ({ value: m, label: S.t(`ops.method.${m}`) }));
+const next = o.status === 'new' ? 'confirm' : o.status === 'confirmed' ? 'pack' : o.status === 'packed' ? 'ship' : o.status === 'shipped' ? 'deliver' : null;
+const needRestockQ = o.status === 'shipped' || o.status === 'delivered';
+const stockBack = o.status === 'confirmed' || o.status === 'packed';
+const channelWord = S.t(`ops.channel.${o.channel}` as 'ops.channel.other');
+const actorWord = (a: string) => (a === 'system' ? S.t('activity.by.system') : a === 'public' ? S.t('activity.by.public') : a);
+const steps = [
+  ['order.when.confirmed', o.confirmedAt], ['order.when.packed', o.packedAt], ['order.when.shipped', o.shippedAt],
+  ['order.when.delivered', o.deliveredAt], ['order.when.cancelled', o.cancelledAt],
+].filter(([, at]) => at) as ['order.when.confirmed', string][];
+---
+<AdminLayout title={S.t('order.title', { ref: o.ref })} active="orders" flash={flash} back={{ href: '/admin/orders/', label: S.t('orders.title') }}>
+  <p class="notice notice-info gobyline"><Icon name="info" /><span>{S.t('order.goBy')}</span></p>
+
+  <!-- summary + main button -->
+  <section class="card summary section" aria-label={o.ref}>
+    <div class="row summary-badges">
+      <Badge kind="order" value={o.status} />
+      {(sold || o.paidPaise !== 0) && <Badge kind="payment" value={pay} />}
+      <Badge kind="source" value={o.source} />
+      {o.isTest && <Badge tone="muted" text={S.t('ops.test')} />}
+      {o.invoiceNo && <Badge tone="info" text={S.t('order.invoiceNo', { no: o.invoiceNo })} />}
+    </div>
+    <dl class="kv summary-kv">
+      <dt>{S.t('order.totalLabel')}</dt><dd class="num big">{inr(o.totalPaise)}</dd>
+      {o.paidPaise !== 0 && <><dt>{S.t('order.paidLabel')}</dt><dd class="num">{inr(o.paidPaise)}</dd></>}
+      {sold && o.balancePaise !== 0 && <><dt>{o.balancePaise > 0 ? S.t('order.balance') : S.t('order.overpaid')}</dt><dd class:list={['num', { neg: o.balancePaise > 0 }]}>{inr(Math.abs(o.balancePaise))}</dd></>}
+      <dt>{S.t('order.channel')}</dt><dd>{channelWord}</dd>
+      <dt>{S.t('orders.when')}</dt><dd>{dateTimeIST(o.createdAt)} <span class="muted">({S.t('ops.ago', { age: ageShort(o.createdAt) })})</span></dd>
+      {steps.map(([k, at]) => <><dt>{S.t(k)}</dt><dd>{dateTimeIST(at)}</dd></>)}
+      {o.cancelReason && <><dt>{S.t('order.cancelReason')}</dt><dd>{o.cancelReason}</dd></>}
+    </dl>
+
+    {next && can(next) && (
+      <div class="mainact stack">
+        {next === 'confirm' ? (
+          <>
+            <form method="post">
+              <input type="hidden" name="version" value={o.version} />
+              <button class="btn btn-primary btn-lg btn-block" name="_action" value="confirm"><Icon name="check" />{S.t('order.next.confirm')}</button>
+              <p class="field-hint center">{S.t('order.next.confirmHint')}</p>
+            </form>
+            {can('confirm_paid') && (
+              <form method="post" class="cpaid">
+                <input type="hidden" name="version" value={o.version} />
+                <input type="hidden" name="_key" value={newFormKey()} />
+                <div class="grid-2">
+                  <Select name="cp_method" label={S.t('order.method')} value={raw('confirm_paid', 'cp_method', 'upi')} options={methodOptions} error={has('confirm_paid') ? errors.cp_method : null} />
+                  <TextField name="cp_reference" label={S.t('order.reference')} optional value={raw('confirm_paid', 'cp_reference', '')} max={60} error={has('confirm_paid') ? errors.cp_reference : null} />
+                </div>
+                <button class="btn btn-honey btn-block" name="_action" value="confirm_paid"><Icon name="check" />{S.t('order.confirmPaid')}</button>
+                <p class="field-hint">{S.t('order.confirmPaidHint', { amount: inr(o.totalPaise) })}</p>
+              </form>
+            )}
+          </>
+        ) : (
+          <form method="post" class="stack">
+            <input type="hidden" name="version" value={o.version} />
+            {can('ship') && (
+              <TextField name="ship_note" label={S.t('order.courier')} optional hint={S.t('order.courierHint')} value={raw('ship', 'ship_note', '')} max={200} error={has('ship') ? errors.ship_note : null} />
+            )}
+            <div class="row">
+              <button class="btn btn-primary btn-lg" name="_action" value={next}><Icon name="check" />{S.t(`order.next.${next}` as 'order.next.pack')}</button>
+              {next === 'pack' && can('ship') && <button class="btn btn-lg" name="_action" value="ship">{S.t('order.next.ship')}</button>}
+              {next !== 'deliver' && can('deliver') && <button class="btn btn-lg" name="_action" value="deliver">{S.t('order.next.deliver')}</button>}
+            </div>
+          </form>
+        )}
+      </div>
+    )}
+  </section>
+
+  {o.priceMismatch && o.shownTotalPaise !== null && (
+    <div class="notice notice-warn section mismatch">
+      <Icon name="alert" />
+      <div class="stack">
+        <span>{mismatchUp ? S.t('order.sawPrice', { shown: inr(o.shownTotalPaise), now: inr(o.itemsTotalPaise) }) : S.t('order.sawPriceHigher', { shown: inr(o.shownTotalPaise), now: inr(o.itemsTotalPaise) })}</span>
+        {can('use_customer_prices') && (
+          <form method="post">
+            <input type="hidden" name="version" value={o.version} />
+            <ConfirmButton value="use_customer_prices" message={S.t('order.useCustomerConfirm', { amount: inr(o.itemsTotalPaise - o.shownTotalPaise) })} confirmLabel={S.t('order.useCustomerPrices')}>
+              {S.t('order.useCustomerPrices')}
+            </ConfirmButton>
+          </form>
+        )}
+      </div>
+    </div>
+  )}
+  {unknown.length > 0 && <p class="notice notice-warn section"><Icon name="alert" /><span>{S.t('order.unknownItems', { list: unknown.join(', ') })}</span></p>}
+  {soldOut.length > 0 && <p class="notice notice-warn section"><Icon name="alert" /><span>{S.t('order.soldOutItems', { list: soldOut.join(', ') })}</span></p>}
+  {unavailable.length > 0 && <p class="notice notice-warn section"><Icon name="alert" /><span>{S.t('order.unavailableItems', { list: unavailable.join(', ') })}</span></p>}
+
+  <!-- items -->
+  <section class="section" aria-labelledby="o-items">
+    <div class="section-head"><h2 class="section-title" id="o-items">{S.t('order.items')}</h2></div>
+    {can('save_lines') ? (
+      <form method="post" class="card stack" data-draft={`order-${o.id}-lines`}>
+        <input type="hidden" name="version" value={o.version} />
+        <input type="hidden" name="line_count" value={lines.length} />
+        <input type="hidden" name="new_count" value="1" />
+        <input type="hidden" name="custom_count" value="1" />
+        {has('save_lines') && errors.lines && <p class="field-error"><Icon name="alert" />{errors.lines}</p>}
+        {lines.map((l, i) => {
+          const p = `l${i}_`;
+          const priceText = inrInput(l.unitPricePaise);
+          return (
+            <fieldset class="fieldset line">
+              <legend class="line-legend">{l.name}{l.pack && ` – ${l.pack}`}</legend>
+              <input type="hidden" name={`${p}kind`} value={l.kind} />
+              {l.kind === 'item' ? (
+                <>
+                  <input type="hidden" name={`${p}was`} value={l.variantId ?? ''} />
+                  <input type="hidden" name={`${p}wasprice`} value={priceText} />
+                  <Select name={`${p}variant`} label={S.t('order.pack')} value={raw('save_lines', `${p}variant`, String(l.variantId ?? ''))} groups={groups} error={has('save_lines') ? errors[`${p}variant`] : null} />
+                </>
+              ) : (
+                <div class="grid-2">
+                  <TextField name={`${p}name`} label={S.t('order.otherName')} value={raw('save_lines', `${p}name`, l.name)} max={120} required error={has('save_lines') ? errors[`${p}name`] : null} />
+                  <TextField name={`${p}pack`} label={S.t('order.otherPack')} optional value={raw('save_lines', `${p}pack`, l.pack)} max={60} />
+                </div>
+              )}
+              <div class="grid-2">
+                <QtyStepper name={`${p}qty`} label={S.t('order.qty')} value={raw('save_lines', `${p}qty`, String(l.qty))} min={1} max={999} error={has('save_lines') ? errors[`${p}qty`] : null} />
+                <MoneyInput name={`${p}price`} label={S.t('order.price')} raw={raw('save_lines', `${p}price`, priceText)} allowEmpty
+                  placeholder={l.kind === 'item' ? S.t('order.priceHint') : S.t('order.noPrice')}
+                  hint={l.kind === 'item' ? (l.currentPricePaise !== null ? S.t('order.todayPrice', { price: inr(l.currentPricePaise) }) : S.t('order.noPrice')) : null}
+                  error={has('save_lines') ? errors[`${p}price`] : null} />
+              </div>
+              <TextField name={`${p}note`} label={S.t('order.priceNote')} optional value={raw('save_lines', `${p}note`, l.priceNote ?? '')} max={120} error={has('save_lines') ? errors[`${p}note`] : null} />
+              <div class="row row-between line-foot">
+                <label class="check"><input type="checkbox" name={`${p}remove`} value="1" checked={has('save_lines') && form!.bool(`${p}remove`)} />{S.t('order.remove')}</label>
+                <span class="num">{S.t('order.lineTotal')}: <strong>{l.unitPricePaise === null ? S.t('order.noPrice') : inr(l.lineTotalPaise)}</strong></span>
+              </div>
+            </fieldset>
+          );
+        })}
+        <fieldset class="fieldset line line-new">
+          <legend class="line-legend">{S.t('order.addPack')}</legend>
+          <Select name="n0_variant" label={S.t('order.pack')} value={raw('save_lines', 'n0_variant', '')} placeholder={S.t('order.addPack')} groups={newGroups} error={has('save_lines') ? errors.n0_variant : null} />
+          <div class="grid-2">
+            <QtyStepper name="n0_qty" label={S.t('order.qty')} value={raw('save_lines', 'n0_qty', '1')} min={1} max={999} error={has('save_lines') ? errors.n0_qty : null} />
+            <MoneyInput name="n0_price" label={S.t('order.price')} raw={raw('save_lines', 'n0_price', '')} allowEmpty placeholder={S.t('order.priceHint')} error={has('save_lines') ? errors.n0_price : null} />
+          </div>
+        </fieldset>
+        <details class="line-other" open={has('save_lines') && !!form!.raw('c0_name')}>
+          <summary class="btn btn-quiet"><Icon name="plus" />{S.t('order.addOther')}</summary>
+          <fieldset class="fieldset line">
+            <legend class="sr-only">{S.t('order.addOther')}</legend>
+            <Select name="c0_kind" label={S.t('order.otherKind')} value={raw('save_lines', 'c0_kind', 'custom')} options={[{ value: 'custom', label: S.t('order.kind.custom') }, { value: 'fee', label: S.t('order.kind.fee') }]} />
+            <div class="grid-2">
+              <TextField name="c0_name" label={S.t('order.otherName')} value={raw('save_lines', 'c0_name', '')} max={120} error={has('save_lines') ? errors.c0_name : null} />
+              <TextField name="c0_pack" label={S.t('order.otherPack')} optional value={raw('save_lines', 'c0_pack', '')} max={60} />
+              <QtyStepper name="c0_qty" label={S.t('order.qty')} value={raw('save_lines', 'c0_qty', '1')} min={1} max={999} error={has('save_lines') ? errors.c0_qty : null} />
+              <MoneyInput name="c0_price" label={S.t('order.price')} raw={raw('save_lines', 'c0_price', '')} allowEmpty placeholder={S.t('order.noPrice')} error={has('save_lines') ? errors.c0_price : null} />
+            </div>
+          </fieldset>
+        </details>
+        <div class="form-actions">
+          <button class="btn btn-primary" name="_action" value="save_lines"><Icon name="check" />{S.t('order.saveItems')}</button>
+        </div>
+      </form>
+    ) : (
+      <>
+        {lines.length === 0 ? <EmptyState compact icon="orders" title={S.t('ops.noItems')} /> : (
+          <div class="table-wrap has-cards">
+            <table class="dtable">
+              <caption class="sr-only">{S.t('order.items')}</caption>
+              <thead><tr><th scope="col">{S.t('invoice.item')}</th><th scope="col" class="end">{S.t('order.qty')}</th><th scope="col" class="end">{S.t('order.price')}</th><th scope="col" class="end">{S.t('order.lineTotal')}</th></tr></thead>
+              <tbody>
+                {lines.map((l) => (
+                  <tr>
+                    <td class="is-primary" data-label={S.t('invoice.item')}>{l.name}{l.pack && ` – ${l.pack}`}{l.priceNote && <span class="muted"> ({l.priceNote})</span>}</td>
+                    <td class="end num" data-label={S.t('order.qty')}>{l.qty}</td>
+                    <td class="end num" data-label={S.t('order.price')}>{l.unitPricePaise === null ? S.t('order.noPrice') : inr(l.unitPricePaise)}</td>
+                    <td class="end num" data-label={S.t('order.lineTotal')}>{inr(l.lineTotalPaise)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {o.status === 'confirmed' && <p class="field-hint">{S.t('order.itemsLocked')}</p>}
+      </>
+    )}
+  </section>
+
+  <!-- totals and charges -->
+  <section class="section" aria-labelledby="o-charges">
+    <div class="section-head"><h2 class="section-title" id="o-charges">{S.t('order.charges')}</h2></div>
+    <div class="card stack">
+      <dl class="kv totals">
+        <dt>{S.t('order.itemsTotal')}</dt><dd class="num">{inr(o.itemsTotalPaise)}</dd>
+        <dt>{S.t('order.discount')}</dt><dd class="num">{o.discountPaise ? `− ${inr(o.discountPaise)}` : inr(0)}</dd>
+        <dt>{S.t('order.delivery')}</dt><dd class="num">{inr(o.deliveryPaise)}</dd>
+        <dt>{S.t('order.totalLabel')}</dt><dd class="num"><strong>{inr(o.totalPaise)}</strong></dd>
+      </dl>
+      {o.invoiceNo && <p class="notice notice-info"><Icon name="info" /><span>{S.t('order.invoiceFrozen', { no: o.invoiceNo })}</span></p>}
+      {can('save_charges') && (
+        <form method="post" class="stack">
+          <input type="hidden" name="version" value={o.version} />
+          <div class="grid-2">
+            <MoneyInput name="delivery" label={S.t('order.delivery')} raw={raw('save_charges', 'delivery', inrInput(o.deliveryPaise))} error={has('save_charges') ? errors.delivery : null} />
+            <MoneyInput name="discount" label={S.t('order.discount')} raw={raw('save_charges', 'discount', inrInput(o.discountPaise))} error={has('save_charges') ? errors.discount : null} />
+          </div>
+          <div class="form-actions"><button class="btn" name="_action" value="save_charges">{S.t('order.saveCharges')}</button></div>
+        </form>
+      )}
+    </div>
+  </section>
+
+  <!-- payments -->
+  <section class="section" aria-labelledby="o-pay">
+    <div class="section-head"><h2 class="section-title" id="o-pay">{S.t('order.payments')}</h2>{(sold || o.paidPaise !== 0) && <Badge kind="payment" value={pay} />}</div>
+    <div class="card stack">
+      {payments.length === 0 ? <p class="muted">{S.t('order.noPayments')}</p> : (
+        <ul class="paylist">
+          {payments.map((p) => (
+            <li class="row row-between">
+              <span>{dateIST(p.receivedOn)} · {S.t(`ops.method.${p.method}`)}{p.reference && <span class="muted"> · {p.reference}</span>}</span>
+              <span class:list={['num', { neg: p.amountPaise < 0 }]}><strong>{p.amountPaise < 0 ? `${S.t('order.refund')} ${inr(-p.amountPaise)}` : inr(p.amountPaise)}</strong></span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {can('pay') && (
+        <details class="payform" open={has('pay')}>
+          <summary class="btn"><Icon name="plus" />{S.t('order.markPaid')}</summary>
+          <form method="post" class="stack">
+            <input type="hidden" name="version" value={o.version} />
+            <input type="hidden" name="_key" value={form && failed === 'pay' ? (form.key() ?? newFormKey()) : newFormKey()} />
+            <fieldset class="fieldset">
+              <legend class="field-label">{S.t('order.payKind')}</legend>
+              <div class="row">
+                <label class="check"><input type="radio" name="pay_kind" value="received" checked={raw('pay', 'pay_kind', 'received') !== 'refund'} />{S.t('order.payKind.received')}</label>
+                <label class="check"><input type="radio" name="pay_kind" value="refund" checked={raw('pay', 'pay_kind', 'received') === 'refund'} />{S.t('order.payKind.refund')}</label>
+              </div>
+            </fieldset>
+            <div class="grid-2">
+              <MoneyInput name="amount" label={S.t('order.amount')} required raw={raw('pay', 'amount', o.balancePaise > 0 ? inrInput(o.balancePaise) : '')} error={has('pay') ? errors.amount : null} />
+              <Select name="pay_method" label={S.t('order.method')} value={raw('pay', 'pay_method', 'upi')} options={methodOptions} error={has('pay') ? errors.pay_method : null} />
+              <TextField name="reference" label={S.t('order.reference')} optional hint={S.t('order.referenceHint')} value={raw('pay', 'reference', '')} max={60} error={has('pay') ? errors.reference : null} />
+              <DateInput name="received_on" label={S.t('order.receivedOn')} value={raw('pay', 'received_on', today)} max={today} error={has('pay') ? errors.received_on : null} />
+            </div>
+            <div class="form-actions"><button class="btn btn-primary" name="_action" value="pay"><Icon name="check" />{S.t('order.savePayment')}</button></div>
+          </form>
+        </details>
+      )}
+    </div>
+  </section>
+
+  <!-- gift details -->
+  {o.gift && (
+    <section class="section" aria-labelledby="o-gift">
+      <div class="section-head"><h2 class="section-title" id="o-gift">{S.t('order.gift')}</h2>{o.repliedAt ? <Badge tone="ok" text={S.t('order.repliedOn', { when: dateIST(o.repliedAt) })} /> : <Badge tone="warn" text={S.t('order.unmarkReplied')} />}</div>
+      <div class="card stack">
+        <dl class="kv">
+          {o.gift.size && <><dt>{S.t('order.giftSize')}</dt><dd>{S.t('order.giftSizeValue', { size: o.gift.size, jar: o.gift.jar ?? '' })}</dd></>}
+          {o.gift.boxes && <><dt>{S.t('order.giftBoxes')}</dt><dd>{o.gift.boxes}{o.isBulk && ` · ${S.t('requests.bulk')}`}</dd></>}
+          {o.gift.picks?.length > 0 && <><dt>{S.t('order.giftPicks')}</dt><dd>{o.gift.picks.join(', ')}</dd></>}
+          {o.gift.extras?.length > 0 && <><dt>{S.t('order.giftExtras')}</dt><dd>{o.gift.extras.join(', ')}</dd></>}
+          {o.gift.occasion && <><dt>{S.t('order.giftOccasion')}</dt><dd>{o.gift.occasion}</dd></>}
+          {o.neededBy && <><dt>{S.t('order.neededBy')}</dt><dd>{dateIST(o.neededBy)}</dd></>}
+          {o.gift.card && <><dt>{S.t('order.giftCard')}</dt><dd>“{o.gift.card}”</dd></>}
+        </dl>
+        {can('replied') && (
+          <form method="post">
+            {o.repliedAt
+              ? <button class="btn" name="_action" value="unreplied">{S.t('order.unmarkReplied')}</button>
+              : <button class="btn btn-honey" name="_action" value="replied"><Icon name="check" />{S.t('order.markReplied')}</button>}
+          </form>
+        )}
+      </div>
+    </section>
+  )}
+
+  <!-- customer -->
+  <section class="section" aria-labelledby="o-customer">
+    <div class="section-head"><h2 class="section-title" id="o-customer">{S.t('order.customer')}</h2></div>
+    <form method="post" class="card stack" data-draft={`order-${o.id}-customer`}>
+      <input type="hidden" name="version" value={o.version} />
+      <p class="field-hint">{S.t('order.customerHint', { months: privacy.clearCustomerAfterMonths })}</p>
+      {o.personalClearedAt && <p class="notice notice-info"><Icon name="info" /><span>{S.t('order.customerCleared', { date: dateIST(o.personalClearedAt) })}</span></p>}
+      <div class="grid-2">
+        <TextField name="name" label={S.t('order.name')} optional value={raw('save_customer', 'name', o.customer.name ?? '')} max={80} autocomplete="off" error={has('save_customer') ? errors.name : null} />
+        <TextField name="phone" label={S.t('order.phone')} optional type="tel" inputmode="tel" value={raw('save_customer', 'phone', o.customer.phone ?? '')} max={20} error={has('save_customer') ? errors.phone : null} />
+        <TextField name="city" label={S.t('order.city')} optional value={raw('save_customer', 'city', o.customer.city ?? '')} max={60} error={has('save_customer') ? errors.city : null} />
+        <DateInput name="needed_by" label={S.t('order.neededBy')} optional value={raw('save_customer', 'needed_by', o.neededBy ?? '')} error={has('save_customer') ? errors.needed_by : null} />
+      </div>
+      <TextField name="address" label={S.t('order.address')} optional multiline rows={3} value={raw('save_customer', 'address', o.customer.address ?? '')} max={400} error={has('save_customer') ? errors.address : null} />
+      <TextField name="note" label={S.t('order.note')} optional multiline rows={3} value={raw('save_customer', 'note', o.note ?? '')} max={1000} error={has('save_customer') ? errors.note : null} />
+      <Toggle name="is_bulk" label={S.t('order.isBulk')} checked={has('save_customer') ? form!.bool('is_bulk') : o.isBulk} />
+      <div class="form-actions"><button class="btn" name="_action" value="save_customer">{S.t('order.saveCustomer')}</button></div>
+    </form>
+  </section>
+
+  <!-- stock -->
+  <section class="section" aria-labelledby="o-stock">
+    <div class="section-head"><h2 class="section-title" id="o-stock">{S.t('order.stock')}</h2></div>
+    {stockMoves.length === 0 ? <p class="muted">{S.t('order.stockNone')}</p> : (
+      <ul class="linklist">
+        {stockMoves.map((m) => (
+          <li><span class="linklist-row"><span>{m.poolName}: <strong class:list={['num', { neg: m.delta < 0 }]}>{m.deltaText}</strong> · {m.reason === 'sale' ? S.t('order.stockSale') : S.t('order.stockBack')}</span><span class="muted">{dateTimeIST(m.createdAt)}</span></span></li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <!-- more actions -->
+  <section class="section" aria-labelledby="o-more">
+    <div class="section-head"><h2 class="section-title" id="o-more">{S.t('order.more')}</h2></div>
+    <div class="card stack">
+      {sold && !o.isTest && (
+        <a class="btn" href={`/admin/invoice/${o.id}/`}><Icon name="invoices" />{o.invoiceNo ? S.t('order.invoiceNo', { no: o.invoiceNo }) : S.t('order.invoice')}</a>
+      )}
+      {can('undo_confirm') && (
+        <form method="post">
+          <input type="hidden" name="version" value={o.version} />
+          <ConfirmButton value="undo_confirm" icon="refresh" message={S.t('order.undoConfirmQ', { ref: o.ref })} confirmLabel={S.t('order.undoConfirm')}>{S.t('order.undoConfirm')}</ConfirmButton>
+        </form>
+      )}
+      {can('cancel') && (
+        <details class="cancelbox" open={has('cancel')}>
+          <summary class="btn"><Icon name="close" />{S.t('order.cancel')}</summary>
+          <form method="post" class="stack">
+            <input type="hidden" name="version" value={o.version} />
+            <TextField name="reason" label={S.t('order.cancelReason')} optional hint={S.t('order.cancelReasonHint')} value={raw('cancel', 'reason', '')} max={200} error={has('cancel') ? errors.reason : null} />
+            {(needRestockQ || askRestock) && (
+              <fieldset class:list={['fieldset', { 'has-error': has('cancel') && !!errors.restock }]}>
+                <legend class="field-label">{S.t('order.restockQ')}</legend>
+                <div class="stack">
+                  <label class="check"><input type="radio" name="restock" value="yes" required checked={raw('cancel', 'restock', '') === 'yes'} />{S.t('order.restockYes')}</label>
+                  <label class="check"><input type="radio" name="restock" value="no" required checked={raw('cancel', 'restock', '') === 'no'} />{S.t('order.restockNo')}</label>
+                </div>
+                {has('cancel') && errors.restock && <p class="field-error"><Icon name="alert" />{errors.restock}</p>}
+              </fieldset>
+            )}
+            <ConfirmButton value="cancel" tone="danger" icon="close" message={stockBack ? S.t('order.cancelQStock', { ref: o.ref }) : S.t('order.cancelQ', { ref: o.ref })} confirmLabel={S.t('order.yesCancel')}>{S.t('order.cancel')}</ConfirmButton>
+          </form>
+        </details>
+      )}
+      {can('mark_spam') && (
+        <form method="post">
+          <input type="hidden" name="version" value={o.version} />
+          <ConfirmButton value="mark_spam" message={S.t('order.spamQ', { ref: o.ref })} confirmLabel={S.t('order.spam')}>{S.t('order.spam')}</ConfirmButton>
+        </form>
+      )}
+      {can('restore') && (
+        <form method="post">
+          <input type="hidden" name="version" value={o.version} />
+          <button class="btn" name="_action" value="restore"><Icon name="refresh" />{S.t('order.restore')}</button>
+        </form>
+      )}
+      {can('mark_test') && !o.invoiceNo && (
+        <form method="post" class="stack">
+          <input type="hidden" name="version" value={o.version} />
+          <p class="field-hint">{S.t('order.testHint')}</p>
+          <button class="btn" name="_action" value={o.isTest ? 'unmark_test' : 'mark_test'}>{o.isTest ? S.t('order.testOff') : S.t('order.testOn')}</button>
+        </form>
+      )}
+      {can('duplicate') && (
+        <form method="post" class="stack">
+          <input type="hidden" name="_key" value={newFormKey()} />
+          <button class="btn" name="_action" value="duplicate"><Icon name="paste" />{S.t('order.duplicate')}</button>
+          <p class="field-hint">{S.t('order.duplicateHint')}</p>
+        </form>
+      )}
+    </div>
+  </section>
+
+  <!-- history -->
+  <section class="section" aria-labelledby="o-history">
+    <div class="section-head"><h2 class="section-title" id="o-history">{S.t('order.timeline')}</h2></div>
+    {history.length === 0 ? <p class="muted">{S.t('order.timelineEmpty')}</p> : (
+      <ol class="timeline">
+        {history.map((h) => (
+          <li><span class="tl-when muted">{dateTimeIST(h.at)} · {actorWord(h.actor)}</span><span>{h.summary}</span></li>
+        ))}
+      </ol>
+    )}
+  </section>
+</AdminLayout>
+
+<style>
+  .gobyline { margin-bottom: 16px; position: sticky; top: calc(var(--topbar-h) + 4px); z-index: 5; padding-top: 8px; padding-bottom: 8px; box-shadow: var(--shadow); }
+  .summary-badges { margin-bottom: 12px; }
+  .summary-kv { margin-bottom: 4px; }
+  .big { font-size: 1.5rem; font-weight: 700; }
+  .mainact { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .center { text-align: center; margin-top: 6px; }
+  .cpaid { display: grid; gap: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .mismatch { align-items: flex-start; }
+  .line { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px 14px; display: grid; gap: 12px; background: var(--white); margin: 0; }
+  .line-legend { font-weight: 700; padding: 0 6px; }
+  .line-new { background: var(--cream); }
+  .line-foot { align-items: center; }
+  .line-other > summary { list-style: none; width: fit-content; }
+  .line-other > summary::-webkit-details-marker { display: none; }
+  .check { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
+  .check input { width: 22px; height: 22px; accent-color: var(--choc); flex: none; }
+  .totals dd { text-align: right; }
+  .paylist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .paylist li { min-height: 40px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .payform > summary, .cancelbox > summary { list-style: none; width: fit-content; }
+  .payform > summary::-webkit-details-marker, .cancelbox > summary::-webkit-details-marker { display: none; }
+  .payform[open] > summary, .cancelbox[open] > summary { margin-bottom: 12px; }
+  .timeline { list-style: none; margin: 0; padding: 0 0 0 16px; border-left: 3px solid var(--line); display: grid; gap: 14px; }
+  .timeline li { display: grid; gap: 2px; }
+  .fieldset.has-error { border-left: 3px solid var(--bad); padding-left: 12px; }
+</style>

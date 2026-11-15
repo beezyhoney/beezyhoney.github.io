@@ -1,0 +1,24 @@
+name: CI
+
+# Tests and the build gates on every pull request (design §9). Nothing is deployed and no secrets are used:
+# worker tests run in a local workerd (Miniflare) with test-only values from vitest.config.mjs.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # sync-catalog (snapshot) → astro build → check-dist
+      - run: npm run build

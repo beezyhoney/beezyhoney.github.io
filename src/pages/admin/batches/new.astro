@@ -1,0 +1,75 @@
+---
+// Add a batch without a harvest (owner and helper): for honey harvested before the admin existed. Stock does not
+// change (createBatch); add a harvest or count the stock for that.
+export const prerender = false;
+
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import DateInput from '../../../admin/components/DateInput.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import Select from '../../../admin/components/Select.astro';
+import TextField from '../../../admin/components/TextField.astro';
+import Toggle from '../../../admin/components/Toggle.astro';
+import '../../../admin/catalog/catalog.css';
+import { redirectWithFlash, takeFlash, type Flash } from '../../../admin/flash';
+import { readForm, type FormReader } from '../../../admin/forms';
+import { dayIST } from '../../../admin/format';
+import { S } from '../../../admin/catalog/strings';
+import { adminOf, bindings, publishAfter } from '../../../admin/catalog/page';
+import { toId } from '../../../server/db';
+import { productChoices } from '../../../server/products-admin';
+import { createBatch } from '../../../server/stock';
+import { addMonths, monthName } from '../../../server/time';
+
+const admin = adminOf(Astro);
+const SELF = '/admin/batches/new/';
+const today = dayIST();
+let form: FormReader | null = null;
+let errors: Record<string, string> = {};
+let flash: Flash | null = null;
+if (Astro.request.method === 'POST') {
+  form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  if (form.action(['create'] as const) !== 'create') return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  const productId = toId(form.raw('product'));
+  if (!productId) form.fail('product', 'form.required');
+  const code = form.optText('code', { max: 24 });
+  const harvestedLabel = form.text('harvested_label', { required: true, min: 3, max: 40 });
+  const packedOn = form.date('packed_on', { required: true, max: today });
+  const bestBefore = form.month('best_before', { required: true });
+  const publicNote = form.optText('public_note', { max: 200 });
+  const privateNote = form.optText('private_note', { max: 500, multiline: true });
+  if (form.ok && productId) {
+    const r = await createBatch(bindings.DB, admin, { productId, ...(code ? { code } : {}), harvestedLabel, packedOn: packedOn!, bestBefore: bestBefore!, isPublic: form.bool('is_public'), publicNote, privateNote });
+    if (r.ok) {
+      await publishAfter(Astro, r.value.effects, `Batch ${r.value.code}`);
+      return redirectWithFlash(Astro, `/admin/batches/${r.value.id}/`, { tone: 'ok', text: S.t('bat.made', { code: r.value.code }) });
+    }
+    const map: Record<string, string> = { productId: 'product', 'batch.code': 'code', 'batch.packedOn': 'packed_on', 'batch.bestBefore': 'best_before', 'batch.publicNote': 'public_note', 'batch.privateNote': 'private_note', 'batch.harvestedLabel': 'harvested_label' };
+    if (r.field && map[r.field]) form.failText(map[r.field], r.message);
+    else flash = { tone: 'error', text: r.message };
+  }
+  errors = form.messages();
+  flash ??= { tone: 'error', text: S.t('form.fixErrors') };
+  Astro.response.status = 422;
+} else {
+  flash = takeFlash(Astro);
+}
+const products = (await productChoices(bindings.DB)).filter((p) => p.status !== 'retired');
+const val = (n: string, d = '') => (form ? form.raw(n) : d);
+---
+<AdminLayout title={S.t('bat.newTitle')} active="batches" flash={flash} back={{ href: '/admin/batches/', label: S.t('bat.title') }}>
+  <form method="post" class="card" style="max-width:720px" novalidate>
+    <p class="field-hint" style="margin-bottom:16px">{S.t('bat.newHint')}</p>
+    <Select name="product" label={S.t('bat.newProduct')} value={val('product')} placeholder="—" required error={errors.product} options={products.map((p) => ({ value: p.id, label: p.name }))} />
+    <TextField name="code" label={S.t('harv.code')} hint={S.t('harv.codeHintGeneric')} value={val('code')} max={24} optional autocapitalize="characters" spellcheck={false} error={errors.code} />
+    <TextField name="harvested_label" label={S.t('bat.harvestedLabel')} hint={S.t('bat.harvestedLabelHint')} value={val('harvested_label', monthName(today))} max={40} required error={errors.harvested_label} />
+    <div class="grid-2">
+      <DateInput name="packed_on" label={S.t('harv.packedOn')} value={val('packed_on', today)} max={today} required error={errors.packed_on} />
+      <DateInput name="best_before" type="month" label={S.t('harv.bestBefore')} value={val('best_before', addMonths(today.slice(0, 7), 24))} required error={errors.best_before} />
+    </div>
+    <Toggle name="is_public" label={S.t('harv.public')} hint={S.t('harv.publicHint')} checked={form ? form.bool('is_public') : true} />
+    <TextField name="public_note" label={S.t('harv.publicNote')} hint={S.t('harv.publicNoteHint')} value={val('public_note')} max={200} optional error={errors.public_note} />
+    <TextField name="private_note" label={S.t('harv.privateNote')} value={val('private_note')} multiline rows={2} max={500} optional error={errors.private_note} />
+    <button class="btn btn-primary btn-lg" name="_action" value="create"><Icon name="plus" />{S.t('bat.newSave')}</button>
+  </form>
+</AdminLayout>

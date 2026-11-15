@@ -1,0 +1,179 @@
+---
+// Invoice print page (design §5 v2 "Invoice", amendment A5): A5 or A4 print CSS, "Bill of supply" unless a GSTIN is
+// set ("Tax invoice"), business details from settings, amount in words. The number (BZ/2026-27/0001, gapless per
+// financial year) is given only when the owner taps "Make the invoice": one guarded batch in orders.ts
+// assignInvoiceNo(); viewing never uses a number. Owner and helper (the number is the same for everyone).
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import ConfirmButton from '../../../admin/components/ConfirmButton.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import { failureFlash, redirectWithFlash, takeFlash } from '../../../admin/flash';
+import { dateIST, inr } from '../../../admin/format';
+import { readForm } from '../../../admin/forms';
+import { S } from '../../../admin/ops/strings';
+import { toId } from '../../../server/db';
+import { getInvoice, makeInvoice } from '../../../server/invoice';
+
+const db = env.DB;
+const admin = Astro.locals.admin!;
+const id = toId(Astro.params.id);
+if (!id) return redirectWithFlash(Astro, '/admin/orders/', { key: 'flash.notFound' });
+const size = Astro.url.searchParams.get('size') === 'a4' ? 'a4' : 'a5';
+const SELF = `/admin/invoice/${id}/${size === 'a4' ? '?size=a4' : ''}`;
+
+if (Astro.request.method === 'POST') {
+  const form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  if (form.action(['make'] as const) !== 'make') return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  const r = await makeInvoice(db, admin, { id });
+  if (!r.ok) return redirectWithFlash(Astro, SELF, failureFlash(r));
+  return redirectWithFlash(Astro, SELF, { text: S.t(r.value.already ? 'invoice.already' : 'invoice.made', { no: r.value.invoiceNo }), tone: r.value.already ? 'info' : 'ok' });
+}
+
+const flash = takeFlash(Astro);
+const inv = await getInvoice(db, id);
+if (!inv) return redirectWithFlash(Astro, '/admin/orders/', { text: S.t('order.notFound'), tone: 'error' });
+const b = inv.business;
+const c = inv.customer;
+const hasCustomer = !!(c.name || c.address || c.city || c.phone);
+const pageCss = `@page { size: ${size === 'a4' ? 'A4' : 'A5'}; margin: ${size === 'a4' ? '14mm' : '9mm'}; }`;
+const sizeHref = (s: 'a4' | 'a5') => `/admin/invoice/${id}/${s === 'a4' ? '?size=a4' : ''}`;
+---
+<AdminLayout title={inv.invoiceNo ? `${S.t('invoice.title')} ${inv.invoiceNo}` : S.t('invoice.title')} active="invoices" flash={flash} hideTitle>
+  <Fragment slot="head"><style is:inline set:html={pageCss}></style></Fragment>
+
+  <div class="no-print stack toolbar">
+    <a class="back-link" href={`/admin/orders/${inv.orderId}/`}><Icon name="back" />{S.t('invoice.back')} {inv.ref}</a>
+    {!inv.invoiceNo && (
+      inv.canInvoice ? (
+        <div class="card stack">
+          <p class="notice notice-info"><Icon name="info" /><span>{S.t('invoice.preview')}</span></p>
+          <form method="post">
+            <ConfirmButton value="make" tone="primary" size="lg" icon="invoices" message={S.t('invoice.makeQ', { ref: inv.ref, fy: inv.fy })} confirmLabel={S.t('invoice.make')}>
+              {S.t('invoice.make')}
+            </ConfirmButton>
+          </form>
+        </div>
+      ) : (
+        <p class="notice notice-warn"><Icon name="alert" /><span>{inv.reason}</span></p>
+      )
+    )}
+    {inv.invoiceNo && (
+      <div class="row">
+        <button type="button" class="btn btn-primary js-only" data-print><Icon name="print" />{S.t('invoice.print')}</button>
+        <span class="field-hint">{S.t('invoice.printHint')}</span>
+      </div>
+    )}
+    <nav class="chips" aria-label={S.t('invoice.size')}>
+      <a class="chip" href={sizeHref('a5')} aria-current={size === 'a5' ? 'true' : undefined}>A5</a>
+      <a class="chip" href={sizeHref('a4')} aria-current={size === 'a4' ? 'true' : undefined}>A4</a>
+    </nav>
+  </div>
+
+  <article class:list={['inv', `inv-${size}`, { 'is-preview': !inv.invoiceNo }]} aria-label={inv.title}>
+    {!inv.invoiceNo && <p class="inv-watermark" aria-hidden="true">PREVIEW</p>}
+    <header class="inv-head">
+      <div>
+        <h1 class="inv-title">{inv.title}</h1>
+        <p class="inv-biz">{b.name}</p>
+        {b.packerAddress && <p class="inv-addr">{b.packerAddress}</p>}
+        {b.customerCare && <p>{S.t('invoice.care')}: {b.customerCare}</p>}
+        {b.fssai && <p>{S.t('invoice.fssai')} {b.fssai}</p>}
+        {b.gstin && <p>{S.t('invoice.gstin')}: {b.gstin}</p>}
+      </div>
+      <dl class="inv-meta">
+        <dt>{S.t('invoice.no')}</dt><dd>{inv.invoiceNo ?? '—'}</dd>
+        <dt>{S.t('invoice.date')}</dt><dd>{inv.invoiceDate ? dateIST(inv.invoiceDate) : dateIST(new Date())}</dd>
+        <dt>{S.t('invoice.order')}</dt><dd>{inv.ref}</dd>
+      </dl>
+    </header>
+
+    <section class="inv-to">
+      <h2>{S.t('invoice.billTo')}</h2>
+      {hasCustomer ? (
+        <>
+          {c.name && <p><strong>{c.name}</strong></p>}
+          {c.address && <p class="inv-addr">{c.address}</p>}
+          {c.city && <p>{c.city}</p>}
+          {c.phone && <p>{c.phone}</p>}
+        </>
+      ) : <p>{S.t('invoice.noCustomer')}</p>}
+    </section>
+
+    <table class="inv-table">
+      <thead>
+        <tr><th scope="col">#</th><th scope="col">{S.t('invoice.item')}</th><th scope="col" class="r">{S.t('invoice.qty')}</th><th scope="col" class="r">{S.t('invoice.rate')}</th><th scope="col" class="r">{S.t('invoice.amount')}</th></tr>
+      </thead>
+      <tbody>
+        {inv.lines.map((l) => (
+          <tr>
+            <td>{l.n}</td>
+            <td>{l.name}{l.pack && ` – ${l.pack}`}</td>
+            <td class="r">{l.qty}</td>
+            <td class="r">{l.unitPaise === null ? '—' : inr(l.unitPaise)}</td>
+            <td class="r">{inr(l.totalPaise)}</td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr><th scope="row" colspan="4" class="r">{S.t('order.itemsTotal')}</th><td class="r">{inr(inv.itemsTotalPaise)}</td></tr>
+        {inv.discountPaise > 0 && <tr><th scope="row" colspan="4" class="r">{S.t('order.discount')}</th><td class="r">− {inr(inv.discountPaise)}</td></tr>}
+        {inv.deliveryPaise > 0 && <tr><th scope="row" colspan="4" class="r">{S.t('order.delivery')}</th><td class="r">{inr(inv.deliveryPaise)}</td></tr>}
+        <tr class="inv-total"><th scope="row" colspan="4" class="r">{S.t('order.totalLabel')}</th><td class="r">{inr(inv.totalPaise)}</td></tr>
+      </tfoot>
+    </table>
+
+    <p class="inv-words"><span>{S.t('invoice.words')}:</span> {inv.amountWords}</p>
+    <dl class="inv-paid">
+      <dt>{S.t('order.paidLabel')}</dt><dd>{inr(inv.paidPaise)}</dd>
+      {inv.balancePaise > 0 && <><dt>{S.t('order.balance')}</dt><dd>{inr(inv.balancePaise)}</dd></>}
+    </dl>
+    <p class="inv-thanks">{S.t('invoice.thanks')}</p>
+  </article>
+</AdminLayout>
+
+<style>
+  .toolbar { margin-bottom: 20px; }
+  :global(html.no-js) .js-only { display: none !important; }
+  .inv {
+    position: relative; overflow: hidden; background: var(--white); color: #111; border: 1px solid var(--line); border-radius: 6px;
+    padding: 28px 24px; max-width: 148mm; margin: 0 auto 32px; font-size: 1rem; line-height: 1.45;
+  }
+  .inv-a4 { max-width: 210mm; padding: 36px 40px; }
+  .inv p, .inv dd, .inv dt { margin: 0; }
+  .inv-watermark {
+    position: absolute; inset: 40% 0 auto; text-align: center; font-size: 4rem; font-weight: 700; letter-spacing: .2em;
+    color: rgba(43, 26, 16, .07); transform: rotate(-18deg); pointer-events: none;
+  }
+  .inv-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 2px solid #111; }
+  .inv-title { font-family: var(--f-display); font-size: 1.5rem; font-weight: 500; margin: 0 0 6px; text-transform: uppercase; letter-spacing: .06em; }
+  .inv-biz { font-weight: 700; font-size: 1.125rem; }
+  .inv-addr { white-space: pre-line; }
+  .inv-meta { display: grid; grid-template-columns: auto auto; gap: 2px 12px; align-content: start; }
+  .inv-meta dt { font-weight: 700; }
+  .inv-to { padding: 14px 0; border-bottom: 1px solid #999; }
+  .inv-to h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 4px; }
+  .inv-table { width: 100%; border-collapse: collapse; margin: 14px 0; font-variant-numeric: tabular-nums; }
+  .inv-table th, .inv-table td { padding: 6px 6px; border-bottom: 1px solid #ccc; text-align: left; vertical-align: top; }
+  .inv-table thead th { border-bottom: 2px solid #111; }
+  .inv-table .r { text-align: right; white-space: nowrap; }
+  .inv-table tfoot th { font-weight: 400; border-bottom: 0; }
+  .inv-table tfoot td { border-bottom: 0; }
+  .inv-total th, .inv-total td { font-weight: 700 !important; font-size: 1.125rem; border-top: 2px solid #111; }
+  .inv-words span { font-weight: 700; }
+  .inv-paid { display: grid; grid-template-columns: auto auto; justify-content: end; gap: 2px 12px; margin-top: 10px; }
+  .inv-paid dt { font-weight: 700; }
+  .inv-thanks { margin-top: 20px; text-align: center; font-style: italic; }
+  @media print {
+    :global(.no-print) { display: none !important; }
+    :global(.main) { padding: 0 !important; }
+    .inv { border: 0; border-radius: 0; padding: 0; margin: 0; max-width: none; box-shadow: none; }
+    .inv-watermark { color: rgba(0, 0, 0, .12); }
+  }
+</style>
+
+<script>
+  document.querySelector('[data-print]')?.addEventListener('click', () => window.print());
+</script>

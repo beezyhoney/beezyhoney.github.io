@@ -1,0 +1,70 @@
+---
+// A list of orders as tappable cards (orders list, search results, Today). Each card: code, status, age; the items;
+// total, payment state, "customer saw a different price" and where it came from.
+//   <OrderRows rows={list.rows} empty="No new orders." />
+import Badge from '../components/Badge.astro';
+import EmptyState from '../components/EmptyState.astro';
+import Icon from '../components/Icon.astro';
+import { ageShort, dateIST, inr } from '../format';
+import { paymentState } from '../status';
+import type { OrderListRow } from '../../server/orders';
+import { S } from './strings';
+
+interface Props {
+  rows: OrderListRow[];
+  empty?: string;
+  /** show the date instead of "5 min ago" (search results, where codes repeat) */
+  showDate?: boolean;
+  label?: string;
+  now?: number;
+}
+const { rows, empty = S.t('orders.empty'), showDate, label, now = Date.now() } = Astro.props;
+const SOLD = ['confirmed', 'packed', 'shipped', 'delivered'];
+---
+{rows.length === 0 ? (
+  <EmptyState icon="orders" title={empty} compact />
+) : (
+  <ul class="olist" aria-label={label}>
+    {rows.map((o) => {
+      const sold = SOLD.includes(o.status);
+      const pay = paymentState(o.totalPaise, o.paidPaise);
+      return (
+        <li>
+          <a class:list={['orow', { 'is-muted': o.status === 'cancelled' || o.status === 'spam' }]} href={`/admin/orders/${o.id}/`}>
+            <span class="orow-top">
+              <strong class="orow-ref">{o.ref}</strong>
+              <Badge kind="order" value={o.status} />
+              {o.isTest && <Badge tone="muted" text={S.t('ops.test')} />}
+              <span class="orow-when muted">{showDate ? dateIST(o.createdAt) : S.t('ops.ago', { age: ageShort(o.createdAt, now) })}</span>
+            </span>
+            <span class="orow-items">{o.items || S.t('ops.noItems')}{o.customerName && <span class="muted"> · {o.customerName}</span>}</span>
+            <span class="orow-foot">
+              <span class="orow-total num">{inr(o.totalPaise)}</span>
+              {(sold || o.paidPaise !== 0) && <Badge kind="payment" value={pay} />}
+              {o.priceMismatch && <Badge tone="warn" text={S.t('ops.sawDifferent')} />}
+              <Badge kind="source" value={o.source} />
+            </span>
+            <Icon name="next" />
+          </a>
+        </li>
+      );
+    })}
+  </ul>
+)}
+
+<style>
+  .olist { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .orow {
+    position: relative; display: grid; gap: 6px; padding: 14px 44px 14px 16px; min-height: 48px;
+    background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-sm);
+    color: var(--choc) !important; text-decoration: none; box-shadow: var(--shadow);
+  }
+  .orow:hover { background: #FFF6E6; }
+  .orow.is-muted { background: var(--cream); box-shadow: none; }
+  .orow > :global(.ico) { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-2); }
+  .orow-top, .orow-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+  .orow-ref { font-size: 1.125rem; letter-spacing: .02em; }
+  .orow-when { margin-left: auto; }
+  .orow-items { color: var(--choc); }
+  .orow-total { font-weight: 700; font-size: 1.0625rem; }
+</style>

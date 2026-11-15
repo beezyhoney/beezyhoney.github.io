@@ -1,0 +1,207 @@
+---
+// One stock pool (amendment A3; owner and helper): Count ("this is what I have today": sets the amount, turns
+// tracking on), Adjust (damage, sample or gift, return, other, with a note), tracking, low level, the website override
+// (owner only) and the history. Each form posts here with _action, then 303 back with a flash.
+export const prerender = false;
+
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Badge from '../../../admin/components/Badge.astro';
+import GramsInput from '../../../admin/components/GramsInput.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import Select from '../../../admin/components/Select.astro';
+import TextField from '../../../admin/components/TextField.astro';
+import Toggle from '../../../admin/components/Toggle.astro';
+import '../../../admin/catalog/catalog.css';
+import { failureFlash, redirectWithFlash, takeFlash, type Flash } from '../../../admin/flash';
+import { newFormKey, readForm, type FormReader } from '../../../admin/forms';
+import { dateIST, dateTimeIST } from '../../../admin/format';
+import { S } from '../../../admin/catalog/strings';
+import { adminOf, bindings, publishAfter } from '../../../admin/catalog/page';
+import { formatPoolAmount, parsePoolAmount, type PoolUnit } from '../../../lib/availability';
+import { toId } from '../../../server/db';
+import { adjustStock, countStock, getPool, poolHistory, setAvailability, setLowLevel, setTracking, type AdjustReason } from '../../../server/stock';
+
+const admin = adminOf(Astro);
+const id = toId(Astro.params.id);
+const pool0 = id ? await getPool(bindings.DB, id) : null;
+if (!pool0) return redirectWithFlash(Astro, '/admin/stock/', { key: 'flash.notFound' });
+const SELF = `/admin/stock/${pool0.id}/`;
+const unit: PoolUnit = pool0.unit;
+
+let form: FormReader | null = null;
+let which: string | null = null;
+let errors: Record<string, string> = {};
+let flash: Flash | null = null;
+
+/** Reads an amount in the pool's unit (kg for honey, whole pieces otherwise) */
+function amountOf(f: FormReader, name: string, opts: { required?: boolean; allowZero?: boolean } = {}): number | null {
+  const raw = f.raw(name).trim();
+  if (!raw) { if (opts.required) f.fail(name, 'form.required'); return null; }
+  const v = parsePoolAmount(raw, unit);
+  if (v === null) { f.fail(name, unit === 'g' ? 'form.notWeight' : 'form.notNumber'); return null; }
+  if (!opts.allowZero && v === 0) { f.fail(name, 'form.zero'); return null; }
+  return v;
+}
+
+if (Astro.request.method === 'POST') {
+  form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  const action = form.action(['count', 'adjust', 'tracking', 'low', 'availability'] as const);
+  if (!action) return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  which = action;
+  let r: Awaited<ReturnType<typeof countStock>> | Awaited<ReturnType<typeof adjustStock>> | Awaited<ReturnType<typeof setTracking>> | null = null;
+  let done = '';
+  if (action === 'count') {
+    const amount = amountOf(form, 'amount', { required: true, allowZero: true });
+    const note = form.optText('note', { max: 200 });
+    if (form.ok) {
+      r = await countStock(bindings.DB, admin, { counts: [{ poolId: pool0.id, amount: amount! }], note, idemKey: form.key() ?? undefined });
+      if (r.ok) done = S.t(amount === pool0.onHand ? 'pool.countSame' : 'pool.counted', { name: pool0.name, amount: formatPoolAmount(amount!, unit) });
+    }
+  } else if (action === 'adjust') {
+    const reason = form.choice('reason', ['damage', 'sample', 'return', 'other'] as const, { required: true });
+    const amount = amountOf(form, 'amount', { required: true });
+    const dir = form.choice('direction', ['out', 'in'] as const) ?? 'out';
+    const note = form.optText('note', { max: 200 });
+    if (form.ok && reason && amount !== null) {
+      const size = Math.abs(amount);
+      const delta = reason === 'return' ? size : reason === 'other' ? (dir === 'in' ? size : -size) : -size;
+      r = await adjustStock(bindings.DB, admin, { poolId: pool0.id, reason: reason as AdjustReason, delta, note, idemKey: form.key() ?? undefined });
+      if (r.ok) done = S.t('pool.adjusted', { name: pool0.name, amount: formatPoolAmount(r.value.onHand, unit) });
+    }
+  } else if (action === 'tracking') {
+    r = await setTracking(bindings.DB, admin, { poolId: pool0.id, version: form.version() ?? 0, on: form.bool('on') });
+    if (r.ok) done = S.t('pool.trackingSaved');
+  } else if (action === 'low') {
+    const low = amountOf(form, 'low_at', { allowZero: true });
+    if (form.ok) {
+      r = await setLowLevel(bindings.DB, admin, { poolId: pool0.id, version: form.version() ?? 0, lowAt: low });
+      if (r.ok) done = S.t('pool.lowSaved');
+    }
+  } else if (action === 'availability') {
+    const a = form.choice('availability', ['auto', 'in', 'out'] as const, { required: true });
+    if (form.ok) {
+      r = await setAvailability(bindings.DB, admin, { poolId: pool0.id, version: form.version() ?? 0, availability: a! });
+      if (r.ok) done = S.t('pool.availabilitySaved');
+    }
+  }
+  if (r && r.ok) {
+    await publishAfter(Astro, (r.value as { effects?: never }).effects, `${pool0.name}: stock`);
+    return redirectWithFlash(Astro, SELF, { tone: 'ok', text: done });
+  }
+  if (r && !r.ok) {
+    const fieldMap: Record<string, string> = { delta: 'amount', lowAt: 'low_at', reason: 'reason', note: 'note', availability: 'availability', [`pool-${pool0.id}`]: 'amount' };
+    const field = r.field ? fieldMap[r.field] : undefined;
+    if (field) form.failText(field, r.message);
+    else if (r.error === 'conflict' || r.error === 'forbidden' || r.error === 'not_found') return redirectWithFlash(Astro, SELF, failureFlash(r));
+    else flash = { tone: 'error', text: r.message };
+  }
+  errors = form.messages();
+  flash ??= { tone: 'error', text: S.t('form.fixErrors') };
+  Astro.response.status = 422;
+} else {
+  flash = takeFlash(Astro);
+}
+
+const pool = pool0;
+const beforeId = toId(Astro.url.searchParams.get('before'));
+const history = await poolHistory(bindings.DB, pool.id, { limit: 30, beforeId: beforeId ?? undefined });
+const packs = pool.packs.filter((x) => x.active).map((x) => x.poolQty);
+const isOwner = admin.role === 'owner';
+const val = (w: string, name: string, saved = '') => (which === w && form ? form.raw(name) : saved);
+const levelBadge = pool.level === 'untracked' ? 'untracked' : pool.level === 'negative' ? 'negative' : pool.level === 'empty' ? 'out' : pool.level === 'low' ? 'low' : 'in';
+const amountField = (name: string, label: string, hint: string, w: string, extra: { allowNegative?: boolean; saved?: number | null } = {}) => ({ name, label, hint, w, ...extra });
+const countF = amountField('amount', S.t('pool.countLabel'), unit === 'g' ? S.t('pool.amountKgHint') : S.t('pool.amountPcsHint'), 'count');
+const adjustF = amountField('amount', S.t('pool.amount'), unit === 'g' ? S.t('pool.amountKgHint') : S.t('pool.amountPcsHint'), 'adjust');
+---
+<AdminLayout title={pool.name} active="stock" flash={flash} back={{ href: '/admin/stock/', label: S.t('stock.title') }} subtitle={S.t('pool.product', { name: pool.productName })}>
+  <section class="card section" aria-label={pool.name}>
+    <p class:list={['stock-big', { neg: pool.onHand < 0 }]}>{pool.amountText}</p>
+    {pool.equivalents && <p class="muted">{pool.equivalents}</p>}
+    <p class="row" style="margin-top:8px"><Badge kind="stock" value={levelBadge} />
+      {pool.availability !== 'auto' && <Badge kind="avail" value={pool.availability} />}
+      <span class="muted">{pool.trackStock ? S.t('stock.trackedSince', { date: dateIST(pool.trackingSince) }) : S.t('stock.untracked')}</span>
+    </p>
+    {pool.level === 'negative' && <p class="notice notice-bad" style="margin-top:12px"><Icon name="alert" /><span>{S.t('pool.negative')}</span></p>}
+    <h2 class="field-label" style="margin-top:14px">{S.t('pool.packsTitle')}</h2>
+    <p class="field-hint">{S.t('pool.packsHint')}</p>
+    <p class="pack-chips" style="margin-top:6px">{pool.packs.filter((x) => x.active).map((x) => <Badge kind="stock" value={x.avail} text={`${x.label}: ${S.t(`status.stock.${x.avail}`)}`} />)}</p>
+  </section>
+
+  <div class="grid-2">
+    <section class="card section" aria-labelledby="pool-count">
+      <h2 class="section-title" id="pool-count" style="margin-bottom:8px">{S.t('pool.count')}</h2>
+      <form method="post">
+        <input type="hidden" name="_key" value={newFormKey()} />
+        {unit === 'g'
+          ? <GramsInput name="amount" label={countF.label} hint={S.t('pool.countHint')} raw={val('count', 'amount') || null} packs={packs} required error={which === 'count' ? errors.amount : undefined} />
+          : <TextField name="amount" label={countF.label} hint={S.t('pool.countHint')} value={val('count', 'amount')} inputmode="numeric" max={8} required error={which === 'count' ? errors.amount : undefined} />}
+        <TextField name="note" label={S.t('pool.note')} value={val('count', 'note')} max={200} optional error={which === 'count' ? errors.note : undefined} />
+        <button class="btn btn-primary" name="_action" value="count"><Icon name="scale" />{S.t('pool.countSave')}</button>
+      </form>
+    </section>
+
+    <section class="card section" aria-labelledby="pool-adjust">
+      <h2 class="section-title" id="pool-adjust" style="margin-bottom:8px">{S.t('pool.adjust')}</h2>
+      <p class="field-hint" style="margin-bottom:10px">{S.t('pool.adjustHint')}</p>
+      <form method="post">
+        <input type="hidden" name="_key" value={newFormKey()} />
+        <Select name="reason" label={S.t('pool.reason')} value={val('adjust', 'reason', 'damage')} error={which === 'adjust' ? errors.reason : undefined}
+          options={(['damage', 'sample', 'return', 'other'] as const).map((k) => ({ value: k, label: S.t(`pool.reason.${k}`) }))} />
+        {unit === 'g'
+          ? <GramsInput name="amount" label={adjustF.label} hint={adjustF.hint} raw={val('adjust', 'amount') || null} packs={packs} required error={which === 'adjust' ? errors.amount : undefined} />
+          : <TextField name="amount" label={adjustF.label} hint={adjustF.hint} value={val('adjust', 'amount')} inputmode="numeric" max={8} required error={which === 'adjust' ? errors.amount : undefined} />}
+        <fieldset class="fieldset">
+          <legend class="field-label">{S.t('pool.direction')}</legend>
+          <label class="check-row"><input type="radio" name="direction" value="out" checked={val('adjust', 'direction', 'out') !== 'in'} />{S.t('pool.dir.out')}</label>
+          <label class="check-row" style="margin-left:16px"><input type="radio" name="direction" value="in" checked={val('adjust', 'direction') === 'in'} />{S.t('pool.dir.in')}</label>
+        </fieldset>
+        <TextField name="note" label={S.t('pool.note')} value={val('adjust', 'note')} max={200} optional error={which === 'adjust' ? errors.note : undefined} />
+        <button class="btn" name="_action" value="adjust"><Icon name="check" />{S.t('pool.adjustSave')}</button>
+      </form>
+    </section>
+  </div>
+
+  <section class="card section" aria-labelledby="pool-settings">
+    <h2 class="section-title" id="pool-settings" style="margin-bottom:8px">{S.t('pool.settings')}</h2>
+    <form method="post">
+      <input type="hidden" name="version" value={pool.version} />
+      <Toggle name="on" label={S.t('pool.trackingOn')} hint={S.t('pool.trackingHint')} checked={pool.trackStock} />
+      <button class="btn" name="_action" value="tracking">{S.t('common.save')}</button>
+    </form>
+    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0" />
+    <form method="post">
+      <input type="hidden" name="version" value={pool.version} />
+      {unit === 'g'
+        ? <GramsInput name="low_at" label={S.t('pool.lowAt')} hint={S.t('pool.lowAtHint')} grams={which === 'low' ? undefined : pool.lowAt} raw={which === 'low' ? form?.raw('low_at') : null} packs={packs} optional error={errors.low_at} />
+        : <TextField name="low_at" label={S.t('pool.lowAt')} hint={S.t('pool.lowAtHint')} value={val('low', 'low_at', pool.lowAt === null ? '' : String(pool.lowAt))} inputmode="numeric" max={8} optional error={errors.low_at} />}
+      <button class="btn" name="_action" value="low">{S.t('common.save')}</button>
+    </form>
+    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0" />
+    <form method="post">
+      <input type="hidden" name="version" value={pool.version} />
+      <Select name="availability" label={S.t('pool.availability')} hint={isOwner ? S.t('pool.availabilityHint') : S.t('pool.availabilityOwner')} value={pool.availability} disabled={!isOwner}
+        options={(['auto', 'in', 'out'] as const).map((k) => ({ value: k, label: S.t(`stock.override.${k}`) }))} error={errors.availability} />
+      {isOwner && <button class="btn" name="_action" value="availability">{S.t('common.save')}</button>}
+    </form>
+  </section>
+
+  <section class="section" aria-labelledby="pool-history">
+    <div class="section-head"><h2 class="section-title" id="pool-history">{S.t('pool.history')}</h2></div>
+    {history.length === 0 ? <p class="muted">{S.t('pool.historyEmpty')}</p> : (
+      <ol class="history">
+        {history.map((m) => (
+          <li>
+            <span><strong>{S.t(`pool.move.${m.reason}`)}</strong>{m.orderRef && <> · <a href={`/admin/orders/${m.orderId}/`}>{m.orderRef}</a></>}{m.harvestId && <> · <a href="/admin/harvests/">{S.t('harv.title')}</a></>}</span>
+            <span class:list={['h-delta', { neg: m.delta < 0 }]}>{m.deltaText}</span>
+            <span class="h-meta">{dateTimeIST(m.createdAt)} · {m.createdBy}{m.note && ` · ${m.note}`}</span>
+          </li>
+        ))}
+      </ol>
+    )}
+    <div class="row" style="margin-top:12px">
+      {beforeId && <a class="btn" href={SELF}>{S.t('pool.newer')}</a>}
+      {history.length === 30 && <a class="btn" href={`${SELF}?before=${history[history.length - 1].id}#pool-history`}>{S.t('pool.older')}</a>}
+    </div>
+  </section>
+</AdminLayout>

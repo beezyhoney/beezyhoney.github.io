@@ -1,0 +1,64 @@
+---
+// Weight input for honey stock (amendment A3): the person types kg ("99.5", or "500 g"); the server reads grams
+// with form.grams(name). Shows the grams and a rough jar count underneath, kept live by the browser script.
+//   <GramsInput name="on_hand" label="Honey left" grams={pool.onHand} packs={[250, 100]} />
+import Field from './Field.astro';
+import { describedBy, fieldId } from './ids';
+import { int, jarEquivalents, kgInput } from '../format';
+import { t } from '../strings';
+
+interface Props {
+  name: string;
+  label: string;
+  /** current weight in grams; null/undefined = empty */
+  grams?: number | null;
+  /** what the person typed last time (refill after a validation error); wins over `grams` */
+  raw?: string | null;
+  /** pack sizes in grams for the "≈ 396 × 250 g" hint */
+  packs?: number[];
+  id?: string;
+  required?: boolean;
+  /** allows a minus sign (adjustments); the keyboard then has letters too */
+  allowNegative?: boolean;
+  placeholder?: string;
+  hint?: string | null;
+  error?: string | null;
+  optional?: boolean;
+  labelHidden?: boolean;
+  disabled?: boolean;
+  small?: boolean;
+  class?: string;
+}
+const { name, label, grams, raw, packs = [], required, allowNegative, placeholder, hint, error, optional, labelHidden, disabled, small, class: cls } = Astro.props;
+const id = fieldId(name, Astro.props.id);
+const value = raw !== null && raw !== undefined ? raw : kgInput(grams);
+const outId = `${id}-out`;
+const initial = typeof grams === 'number' && (raw === null || raw === undefined)
+  ? [t('weight.equals', { grams: int(grams) }), jarEquivalents(grams, packs, t('weight.or'))].filter(Boolean).join(' · ')
+  : '';
+---
+<Field id={id} label={label} hint={hint} error={error} optional={optional} labelHidden={labelHidden} class={cls}>
+  <div class:list={['affix', { 'affix-sm': small, 'is-invalid': !!error, 'is-disabled': disabled }]}>
+    <input
+      class="input"
+      id={id}
+      name={name}
+      type="text"
+      inputmode={allowNegative ? 'text' : 'decimal'}
+      autocomplete="off"
+      spellcheck="false"
+      enterkeyhint="next"
+      value={value}
+      required={required}
+      placeholder={placeholder}
+      disabled={disabled}
+      maxlength={16}
+      aria-invalid={error ? 'true' : undefined}
+      aria-describedby={describedBy(id, hint, error, outId)}
+      data-grams={outId}
+      data-packs={packs.length ? packs.join(',') : undefined}
+    />
+    <span class="affix-text" aria-hidden="true">{t('weight.kg')}</span>
+  </div>
+  <output class="grams-hint" id={outId} for={id}>{initial}</output>
+</Field>

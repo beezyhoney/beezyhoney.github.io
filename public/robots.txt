@@ -1,4 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /media/
+Disallow: /admin/
+Disallow: /photo-library.json
 
 Sitemap: https://beezyhoney.in/sitemap-index.xml

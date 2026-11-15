@@ -1,0 +1,296 @@
+---
+// New order (design §5 screen 4): "Type an order" (phone, farm gate, WhatsApp chat; today's prices; save as New or
+// save and confirm, optionally paid) and "Paste a WhatsApp message" (#paste: rebuilds a website order whose record
+// went missing, with parseOrderMessage from src/lib/orderMessage.ts; source 'pasted'). Owner and helper.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Badge from '../../../admin/components/Badge.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import MoneyInput from '../../../admin/components/MoneyInput.astro';
+import QtyStepper from '../../../admin/components/QtyStepper.astro';
+import Select from '../../../admin/components/Select.astro';
+import TextField from '../../../admin/components/TextField.astro';
+import Toggle from '../../../admin/components/Toggle.astro';
+import { failureFlash, redirectWithFlash, takeFlash, type Flash } from '../../../admin/flash';
+import { dateIST, inr } from '../../../admin/format';
+import { newFormKey, readForm, type FormReader } from '../../../admin/forms';
+import { packChoices, packGroups } from '../../../admin/ops/data';
+import { lineErrorPart, lineFieldFor, lineRowPrefixes, messageDayToIso, readLineForm } from '../../../admin/ops/orderForm';
+import { CHANNELS, METHODS, S } from '../../../admin/ops/strings';
+import { parseOrderMessage, type ParsedOrderMessage } from '../../../lib/orderMessage';
+import { createFromPasted, createManualOrder, PAYMENT_METHODS, searchOrders, type OrderStatus, type PastedOrderInput } from '../../../server/orders';
+import { getSetting } from '../../../server/settings';
+
+const db = env.DB;
+const admin = Astro.locals.admin!;
+const SELF = '/admin/orders/new/';
+const NEW_ROWS = 5;
+const OTHER_ROWS = 2;
+const ACTIONS = ['create', 'create_confirmed', 'paste_preview', 'paste', 'paste_force'] as const;
+
+let form: FormReader | null = null;
+let errors: Record<string, string> = {};
+let flash: Flash | null = null;
+let mode: 'manual' | 'paste' | null = null;
+let parsed: ParsedOrderMessage | null = null;
+let existing: { id: number; status: OrderStatus; createdAt: string }[] = [];
+
+const toPasted = (p: ParsedOrderMessage): PastedOrderInput => ({
+  kind: p.kind,
+  ref: p.ref,
+  lines: p.lines.map((l) => ({ name: l.name, pack: l.pack, qty: l.qty, unitPaise: l.unitPaise, linePaise: l.linePaise })),
+  totalPaise: p.totalPaise,
+  totalSoFar: p.totalSoFar,
+  gift: p.gift ? {
+    size: p.gift.size, jar: p.gift.jar, boxes: p.gift.boxes, picks: p.gift.picks, extras: p.gift.extras, occasion: p.gift.occasion,
+    neededBy: messageDayToIso(p.gift.neededBy), card: p.gift.card,
+  } : null,
+});
+
+if (Astro.request.method === 'POST') {
+  form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  const action = form.action(ACTIONS);
+  if (!action) return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+
+  if (action === 'create' || action === 'create_confirmed') {
+    mode = 'manual';
+    const channel = form.choice('channel', CHANNELS, { required: true });
+    const lines = readLineForm(form);
+    const rows = lineRowPrefixes(form);
+    const delivery = form.paise('delivery') ?? 0;
+    const discount = form.paise('discount') ?? 0;
+    const ref = form.optText('ref', { max: 12 });
+    const customer = {
+      name: form.optText('name', { max: 80 }), phone: form.optText('phone', { max: 20 }), address: form.optText('address', { max: 400, multiline: true }),
+      city: form.optText('city', { max: 60 }), note: form.optText('note', { max: 1000, multiline: true }),
+    };
+    const paidMethod = form.choice('paid', ['', ...PAYMENT_METHODS] as const);
+    const isTest = form.bool('is_test');
+    if (form.ok && !lines.length) form.failText('lines', S.t('new.noLines'));
+    if (form.ok && channel) {
+      const confirmNow = action === 'create_confirmed';
+      const r = await createManualOrder(db, admin, {
+        channel, lines, deliveryPaise: delivery, discountPaise: discount, customer, ref, status: confirmNow ? 'confirmed' : 'new',
+        paid: confirmNow && paidMethod ? { method: paidMethod } : undefined, isTest, idemKey: form.key() ?? undefined,
+      });
+      if (r.ok) {
+        const to = `/admin/orders/${r.value.id}/`;
+        if (r.value.duplicate) return redirectWithFlash(Astro, to, { text: S.t('new.duplicate'), tone: 'info' });
+        if (r.value.confirmError) return redirectWithFlash(Astro, to, { text: S.t('new.createdNotConfirmed', { ref: r.value.ref, reason: r.value.confirmError.message }), tone: 'warn' });
+        if (r.value.confirm?.negative.length) {
+          return redirectWithFlash(Astro, to, { text: S.t('order.confirmedNegative', { ref: r.value.ref, list: r.value.confirm.negative.map((n) => `${n.amountText} for ${n.name}`).join(', ') }), tone: 'warn' });
+        }
+        return redirectWithFlash(Astro, to, { text: S.t(r.value.confirm ? 'new.createdConfirmed' : 'new.created', { ref: r.value.ref }), tone: 'ok' });
+      }
+      const rowField = lineFieldFor(r.field, rows);
+      const mapped = rowField ? { ...r, field: `${rowField}${lineErrorPart(r.message)}` }
+        : { ...r, field: ({ deliveryPaise: 'delivery', discountPaise: 'discount' } as Record<string, string>)[r.field ?? ''] ?? r.field };
+      const fields = [...rows.flatMap((p) => ['price', 'qty', 'variant', 'name', 'pack'].map((x) => `${p}${x}`)), 'lines', 'channel', 'ref', 'delivery', 'discount', 'name', 'phone', 'address', 'city', 'note'];
+      if (!form.takeFailure(mapped, fields)) return redirectWithFlash(Astro, SELF, failureFlash(r));
+    }
+  } else {
+    mode = 'paste';
+    const text = form.text('message', { required: true, multiline: true, max: 6000 });
+    if (form.ok) {
+      parsed = parseOrderMessage(text);
+      if (!parsed) form.failText('message', S.t('new.pasteNothing'));
+    }
+    if (form.ok && parsed && (action === 'paste' || action === 'paste_force')) {
+      const r = await createFromPasted(db, admin, toPasted(parsed), {
+        useMessagePrices: form.bool('use_message_prices'), force: action === 'paste_force', idemKey: form.key() ?? undefined,
+      });
+      if (r.ok) {
+        const to = `/admin/orders/${r.value.id}/`;
+        if (r.value.duplicate) return redirectWithFlash(Astro, to, { text: S.t('new.duplicate'), tone: 'info' });
+        if (r.value.unmatched.length) return redirectWithFlash(Astro, to, { text: S.t('new.pasteUnmatched', { ref: r.value.ref, list: r.value.unmatched.join(', ') }), tone: 'warn' });
+        return redirectWithFlash(Astro, to, { text: S.t('new.pasteSaved', { ref: r.value.ref }), tone: 'ok' });
+      }
+      if (r.error === 'conflict' && Array.isArray(r.details)) existing = r.details as typeof existing;
+      else return redirectWithFlash(Astro, SELF, failureFlash(r));
+    }
+    // the preview already says when an order with this code is saved, so "Save" is never a surprise
+    if (form.ok && parsed?.ref && action === 'paste_preview') {
+      existing = (await searchOrders(db, parsed.ref, { limit: 5 })).filter((o) => o.ref === parsed!.ref)
+        .map((o) => ({ id: o.id, status: o.status, createdAt: o.createdAt }));
+    }
+  }
+  if (!form.ok) {
+    errors = form.messages();
+    flash = { tone: 'error', text: S.t('form.fixErrors') };
+    Astro.response.status = 422;
+  }
+} else {
+  flash = takeFlash(Astro);
+}
+
+const [packs, goLive] = await Promise.all([packChoices(db), getSetting(db, 'go_live_at')]);
+const groups = packGroups(packs, [], S.t('order.noPrice'));
+const m = mode === 'manual';
+const raw = (name: string, fallback = '') => (form && m ? form.raw(name) : fallback);
+const err = (name: string) => (m ? errors[name] ?? null : null);
+const pasteText = form && mode === 'paste' ? form.raw('message') : '';
+const formKey = form?.key() ?? newFormKey();
+const showPreview = mode === 'paste' && !!parsed && form?.ok;
+const channelOptions = CHANNELS.map((c) => ({ value: c, label: S.t(`ops.channel.${c}`) }));
+---
+<AdminLayout title={S.t('new.title')} active="orders" flash={flash} back={{ href: '/admin/orders/', label: S.t('orders.title') }}>
+  <section class="section" aria-labelledby="new-manual">
+    <div class="section-head"><h2 class="section-title" id="new-manual">{S.t('new.manual')}</h2></div>
+    <form method="post" class="card stack" data-draft="order-new" id="manual-form">
+      <input type="hidden" name="_key" value={m ? formKey : newFormKey()} />
+      <input type="hidden" name="line_count" value="0" />
+      <input type="hidden" name="new_count" value={NEW_ROWS} />
+      <input type="hidden" name="custom_count" value={OTHER_ROWS} />
+      <p class="field-hint">{S.t('new.manualHint')}</p>
+      <Select name="channel" label={S.t('new.channel')} value={raw('channel', 'whatsapp')} options={channelOptions} error={err('channel')} />
+
+      <fieldset class="fieldset">
+        <legend class="field-label">{S.t('new.items')}</legend>
+        {err('lines') && <p class="field-error"><Icon name="alert" />{err('lines')}</p>}
+        <div class="stack">
+          {Array.from({ length: NEW_ROWS }, (_, j) => (
+            <div class="line" data-extra-row={j > 0 ? '' : undefined}>
+              <Select name={`n${j}_variant`} label={`${S.t('order.pack')} ${j + 1}`} value={raw(`n${j}_variant`)} placeholder={S.t('order.addPack')} groups={groups} error={err(`n${j}_variant`)} />
+              <div class="grid-2">
+                <QtyStepper name={`n${j}_qty`} label={S.t('order.qty')} value={raw(`n${j}_qty`, '1')} min={1} max={999} error={err(`n${j}_qty`)} />
+                <MoneyInput name={`n${j}_price`} label={S.t('order.price')} raw={raw(`n${j}_price`)} allowEmpty placeholder={S.t('order.priceHint')} error={err(`n${j}_price`)} />
+              </div>
+            </div>
+          ))}
+          <button type="button" class="btn js-only" data-add-row><Icon name="plus" />{S.t('new.addRow')}</button>
+        </div>
+      </fieldset>
+
+      <details class="more" open={m && Array.from({ length: OTHER_ROWS }, (_, j) => form!.raw(`c${j}_name`)).some(Boolean)}>
+        <summary class="btn btn-quiet"><Icon name="plus" />{S.t('order.addOther')}</summary>
+        <div class="stack">
+          {Array.from({ length: OTHER_ROWS }, (_, j) => (
+            <div class="line">
+              <Select name={`c${j}_kind`} label={S.t('order.otherKind')} value={raw(`c${j}_kind`, 'custom')} options={[{ value: 'custom', label: S.t('order.kind.custom') }, { value: 'fee', label: S.t('order.kind.fee') }]} />
+              <div class="grid-2">
+                <TextField name={`c${j}_name`} label={S.t('order.otherName')} value={raw(`c${j}_name`)} max={120} error={err(`c${j}_name`)} />
+                <TextField name={`c${j}_pack`} label={S.t('order.otherPack')} optional value={raw(`c${j}_pack`)} max={60} />
+                <QtyStepper name={`c${j}_qty`} label={S.t('order.qty')} value={raw(`c${j}_qty`, '1')} min={1} max={999} error={err(`c${j}_qty`)} />
+                <MoneyInput name={`c${j}_price`} label={S.t('order.price')} raw={raw(`c${j}_price`)} allowEmpty placeholder={S.t('order.noPrice')} error={err(`c${j}_price`)} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </details>
+
+      <div class="grid-2">
+        <MoneyInput name="delivery" label={S.t('order.delivery')} optional raw={raw('delivery')} error={err('delivery')} />
+        <MoneyInput name="discount" label={S.t('order.discount')} optional raw={raw('discount')} error={err('discount')} />
+      </div>
+
+      <details class="more" open={m && ['name', 'phone', 'address', 'city', 'note', 'ref'].some((f) => !!form!.raw(f) || !!errors[f])}>
+        <summary class="btn btn-quiet"><Icon name="plus" />{S.t('new.customerOptional')}</summary>
+        <div class="stack">
+          <div class="grid-2">
+            <TextField name="name" label={S.t('order.name')} optional value={raw('name')} max={80} error={err('name')} />
+            <TextField name="phone" label={S.t('order.phone')} optional type="tel" inputmode="tel" value={raw('phone')} max={20} error={err('phone')} />
+            <TextField name="city" label={S.t('order.city')} optional value={raw('city')} max={60} error={err('city')} />
+            <TextField name="ref" label={S.t('new.ref')} optional hint={S.t('new.refHint')} value={raw('ref')} max={12} autocapitalize="characters" error={err('ref')} />
+          </div>
+          <TextField name="address" label={S.t('order.address')} optional multiline rows={3} value={raw('address')} max={400} error={err('address')} />
+          <TextField name="note" label={S.t('order.note')} optional multiline rows={2} value={raw('note')} max={1000} error={err('note')} />
+        </div>
+      </details>
+
+      <Select name="paid" label={S.t('new.paidNow')} hint={S.t('new.paidHint')} value={raw('paid', '')}
+        options={[{ value: '', label: S.t('new.paidNo') }, ...METHODS.map((x) => ({ value: x, label: S.t(`ops.method.${x}`) }))]} />
+      {goLive === null && <Toggle name="is_test" label={S.t('new.testOrder')} hint={S.t('order.testHint')} checked={m && form!.bool('is_test')} />}
+
+      <div class="form-actions">
+        <button class="btn btn-primary btn-lg" name="_action" value="create_confirmed"><Icon name="check" />{S.t('new.saveConfirmed')}</button>
+        <button class="btn btn-lg" name="_action" value="create">{S.t('new.saveNew')}</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="section" id="paste" aria-labelledby="new-paste">
+    <div class="section-head"><h2 class="section-title" id="new-paste">{S.t('new.paste')}</h2></div>
+    <form method="post" class="card stack">
+      <input type="hidden" name="_key" value={mode === 'paste' ? formKey : newFormKey()} />
+      <p class="field-hint">{S.t('new.pasteHint')}</p>
+      <TextField name="message" label={S.t('new.pasteLabel')} multiline rows={8} value={pasteText} max={6000} required
+        placeholder="Hi Beezy Honey! I'd like to order (Order BZ-7K3QD):" error={mode === 'paste' ? errors.message ?? null : null} />
+
+      {showPreview && parsed && (
+        <div class="preview stack" aria-live="polite">
+          <h3 class="preview-title">{S.t('new.pasteFound')}</h3>
+          <dl class="kv">
+            <dt>{S.t('new.pasteCode')}</dt><dd>{parsed.ref ?? S.t('new.pasteNoCode')}</dd>
+            {parsed.kind === 'gift' && <><dt>{S.t('order.gift')}</dt><dd>{S.t('new.pasteGift', { boxes: parsed.gift?.boxes ?? 1 })}{parsed.gift?.neededBy && ` · ${S.t('requests.neededBy', { date: parsed.gift.neededBy })}`}</dd></>}
+            {parsed.totalPaise !== null && <><dt>{S.t('new.pasteTotal')}</dt><dd class="num">{inr(parsed.totalPaise)}{parsed.totalSoFar && ' (so far)'}</dd></>}
+          </dl>
+          <ol class="plines">
+            {parsed.lines.map((l) => (
+              <li><span>{S.t('new.pasteLine', { name: l.name, pack: l.pack, qty: l.qty })}</span>{l.linePaise !== null && <span class="num"> – {inr(l.linePaise)}</span>}{l.pricePlease && <Badge tone="warn" text="price please" />}</li>
+            ))}
+          </ol>
+          {existing.length > 0 && (
+            <div class="notice notice-warn">
+              <Icon name="alert" />
+              <div class="stack">
+                <span>{S.t('new.pasteExists', { ref: parsed.ref ?? '' })}</span>
+                <ul class="linklist">
+                  {existing.map((x) => <li><a href={`/admin/orders/${x.id}/`}>{parsed!.ref} · {dateIST(x.createdAt)} <Badge kind="order" value={x.status} /></a></li>)}
+                </ul>
+              </div>
+            </div>
+          )}
+          <Toggle name="use_message_prices" label={S.t('new.useMessagePrices')} hint={S.t('new.useMessagePricesHint')} checked={form!.bool('use_message_prices')} />
+          <div class="form-actions">
+            {existing.length > 0
+              ? <button class="btn btn-primary" name="_action" value="paste_force"><Icon name="check" />{S.t('new.pasteSaveAnyway')}</button>
+              : <button class="btn btn-primary" name="_action" value="paste"><Icon name="check" />{S.t('new.pasteSave')}</button>}
+          </div>
+        </div>
+      )}
+      <div class="form-actions">
+        <button class:list={['btn', { 'btn-primary': !showPreview }]} name="_action" value="paste_preview"><Icon name="paste" />{S.t('new.pastePreview')}</button>
+      </div>
+    </form>
+  </section>
+</AdminLayout>
+
+<style>
+  .line { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; display: grid; gap: 12px; background: var(--white); }
+  .more > summary { list-style: none; width: fit-content; }
+  .more > summary::-webkit-details-marker { display: none; }
+  .more[open] > summary { margin-bottom: 12px; }
+  .preview { border-top: 1px solid var(--line); padding-top: 16px; }
+  .preview-title { font-size: 1.125rem; font-weight: 700; }
+  .plines { margin: 0; padding-left: 24px; display: grid; gap: 6px; }
+  .plines li { padding-left: 4px; }
+  :global(html.no-js) .js-only { display: none !important; }
+</style>
+
+<script>
+  // Shows the extra item rows one at a time (without JavaScript all rows are simply visible).
+  const form = document.getElementById('manual-form');
+  const button = form?.querySelector<HTMLButtonElement>('[data-add-row]');
+  const rows = form ? Array.from(form.querySelectorAll<HTMLElement>('[data-extra-row]')) : [];
+  const used = (row: HTMLElement) => {
+    const select = row.querySelector('select');
+    return !!select?.value || !!row.querySelector('.field-error');
+  };
+  const hidden = () => rows.filter((r) => r.hidden);
+  for (const r of rows) if (!used(r)) r.hidden = true;
+  // keep rows after a used one visible, so nothing filled in is ever hidden
+  if (button) {
+    button.hidden = hidden().length === 0;
+    button.addEventListener('click', () => {
+      const next = hidden()[0];
+      if (next) {
+        next.hidden = false;
+        next.querySelector<HTMLSelectElement>('select')?.focus();
+      }
+      button.hidden = hidden().length === 0;
+    });
+  }
+</script>

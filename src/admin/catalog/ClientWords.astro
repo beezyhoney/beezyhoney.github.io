@@ -1,0 +1,8 @@
+---
+// The catalog words the browser scripts need (upload and price checks), as JSON. Read by upload.ts w().
+import { S } from './strings';
+
+const KEYS = Object.keys(S.en).filter((k) => k.startsWith('up.') || k.startsWith('risk.') || k === 'pe.newCaption');
+const json = JSON.stringify(Object.fromEntries(KEYS.map((k) => [k, S.t(k as never)]))).replace(/</g, '\\u003c');
+---
+<script type="application/json" id="catalog-strings" set:html={json}></script>

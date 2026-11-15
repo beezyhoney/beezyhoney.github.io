@@ -1,0 +1,59 @@
+---
+// Rupee input: shows "₹ 1,050" (en-IN grouping), posts what was typed; the server turns it into paise with
+// form.paise(name). The browser script re-groups the number when the field loses focus (no JS: works the same).
+//   <MoneyInput name="price" label="Price" paise={v.pricePaise} allowEmpty hint={t('money.emptyMeansWhatsApp')} />
+import Field from './Field.astro';
+import { describedBy, fieldId } from './ids';
+import { inrInput } from '../format';
+import { t } from '../strings';
+
+interface Props {
+  name: string;
+  label: string;
+  /** current amount in paise; null/undefined = empty */
+  paise?: number | null;
+  /** what the person typed last time (refill after a validation error); wins over `paise` */
+  raw?: string | null;
+  id?: string;
+  required?: boolean;
+  /** empty is a valid answer (e.g. "Price on WhatsApp"); only changes the placeholder */
+  allowEmpty?: boolean;
+  placeholder?: string;
+  hint?: string | null;
+  error?: string | null;
+  optional?: boolean;
+  labelHidden?: boolean;
+  disabled?: boolean;
+  /** compact, for tables and grids */
+  small?: boolean;
+  class?: string;
+}
+const { name, label, paise, raw, required, allowEmpty, placeholder, hint, error, optional, labelHidden, disabled, small, class: cls } = Astro.props;
+const id = fieldId(name, Astro.props.id);
+const value = raw !== null && raw !== undefined ? raw : inrInput(paise);
+const ph = placeholder ?? (allowEmpty ? t('money.priceOnWhatsApp') : undefined);
+---
+<Field id={id} label={label} hint={hint} error={error} optional={optional} labelHidden={labelHidden} class={cls}>
+  <div class:list={['affix', { 'affix-sm': small, 'is-invalid': !!error, 'is-disabled': disabled }]}>
+    <span class="affix-text" aria-hidden="true">{t('money.symbol')}</span>
+    <input
+      class="input"
+      id={id}
+      name={name}
+      type="text"
+      inputmode="decimal"
+      autocomplete="off"
+      spellcheck="false"
+      enterkeyhint="next"
+      value={value}
+      required={required}
+      placeholder={ph}
+      disabled={disabled}
+      maxlength={16}
+      aria-invalid={error ? 'true' : undefined}
+      aria-describedby={describedBy(id, hint, error, `${id}-unit`)}
+      data-money
+    />
+  </div>
+  <span class="sr-only" id={`${id}-unit`}>{t('money.inRupees')}</span>
+</Field>

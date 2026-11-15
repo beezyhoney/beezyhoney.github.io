@@ -1,0 +1,35 @@
+---
+// Labels start screen (owner and helper): pick an active batch to print its stickers.
+export const prerender = false;
+
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import '../../../admin/catalog/catalog.css';
+import { takeFlash } from '../../../admin/flash';
+import { dateIST, monthLabel } from '../../../admin/format';
+import { S } from '../../../admin/catalog/strings';
+import { adminOf, bindings } from '../../../admin/catalog/page';
+import { labelBatches } from '../../../server/labels';
+
+adminOf(Astro);
+const flash = takeFlash(Astro);
+const batches = await labelBatches(bindings.DB);
+---
+<AdminLayout title={S.t('lab.title')} active="labels" flash={flash} subtitle={S.t('lab.pickHint')}>
+  {batches.length === 0 ? (
+    <EmptyState icon="labels" title={S.t('lab.none')} text={S.t('lab.noneText')}>
+      <a class="btn btn-primary" href="/admin/harvests/new/"><Icon name="harvests" />{S.t('harv.add')}</a>
+    </EmptyState>
+  ) : (
+    <ul class="linklist">
+      {batches.map((b) => (
+        <li><a href={`/admin/labels/${b.id}/`}>
+          <Icon name="labels" />
+          <span style="flex:1 1 auto"><strong>{b.code}</strong> · {b.productName}<br /><span class="muted">{S.t('lab.packedOn')} {dateIST(b.packedOn)} · {S.t('lab.bestBefore')} {monthLabel(b.bestBefore)}</span></span>
+          <Icon name="next" />
+        </a></li>
+      ))}
+    </ul>
+  )}
+</AdminLayout>

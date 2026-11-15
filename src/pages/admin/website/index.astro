@@ -1,0 +1,329 @@
+---
+// Website settings (design §5 screen 10, amendments A5–A6), owner only: website update status with "Update website
+// now" and the history; Show prices (with a checklist: every price entered? business details filled?), stock
+// display, delivery note; Pause order recording and limits; gift box (fee, extras → pack, bulk threshold); offer
+// banner (text, link, end date, on/off); business details (name, packer address, customer care, FSSAI, GSTIN);
+// the four shop sections (texts and photo). Each card is its own form (_action) so one save never touches the rest.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Badge from '../../../admin/components/Badge.astro';
+import ConfirmButton from '../../../admin/components/ConfirmButton.astro';
+import DateInput from '../../../admin/components/DateInput.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import MoneyInput from '../../../admin/components/MoneyInput.astro';
+import PhotoPicker from '../../../admin/components/PhotoPicker.astro';
+import Select from '../../../admin/components/Select.astro';
+import TextField from '../../../admin/components/TextField.astro';
+import Toggle from '../../../admin/components/Toggle.astro';
+import { failureFlash, redirectWithFlash, takeFlash, type Flash, type FlashInput } from '../../../admin/flash';
+import { dateTimeIST, dayIST, inrInput } from '../../../admin/format';
+import { readForm, type FormReader } from '../../../admin/forms';
+import { canOpen } from '../../../admin/nav';
+import { updateCategory } from '../../../admin/ops/categories';
+import { listCategories, listImages, packChoices, publishHistory, showPricesChecklist } from '../../../admin/ops/data';
+import { S } from '../../../admin/ops/strings';
+import { photoLibrary } from '../../../admin/ops/system';
+import type { Effects, Failure } from '../../../server/db';
+import { getPublishStatus, handleEffects, publishNow } from '../../../server/publish';
+import { getSettings, updateSettings, type EditableKey, type SettingsValues } from '../../../server/settings';
+
+const db = env.DB;
+const admin = Astro.locals.admin!;
+const SELF = '/admin/website/';
+if (!canOpen(admin.role, 'website')) return redirectWithFlash(Astro, '/admin/', { key: 'flash.forbidden' });
+const ctx = (Astro.locals as { cfContext?: ExecutionContext }).cfContext;
+
+const ACTIONS = ['save_display', 'save_intake', 'save_gift', 'save_offer', 'save_business', 'save_category', 'publish_now'] as const;
+type Action = (typeof ACTIONS)[number];
+let form: FormReader | null = null;
+let failed: Action | null = null;
+let failedCategory: string | null = null;
+let errors: Record<string, string> = {};
+let flash: Flash | null = null;
+
+/** The flash after a save that may need the website to update */
+async function afterSave(effects: Effects, changed: number, reason: string): Promise<FlashInput> {
+  if (!changed) return { text: S.t('website.nothing'), tone: 'info' };
+  if (effects.publish === 'now' && ctx) {
+    const p = await handleEffects(env, ctx, admin, effects, reason);
+    if (p?.state === 'disabled') return { text: S.t('website.savedPublishOff'), tone: 'info' };
+    return { text: S.t('website.savedPublish'), tone: 'ok' };
+  }
+  return { text: S.t(effects.live ? 'website.savedLive' : 'website.saved'), tone: 'ok' };
+}
+
+if (Astro.request.method === 'POST') {
+  form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  const action = form.action(ACTIONS);
+  if (!action) return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  const current = await getSettings(db);
+  const ver = (k: EditableKey) => form!.int(`v_${k}`, { min: 1 }) ?? current.versions[k];
+  let values: Partial<Pick<SettingsValues, EditableKey>> | null = null;
+  const fieldOf: Record<string, string> = {};
+
+  if (action === 'publish_now') {
+    if (!ctx) return redirectWithFlash(Astro, SELF, { key: 'flash.error' });
+    const r = await publishNow(env, ctx, admin);
+    return redirectWithFlash(Astro, SELF, { key: r.state === 'disabled' ? 'flash.publishOff' : 'flash.publishQueued' });
+  }
+  if (action === 'save_display') {
+    const show = form.bool('show_prices');
+    const display = form.choice('stock_display', ['sold_out', 'low_and_sold_out'] as const, { required: true });
+    const note = form.text('delivery_note', { required: true, max: 200 });
+    if (form.ok && display) values = { show_prices: show, stock_display: display, delivery_note: note };
+    Object.assign(fieldOf, { show_prices: 'show_prices', stock_display: 'stock_display', delivery_note: 'delivery_note' });
+  } else if (action === 'save_intake') {
+    const paused = form.bool('paused');
+    const perIpHour = form.int('per_ip_hour', { required: true, min: 1, max: 10_000 });
+    const perDay = form.int('per_day', { required: true, min: 1, max: 100_000 });
+    if (form.ok) values = { order_intake: { enabled: !paused, perIpHour: perIpHour!, perDay: perDay! } };
+    fieldOf.order_intake = 'per_day';
+  } else if (action === 'save_gift') {
+    const fee = form.paise('gift_fee', { required: true });
+    const bulkFrom = form.int('bulk_from', { required: true, min: 1, max: 100_000 });
+    const extras: Record<string, string | null> = {};
+    for (const [i, name] of Object.keys(current.values.gift.extras).entries()) {
+      extras[name] = form.raw(`extra_${i}`).trim() || null;
+    }
+    if (form.ok) values = { gift: { feePaise: fee!, extras, bulkFrom: bulkFrom! } };
+    fieldOf.gift = 'gift_fee';
+  } else if (action === 'save_offer') {
+    const on = form.bool('offer_on');
+    const text = form.text('offer_text', { required: on, max: 120 });
+    const href = form.optText('offer_href', { max: 200, pattern: /^\/(?!\/)\S*$/ });
+    const until = form.date('offer_until', { min: dayIST() });
+    if (form.ok) values = { offer: on ? { text, href, until } : null };
+    fieldOf.offer = 'offer_text';
+  } else if (action === 'save_business') {
+    const name = form.text('biz_name', { required: true, max: 100 });
+    const packerAddress = form.optText('biz_packer', { max: 300, multiline: true });
+    const customerCare = form.optText('biz_care', { max: 100 });
+    const fssai = form.optText('biz_fssai', { max: 14, pattern: /^\d{14}$/ });
+    const gstinRaw = form.optText('biz_gstin', { max: 15 });
+    const gstin = gstinRaw ? gstinRaw.toUpperCase().replace(/\s+/g, '') : null;
+    if (gstin && !/^[0-9A-Z]{15}$/.test(gstin)) form.fail('biz_gstin', 'form.badFormat');
+    if (form.ok) values = { business: { name, packerAddress, customerCare, fssai, gstin } };
+    fieldOf.business = 'biz_name';
+  } else if (action === 'save_category') {
+    failedCategory = form.raw('cat_id');
+    const input = {
+      id: failedCategory, version: form.version() ?? 0,
+      name: form.text('cat_name', { required: true, max: 60 }), title: form.text('cat_title', { required: true, max: 80 }),
+      intro: form.text('cat_intro', { required: true, max: 600, multiline: true }), image: form.text('cat_image', { required: true, max: 200 }),
+    };
+    if (form.ok) {
+      const r = await updateCategory(db, admin, input);
+      if (r.ok) return redirectWithFlash(Astro, `${SELF}#cat-${input.id}`, await afterSave(r.value.effects, r.value.effects.publish ? 1 : 0, 'Shop section changed'));
+      if (!form.takeFailure({ ...r, field: r.field ? `cat_${r.field}` : undefined } as Failure, ['cat_name', 'cat_title', 'cat_intro', 'cat_image'])) {
+        return redirectWithFlash(Astro, SELF, failureFlash(r));
+      }
+    }
+    failed = action;
+  }
+
+  if (values) {
+    const versions = Object.fromEntries(Object.keys(values).map((k) => [k, ver(k as EditableKey)]));
+    const r = await updateSettings(db, admin, { values, versions });
+    if (r.ok) return redirectWithFlash(Astro, SELF, await afterSave(r.value.effects, r.value.changed.length, 'Website settings changed'));
+    const field = r.field ? fieldOf[r.field] : undefined;
+    if (!field || !form.takeFailure({ ...r, field }, [field])) return redirectWithFlash(Astro, SELF, failureFlash(r));
+  }
+  failed = action;
+  errors = form.messages();
+  flash = { tone: 'error', text: S.t('form.fixErrors') };
+  Astro.response.status = 422;
+} else {
+  flash = takeFlash(Astro);
+}
+
+const { values: s, versions: v } = await getSettings(db);
+const [status, history, checklist, categories, images, packs, library] = await Promise.all([
+  getPublishStatus(env), publishHistory(db, 10), showPricesChecklist(db, s.business), listCategories(db), listImages(db), packChoices(db),
+  photoLibrary((env as unknown as { ASSETS?: { fetch(r: Request): Promise<Response> } }).ASSETS),
+]);
+const raw = (a: Action, name: string, fallback: string) => (form && failed === a ? form.raw(name) : fallback);
+const has = (a: Action) => !!form && failed === a;
+const checks = [
+  { ok: checklist.unpriced.length === 0, text: checklist.unpriced.length ? S.t('website.checkUnpriced', { count: checklist.unpriced.length, list: checklist.unpriced.map((u) => `${u.product} ${u.label}`).join(', ') }) : S.t('website.checkUnpricedNone') },
+  { ok: checklist.packerAddress, text: S.t(checklist.packerAddress ? 'website.checkAddress' : 'website.checkAddressMissing') },
+  { ok: checklist.customerCare, text: S.t(checklist.customerCare ? 'website.checkCare' : 'website.checkCareMissing') },
+  { ok: checklist.fssai, text: S.t(checklist.fssai ? 'website.checkFssai' : 'website.checkFssaiMissing') },
+];
+const allChecked = checks.every((c) => c.ok);
+const extraOptions = [{ value: '', label: S.t('website.extraNone') }, ...packs.filter((p) => p.current).map((p) => ({ value: p.code, label: `${p.productName} – ${p.label}` }))];
+const repoImages = images.filter((i) => i.source === 'repo');
+const uploads = images.filter((i) => i.source === 'upload');
+const chipTone = { disabled: 'muted', up_to_date: 'ok', updating: 'info', waiting: 'warn', failed: 'bad' } as const;
+---
+<AdminLayout title={S.t('website.title')} active="website" flash={flash}>
+  <section class="section" aria-labelledby="w-status">
+    <div class="section-head"><h2 class="section-title" id="w-status">{S.t('website.status')}</h2><Badge tone={chipTone[status.state]} text={status.message} /></div>
+    <div class="card stack">
+      <form method="post">
+        <ConfirmButton value="publish_now" tone="primary" icon="refresh" message={S.t('website.updateQ')} confirmLabel={S.t('website.updateNow')}>{S.t('website.updateNow')}</ConfirmButton>
+      </form>
+      <h3 class="sub">{S.t('website.history')}</h3>
+      {history.length === 0 ? <p class="muted">{S.t('website.historyEmpty')}</p> : (
+        <ul class="linklist">
+          {history.map((h) => (
+            <li><span class="linklist-row hist">
+              <span><strong>{dateTimeIST(h.requestedAt)}</strong> · {h.reason}{h.error && <span class="muted"> · {h.error}</span>}</span>
+              <Badge tone={h.status === 'live' ? 'ok' : h.status === 'failed' ? 'bad' : 'info'} text={S.t(`website.pub.${h.status}`)} />
+            </span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="w-prices">
+    <div class="section-head"><h2 class="section-title" id="w-prices">{S.t('website.prices')}</h2></div>
+    <form method="post" class="card stack">
+      <input type="hidden" name="v_show_prices" value={v.show_prices} />
+      <input type="hidden" name="v_stock_display" value={v.stock_display} />
+      <input type="hidden" name="v_delivery_note" value={v.delivery_note} />
+      <div class="checklist">
+        <h3 class="sub">{S.t('website.checklist')}</h3>
+        <ul>
+          {checks.map((c) => <li class:list={{ bad: !c.ok }}><Icon name={c.ok ? 'ok' : 'alert'} /><span>{c.text}</span></li>)}
+        </ul>
+      </div>
+      <Toggle name="show_prices" label={S.t('website.showPrices')} hint={S.t('website.showPricesHint')} checked={has('save_display') ? form!.bool('show_prices') : s.show_prices} />
+      <fieldset class="fieldset">
+        <legend class="field-label">{S.t('website.stockDisplay')}</legend>
+        {(['sold_out', 'low_and_sold_out'] as const).map((d) => (
+          <label class="check"><input type="radio" name="stock_display" value={d} checked={raw('save_display', 'stock_display', s.stock_display) === d} />{S.t(`website.stock.${d}`)}</label>
+        ))}
+        {has('save_display') && errors.stock_display && <p class="field-error"><Icon name="alert" />{errors.stock_display}</p>}
+      </fieldset>
+      <TextField name="delivery_note" label={S.t('website.deliveryNote')} hint={S.t('website.deliveryNoteHint')} value={raw('save_display', 'delivery_note', s.delivery_note)} max={200} counter required error={has('save_display') ? errors.delivery_note : null} />
+      <div class="form-actions">
+        {!s.show_prices && !allChecked
+          ? <ConfirmButton value="save_display" tone="primary" class="js-ask-prices" message={S.t('website.showPricesQ')} confirmLabel={S.t('website.savePrices')}>{S.t('website.savePrices')}</ConfirmButton>
+          : <button class="btn btn-primary" name="_action" value="save_display">{S.t('website.savePrices')}</button>}
+      </div>
+    </form>
+  </section>
+
+  <section class="section" aria-labelledby="w-intake">
+    <div class="section-head"><h2 class="section-title" id="w-intake">{S.t('website.intake')}</h2>{!s.order_intake.enabled && <Badge tone="warn" text={S.t('website.pause')} />}</div>
+    <form method="post" class="card stack">
+      <input type="hidden" name="v_order_intake" value={v.order_intake} />
+      <Toggle name="paused" label={S.t('website.pause')} hint={S.t('website.pauseHint')} checked={has('save_intake') ? form!.bool('paused') : !s.order_intake.enabled} />
+      <div class="grid-2">
+        <TextField name="per_ip_hour" label={S.t('website.perIpHour')} hint={S.t('website.perIpHourHint')} inputmode="numeric" value={raw('save_intake', 'per_ip_hour', String(s.order_intake.perIpHour))} max={6} error={has('save_intake') ? errors.per_ip_hour : null} />
+        <TextField name="per_day" label={S.t('website.perDay')} hint={S.t('website.perDayHint')} inputmode="numeric" value={raw('save_intake', 'per_day', String(s.order_intake.perDay))} max={6} error={has('save_intake') ? errors.per_day : null} />
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" name="_action" value="save_intake">{S.t('website.saveIntake')}</button></div>
+    </form>
+  </section>
+
+  <section class="section" aria-labelledby="w-gift">
+    <div class="section-head"><h2 class="section-title" id="w-gift">{S.t('website.gift')}</h2></div>
+    <form method="post" class="card stack">
+      <input type="hidden" name="v_gift" value={v.gift} />
+      <div class="grid-2">
+        <MoneyInput name="gift_fee" label={S.t('website.giftFee')} hint={S.t('website.giftFeeHint')} required raw={raw('save_gift', 'gift_fee', inrInput(s.gift.feePaise))} error={has('save_gift') ? errors.gift_fee : null} />
+        <TextField name="bulk_from" label={S.t('website.bulkFrom')} hint={S.t('website.bulkFromHint')} inputmode="numeric" value={raw('save_gift', 'bulk_from', String(s.gift.bulkFrom))} max={6} error={has('save_gift') ? errors.bulk_from : null} />
+      </div>
+      {Object.entries(s.gift.extras).map(([name, code], i) => (
+        <Select name={`extra_${i}`} label={S.t('website.extra', { name })} value={raw('save_gift', `extra_${i}`, code ?? '')} options={extraOptions} />
+      ))}
+      <div class="form-actions"><button class="btn btn-primary" name="_action" value="save_gift">{S.t('website.saveGift')}</button></div>
+    </form>
+  </section>
+
+  <section class="section" aria-labelledby="w-offer">
+    <div class="section-head"><h2 class="section-title" id="w-offer">{S.t('website.offer')}</h2>{s.offer && <Badge tone="ok" text={S.t('common.on')} />}</div>
+    <form method="post" class="card stack">
+      <input type="hidden" name="v_offer" value={v.offer} />
+      <p class="field-hint">{S.t('website.offerHint')}</p>
+      <Toggle name="offer_on" label={S.t('website.offerOn')} checked={has('save_offer') ? form!.bool('offer_on') : !!s.offer} />
+      <TextField name="offer_text" label={S.t('website.offerText')} value={raw('save_offer', 'offer_text', s.offer?.text ?? '')} max={120} counter error={has('save_offer') ? errors.offer_text : null} />
+      <div class="grid-2">
+        <TextField name="offer_href" label={S.t('website.offerLink')} optional hint={S.t('website.offerLinkHint')} value={raw('save_offer', 'offer_href', s.offer?.href ?? '')} max={200} placeholder="/gift-box/" error={has('save_offer') ? errors.offer_href : null} />
+        <DateInput name="offer_until" label={S.t('website.offerUntil')} optional hint={S.t('website.offerUntilHint')} value={raw('save_offer', 'offer_until', s.offer?.until ?? '')} min={dayIST()} error={has('save_offer') ? errors.offer_until : null} />
+      </div>
+      <p class="field-hint">{S.t('website.offerNote')}</p>
+      <div class="form-actions"><button class="btn btn-primary" name="_action" value="save_offer">{S.t('website.saveOffer')}</button></div>
+    </form>
+  </section>
+
+  <section class="section" aria-labelledby="w-biz">
+    <div class="section-head"><h2 class="section-title" id="w-biz">{S.t('website.business')}</h2></div>
+    <form method="post" class="card stack">
+      <input type="hidden" name="v_business" value={v.business} />
+      <p class="field-hint">{S.t('website.businessHint')}</p>
+      <TextField name="biz_name" label={S.t('website.bizName')} required value={raw('save_business', 'biz_name', s.business.name)} max={100} error={has('save_business') ? errors.biz_name : null} />
+      <TextField name="biz_packer" label={S.t('website.packer')} optional multiline rows={3} value={raw('save_business', 'biz_packer', s.business.packerAddress ?? '')} max={300} error={has('save_business') ? errors.biz_packer : null} />
+      <div class="grid-2">
+        <TextField name="biz_care" label={S.t('website.care')} optional type="tel" value={raw('save_business', 'biz_care', s.business.customerCare ?? '')} max={100} error={has('save_business') ? errors.biz_care : null} />
+        <TextField name="biz_fssai" label={S.t('website.fssai')} optional hint={S.t('website.fssaiHint')} inputmode="numeric" value={raw('save_business', 'biz_fssai', s.business.fssai ?? '')} max={14} error={has('save_business') ? errors.biz_fssai : null} />
+        <TextField name="biz_gstin" label={S.t('website.gstin')} optional hint={S.t('website.gstinHint')} autocapitalize="characters" value={raw('save_business', 'biz_gstin', s.business.gstin ?? '')} max={15} error={has('save_business') ? errors.biz_gstin : null} />
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" name="_action" value="save_business">{S.t('website.saveBusiness')}</button></div>
+    </form>
+  </section>
+
+  <section class="section" aria-labelledby="w-cats">
+    <div class="section-head"><h2 class="section-title" id="w-cats">{S.t('website.categories')}</h2></div>
+    <p class="field-hint hint-gap">{S.t('website.categoriesHint')}</p>
+    <div class="stack">
+      {categories.map((c) => {
+        const mine = has('save_category') && failedCategory === c.id;
+        const val = (name: string, fb: string) => (mine ? form!.raw(name) : fb);
+        const photos = library ? [...repoImages, ...uploads].map((i) => library.get(i.path)).filter((p): p is NonNullable<typeof p> => !!p).map((p) => ({ path: p.path, src: p.src, alt: p.alt ?? p.path, width: p.width, height: p.height })) : [];
+        return (
+          <form method="post" class="card stack" id={`cat-${c.id}`} data-draft={`category-${c.id}`}>
+            <input type="hidden" name="cat_id" value={c.id} />
+            <input type="hidden" name="version" value={c.version} />
+            <h3 class="sub">{c.name}</h3>
+            <div class="grid-2">
+              <TextField name="cat_name" label={S.t('website.catName')} value={val('cat_name', c.name)} max={60} required error={mine ? errors.cat_name : null} />
+              <TextField name="cat_title" label={S.t('website.catTitle')} value={val('cat_title', c.title)} max={80} required error={mine ? errors.cat_title : null} />
+            </div>
+            <TextField name="cat_intro" label={S.t('website.catIntro')} multiline rows={4} value={val('cat_intro', c.intro)} max={600} counter required error={mine ? errors.cat_intro : null} />
+            {photos.length > 0 ? (
+              <PhotoPicker name="cat_image" label={S.t('website.catPhoto')} hint={S.t('website.catPhotoHint')} photos={photos} selected={val('cat_image', c.image)} uploadable={false} error={mine ? errors.cat_image : null} />
+            ) : (
+              <Select name="cat_image" label={S.t('website.catPhoto')} hint={S.t('website.catPhotoHint')} value={val('cat_image', c.image)} error={mine ? errors.cat_image : null}
+                groups={[
+                  { label: S.t('website.catPhotoRepo'), options: repoImages.map((i) => ({ value: i.path, label: i.path })) },
+                  ...(uploads.length ? [{ label: S.t('website.catPhotoUpload'), options: uploads.map((i) => ({ value: i.path, label: i.path })) }] : []),
+                ]} />
+            )}
+            <div class="form-actions"><button class="btn btn-primary" name="_action" value="save_category">{S.t('website.saveCategory')}</button></div>
+          </form>
+        );
+      })}
+    </div>
+  </section>
+</AdminLayout>
+
+<style>
+  .sub { font-size: 1.125rem; font-weight: 700; }
+  .hist { justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .checklist { background: var(--cream); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; }
+  .checklist ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+  .checklist li { display: flex; gap: 8px; align-items: flex-start; color: var(--ok-ink); }
+  .checklist li.bad { color: var(--warn-ink); }
+  .checklist li :global(.ico) { flex: none; margin-top: 2px; }
+  .check { display: flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
+  .check input { width: 22px; height: 22px; accent-color: var(--choc); flex: none; }
+  .hint-gap { margin: -6px 0 12px; }
+</style>
+
+<script>
+  // Ask "Show prices to every visitor now?" only when the switch is really on (the checklist is not complete).
+  const ask = document.querySelector<HTMLButtonElement>('.js-ask-prices');
+  const toggle = ask?.form?.querySelector<HTMLInputElement>('input[type="checkbox"][name="show_prices"]');
+  if (ask && toggle) {
+    const question = ask.dataset.confirm ?? '';
+    const sync = () => { if (toggle.checked) ask.dataset.confirm = question; else delete ask.dataset.confirm; };
+    toggle.addEventListener('change', sync);
+    sync();
+  }
+</script>

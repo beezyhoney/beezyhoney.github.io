@@ -1,0 +1,543 @@
+---
+// Product editor (design §5 screen 6, owner only): one scrolling page.
+// Forms (each posts here with _action, then 303; a typing error renders the page again with 422 and what was typed):
+//   main form   save                       basics, photos, story, details, Honey Finder, flowering, gift box
+//   status form go_live | pause | retire    "Show on website", "Pause", "Retire" (confirm dialogs)
+//   packs form  save_packs | add_pack        packs and prices (+ an optional new pack); risky prices ask first
+//   pool form   add_pool                     a new stock (e.g. a candle size)
+// A save on a product that is on the website bumps site_version and asks for a rebuild (publishAfter).
+export const prerender = false;
+
+import AdminLayout from '../../../../admin/AdminLayout.astro';
+import Badge from '../../../../admin/components/Badge.astro';
+import ConfirmButton from '../../../../admin/components/ConfirmButton.astro';
+import Icon from '../../../../admin/components/Icon.astro';
+import PhotoPicker from '../../../../admin/components/PhotoPicker.astro';
+import Select from '../../../../admin/components/Select.astro';
+import Tabs from '../../../../admin/components/Tabs.astro';
+import TextField from '../../../../admin/components/TextField.astro';
+import Toggle from '../../../../admin/components/Toggle.astro';
+import ClientWords from '../../../../admin/catalog/ClientWords.astro';
+import '../../../../admin/catalog/catalog.css';
+import { failureFlash, redirectWithFlash, takeFlash, type Flash } from '../../../../admin/flash';
+import { readForm, type FormReader } from '../../../../admin/forms';
+import { inr, inrInput } from '../../../../admin/format';
+import { canOpen } from '../../../../admin/nav';
+import { S } from '../../../../admin/catalog/strings';
+import { libraryMap, photoOptions, thumbFor } from '../../../../admin/catalog/library';
+import { adminOf, bindings, photoLibrary, publishAfter } from '../../../../admin/catalog/page';
+import { MAX_LOVE, MAX_SPEC_ROWS, readPacksForm, readProductForm } from '../../../../admin/catalog/product-form';
+import { perHundredGrams } from '../../../../lib/money';
+import { toId } from '../../../../server/db';
+import { riskyChanges } from '../../../../server/prices';
+import {
+  GRADES, TASTES, USES, addPool, categoryChoices, getProductEditor, listImages, saveProduct, savePacks, setProductStatus,
+  toneChoices, websiteGaps, type ProductInput, type StatusAction,
+} from '../../../../server/products-admin';
+
+const admin = adminOf(Astro);
+if (!canOpen(admin.role, 'products')) return redirectWithFlash(Astro, '/admin/', { key: 'flash.forbidden' });
+const id = toId(Astro.params.id);
+const editor0 = id ? await getProductEditor(bindings.DB, id) : null;
+if (!editor0) return redirectWithFlash(Astro, '/admin/products/', { key: 'flash.notFound' });
+const SELF = `/admin/products/${editor0.id}/`;
+
+let form: FormReader | null = null;
+let which: 'product' | 'packs' | 'pool' | null = null;
+let errors: Record<string, string> = {};
+let flash: Flash | null = null;
+let productInput: ProductInput | null = null;
+let risky: { name: string; old: number | null; new: number | null; why: string }[] = [];
+const library = await photoLibrary(Astro);
+
+if (Astro.request.method === 'POST') {
+  form = await readForm(Astro.request, { maxBytes: 256 * 1024 });
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  const action = form.action(['save', 'go_live', 'pause', 'retire', 'save_packs', 'add_pack', 'add_pool'] as const);
+  if (!action) return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  const name = editor0.name;
+
+  if (action === 'go_live' || action === 'pause' || action === 'retire') {
+    const r = await setProductStatus(bindings.DB, admin, { id: editor0.id, version: form.version() ?? 0, action: action as StatusAction });
+    if (!r.ok) return redirectWithFlash(Astro, SELF, failureFlash(r));
+    await publishAfter(Astro, r.value.effects, `${name}: ${r.value.status}`);
+    const key = action === 'go_live' ? 'pe.liveNow' : action === 'pause' ? 'pe.pausedNow' : 'pe.retiredNow';
+    return redirectWithFlash(Astro, SELF, { tone: 'ok', text: S.t(key, { name }) });
+  }
+
+  if (action === 'save') {
+    which = 'product';
+    productInput = readProductForm(form, editor0);
+    if (form.ok) {
+      const r = await saveProduct(bindings.DB, admin, productInput, undefined, { library: libraryMap(library) });
+      if (r.ok) {
+        await publishAfter(Astro, r.value.effects, `${productInput.name}: product saved`);
+        const text = r.value.version === editor0.version ? S.t('pe.savedNothing') : S.t(r.value.effects.publish ? 'pe.savedLive' : 'pe.saved');
+        return redirectWithFlash(Astro, SELF, { tone: r.value.version === editor0.version ? 'info' : 'ok', text });
+      }
+      if (!r.field || !form.takeFailure(r, [r.field])) flash = { tone: failureFlash(r).tone ?? 'error', text: r.message } as Flash;
+    }
+  }
+
+  if (action === 'save_packs' || action === 'add_pack') {
+    which = 'packs';
+    const packs = readPacksForm(form, editor0);
+    if (form.ok) {
+      const byId = new Map(editor0.packs.map((p) => [p.id, p]));
+      risky = riskyChanges(packs.filter((p) => !p.id || byId.get(p.id)!.pricePaise !== p.pricePaise)
+        .map((p) => ({ name: `${editor0.name} ${p.label}`, oldPaise: p.id ? byId.get(p.id)!.pricePaise : null, newPaise: p.pricePaise })))
+        .map((c) => ({ name: c.name, old: c.oldPaise, new: c.newPaise, why: S.t(c.risk === 'big' ? 'risk.big' : 'risk.low') }));
+      if (risky.length && form.raw('confirm_big') !== '1') {
+        flash = { tone: 'warn', text: S.t('risk.text') };
+      } else {
+        risky = [];
+        const r = await savePacks(bindings.DB, admin, { productId: editor0.id, packs });
+        if (r.ok) {
+          await publishAfter(Astro, r.value.effects, `${editor0.name}: packs saved`);
+          const text = r.value.changed + r.value.added === 0 ? S.t('pe.savedNothing') : S.t(r.value.effects.live ? 'packs.savedLive' : 'packs.saved');
+          return redirectWithFlash(Astro, `${SELF}#packs`, { tone: 'ok', text });
+        }
+        if (!r.field || !form.takeFailure(r, [r.field])) flash = { tone: failureFlash(r).tone ?? 'error', text: r.message } as Flash;
+      }
+    }
+  }
+
+  if (action === 'add_pool') {
+    which = 'pool';
+    const poolName = form.text('pool_name', { required: true, max: 80 });
+    const unit = form.choice('pool_unit', ['g', 'piece'] as const, { required: true });
+    if (form.ok) {
+      const r = await addPool(bindings.DB, admin, { productId: editor0.id, name: poolName, unit: unit! });
+      if (r.ok) return redirectWithFlash(Astro, `${SELF}#packs`, { tone: 'ok', text: S.t('packs.poolAdded') });
+      if (!r.field || !form.takeFailure(r, [r.field])) flash = { tone: 'error', text: r.message };
+    }
+  }
+
+  errors = form.messages();
+  flash ??= { tone: 'error', text: S.t('form.fixErrors') };
+  Astro.response.status = 422;
+} else {
+  flash = takeFlash(Astro);
+}
+
+const p = editor0;
+const [cats, images, tones] = await Promise.all([categoryChoices(bindings.DB), listImages(bindings.DB), toneChoices(bindings.DB)]);
+const imgMap = new Map(images.map((i) => [i.path, i]));
+const libMap = new Map(library.map((l) => [l.path, l]));
+const options = photoOptions(images, library);
+
+// what the main form shows: the typed values after an error in it, else the saved product
+const v = which === 'product' && productInput ? {
+  ...productInput,
+  slug: productInput.slug ?? p.slug,
+  shortCode: form!.raw('short_code') || p.shortCode,
+  finderOn: form!.bool('finder_on'), bloomOn: form!.bool('bloom_on'), colourOn: form!.bool('colour_on'),
+  colourMin: form!.raw('colour_min'), colourMax: form!.raw('colour_max'), toneCustom: form!.raw('tone_custom'), bloomAll: form!.bool('bloom_all'),
+  months: form!.rawAll('months').map(Number),
+  specsRows: Array.from({ length: MAX_SPEC_ROWS }, (_, k) => [form!.raw(`spec_l_${k}`), form!.raw(`spec_v_${k}`)] as [string, string]),
+  loveRows: Array.from({ length: MAX_LOVE }, (_, k) => form!.raw(`love_${k}`)),
+} : {
+  name: p.name, category: p.category, kind: p.kind, badge: p.badge, withComb: p.withComb, tagline: p.tagline, tone: p.tone,
+  slug: p.slug, shortCode: p.shortCode, photo: p.photo, card: p.card, gallery: p.gallery, about: p.about, useHead: p.useHead,
+  use: p.use, store: p.store, inGiftBox: p.inGiftBox, bloomNote: p.bloomNote,
+  finder: p.finder, finderOn: p.finder !== null, bloomOn: p.bloom !== null, bloomAll: p.bloom === 'all',
+  months: Array.isArray(p.bloom) ? p.bloom : [], colourOn: p.colour !== null,
+  colourMin: p.colour ? String(p.colour[0]) : '', colourMax: p.colour ? String(p.colour[1]) : '',
+  toneCustom: '',
+  specsRows: Array.from({ length: MAX_SPEC_ROWS }, (_, k) => (p.specs[k] ?? ['', '']) as [string, string]),
+  loveRows: Array.from({ length: MAX_LOVE }, (_, k) => p.love[k] ?? ''),
+};
+const toneValue = (v.tone ?? '').toUpperCase();
+const toneIsSwatch = tones.includes(toneValue);
+const specRowsShown = Math.min(MAX_SPEC_ROWS, Math.max(4, v.specsRows.filter(([a, b]) => a || b).length + 2));
+const loveRowsShown = Math.min(MAX_LOVE, Math.max(4, v.loveRows.filter(Boolean).length + 1));
+
+const activePacks = p.packs.filter((x) => x.active);
+const gap = websiteGaps({ photo: p.photo, kind: p.kind, badge: p.badge, tagline: p.tagline, about: p.about, use: p.use, store: p.store, gallery: p.gallery }, activePacks.length);
+const checks = [
+  { ok: !!p.photo, text: S.t('pe.check.photo') },
+  { ok: p.gallery.length > 0 && p.gallery.every((g) => g.caption.trim().length >= 3), text: S.t('pe.check.gallery') },
+  { ok: [p.kind, p.badge, p.tagline, p.about, p.use, p.store].every((t) => t.trim()), text: S.t('pe.check.texts') },
+  { ok: activePacks.length > 0, text: S.t('pe.check.pack') },
+  { ok: activePacks.length > 0 && activePacks.every((x) => x.pricePaise !== null), text: S.t('pe.check.prices'), optional: true },
+];
+const prices = activePacks.map((x) => x.pricePaise).filter((x): x is number => x !== null);
+const fromPrice = prices.length ? Math.min(...prices) : null;
+const previewThumb = thumbFor(p.card ?? p.photo, imgMap, libMap);
+const thumbOf = (path: string | null | undefined) => thumbFor(path, imgMap, libMap);
+const poolById = new Map(p.pools.map((x) => [x.id, x]));
+const hasPiecePool = p.pools.some((x) => x.unit === 'piece');
+const multiPool = p.pools.length > 1;
+const packVal = (pid: number | 'new', field: string, saved: string) => (which === 'packs' && form ? form.raw(pid === 'new' ? `new_${field}` : `p${pid}_${field}`) : saved);
+const packBool = (pid: number, field: string, saved: boolean) => (which === 'packs' && form ? form.bool(`p${pid}_${field}`) : saved);
+const onSite = p.status !== 'draft';
+---
+<AdminLayout title={p.name} active="products" flash={flash} back={{ href: '/admin/products/', label: S.t('products.title') }} subtitle={S.t('pe.address', { slug: p.slug })}>
+  <ClientWords />
+  <Tabs label={S.t('pe.tabs')} items={[
+    { href: SELF, label: S.t('pe.tabEdit'), current: true },
+    { href: `${SELF}sales/`, label: S.t('pe.tabSales') },
+  ]} />
+
+  <div class="pe-layout">
+    <div>
+      <section class="card status-card pe-section" aria-labelledby="pe-status">
+        <h2 id="pe-status" class="row"><Badge kind="product" value={p.status} /> <span>{S.t(`pe.status.${p.status}`)}</span></h2>
+        {p.status !== 'live' && (
+          <div>
+            <p class="field-label">{S.t('pe.checklist')}</p>
+            <ul class="checklist">
+              {checks.map((c) => (
+                <li><span class={c.ok ? 'ok' : c.optional ? 'muted' : 'no'}><Icon name={c.ok ? 'check' : c.optional ? 'info' : 'close'} /></span><span>{c.text}</span></li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <form method="post">
+          <input type="hidden" name="version" value={p.version} />
+          {p.status !== 'live' && (
+            <ConfirmButton value="go_live" tone="primary" icon="website" disabled={!!gap}
+              message={p.slugFrozen ? S.t('pe.goLiveConfirm', { name: p.name }) : S.t('pe.goLiveFirst', { name: p.name, slug: p.slug })} confirmLabel={S.t('pe.goLive')}>
+              {S.t('pe.goLive')}
+            </ConfirmButton>
+          )}
+          {p.status === 'live' && (
+            <ConfirmButton value="pause" message={S.t('pe.pauseConfirm', { name: p.name })} confirmLabel={S.t('pe.pause')}>{S.t('pe.pause')}</ConfirmButton>
+          )}
+          {(p.status === 'live' || p.status === 'paused') && (
+            <ConfirmButton value="retire" tone="danger" message={S.t('pe.retireConfirm', { name: p.name })} confirmLabel={S.t('pe.retire')}>{S.t('pe.retire')}</ConfirmButton>
+          )}
+          {(p.status === 'live' || p.status === 'paused') && (
+            <a class="btn btn-quiet" href={`/shop/${p.slug}/`} target="_blank" rel="noopener"><Icon name="external" />{S.t('pe.view')}</a>
+          )}
+        </form>
+        {gap && p.status !== 'live' && <p class="field-hint">{gap.message}</p>}
+      </section>
+
+      <form method="post" data-draft={`product-${p.id}`} id="product-form" novalidate>
+        <input type="hidden" name="version" value={p.version} />
+
+        <section class="card pe-section" aria-labelledby="pe-basics">
+          <h2 id="pe-basics">{S.t('pe.basics')}</h2>
+          <TextField name="name" label={S.t('pe.name')} value={v.name} max={60} required error={errors.name} />
+          <Select name="category" label={S.t('pe.category')} value={v.category} options={cats.map((c) => ({ value: c.id, label: c.name }))} error={errors.category} />
+          <div class="grid-2">
+            <TextField name="kind" label={S.t('pe.kind')} hint={S.t('pe.kindHint')} value={v.kind} max={40} error={errors.kind} />
+            <TextField name="badge" label={S.t('pe.badge')} hint={S.t('pe.badgeHint')} value={v.badge} max={40} error={errors.badge} />
+          </div>
+          <Toggle name="with_comb" label={S.t('pe.withComb')} hint={S.t('pe.withCombHint')} checked={v.withComb} />
+          <TextField name="tagline" label={S.t('pe.tagline')} hint={S.t('pe.taglineHint')} value={v.tagline} max={140} counter error={errors.tagline} />
+          <div class="grid-2">
+            <TextField name="short_code" label={S.t('pe.shortCode')} hint={S.t('pe.shortCodeHint')} value={v.shortCode} max={4} autocapitalize="characters" spellcheck={false} error={errors.short_code} />
+            {p.slugFrozen ? (
+              <TextField name="slug_shown" label={S.t('pe.slug')} hint={S.t('pe.slugFrozen')} value={`/shop/${p.slug}/`} readonly noDraft />
+            ) : (
+              <TextField name="slug" label={S.t('pe.slug')} hint={S.t('pe.slugHint')} value={v.slug} max={60} autocapitalize="none" spellcheck={false} error={errors.slug} />
+            )}
+          </div>
+        </section>
+
+        <section class="card pe-section" aria-labelledby="pe-photos" id="photos">
+          <h2 id="pe-photos">{S.t('pe.photos')}</h2>
+
+          <p class="field-label">{S.t('pe.photo')}</p>
+          <p class="field-hint">{S.t('pe.photoHint')}</p>
+          <div class="current-photo" data-current-for="photo">
+            {(() => { const t = thumbOf(v.photo); return <img src={t?.src ?? ''} alt={v.photo ?? ''} width="96" height="96" hidden={!t} />; })()}
+            <span class="muted" data-current-empty hidden={!!v.photo}>{S.t('pe.noPhoto')}</span>
+          </div>
+          {errors.photo && <p class="field-error"><Icon name="alert" />{errors.photo}</p>}
+          <details class="picker-details" open={!v.photo || !!errors.photo}>
+            <summary><Icon name="image" />{S.t('pe.change')}</summary>
+            <PhotoPicker name="photo" label={S.t('pe.choosePhoto')} photos={options} selected={v.photo} />
+          </details>
+
+          <p class="field-label" style="margin-top:18px">{S.t('pe.card')}</p>
+          <p class="field-hint">{S.t('pe.cardHint')}</p>
+          <div class="current-photo" data-current-for="card">
+            {(() => { const t = thumbOf(v.card); return <img src={t?.src ?? ''} alt={v.card ?? ''} width="96" height="96" hidden={!t} />; })()}
+            <span class="muted" data-current-empty hidden={!!v.card}>{S.t('pe.cardSame')}</span>
+          </div>
+          <details class="picker-details" open={!!errors.card}>
+            <summary><Icon name="image" />{S.t('pe.change')}</summary>
+            <PhotoPicker name="card" label={S.t('pe.choosePhoto')} photos={options} selected={v.card} noneLabel={S.t('pe.cardSame')} error={errors.card} />
+          </details>
+
+          <p class="field-label" style="margin-top:18px" id="gallery">{S.t('pe.gallery')}</p>
+          <p class="field-hint" style="margin-bottom:10px">{S.t('pe.galleryHint')}</p>
+          {errors.gallery && <p class="field-error"><Icon name="alert" />{errors.gallery}</p>}
+          <p class="muted" data-gallery-empty hidden={v.gallery.length > 0}>{S.t('pe.galleryEmpty')}</p>
+          <ol class="gal-list" data-gallery-list>
+            {v.gallery.map((g, k) => {
+              const t = thumbOf(g.src);
+              return (
+                <li class="gal-row" data-gallery-row>
+                  <img src={t?.src ?? ''} alt="" width="72" height="72" loading="lazy" />
+                  <div>
+                    <input type="hidden" name="g_src" value={g.src} />
+                    <TextField name="g_cap" id={`g-cap-${k}`} label={S.t('pe.captionFor', { n: k + 1 })} value={g.caption} max={140} error={errors[`g_cap_${k}`]} />
+                  </div>
+                  <div class="gal-tools">
+                    <span class="gal-order-field"><label class="check-row">{S.t('pe.order')} <input class="input gal-order" type="text" inputmode="numeric" name="g_order" value={k + 1} data-gallery-order /></label></span>
+                    <button type="button" class="btn btn-icon gal-move" data-gallery-move="up" aria-label={S.t('pe.moveUp', { n: k + 1 })}><Icon name="up" /></button>
+                    <button type="button" class="btn btn-icon gal-move" data-gallery-move="down" aria-label={S.t('pe.moveDown', { n: k + 1 })}><Icon name="down" /></button>
+                    <label class="check-row"><input type="checkbox" name="g_del" value={g.src} />{S.t('pe.removePhoto')}</label>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          <template id="gallery-row-tpl">
+            <li class="gal-row" data-gallery-row>
+              <img src="" alt="" width="72" height="72" />
+              <div>
+                <input type="hidden" name="g_src" value="" />
+                <div class="field">
+                  <label class="field-label">{S.t('pe.caption')}<input class="input" type="text" name="g_cap" maxlength="140" autocomplete="off" /></label>
+                </div>
+              </div>
+              <div class="gal-tools">
+                <span class="gal-order-field"><input class="input gal-order" type="text" name="g_order" value="99" data-gallery-order aria-label={S.t('pe.order')} /></span>
+                <button type="button" class="btn btn-icon gal-move" data-gallery-move="up" aria-label={S.t('pe.moveUp', { n: '' })}><Icon name="up" /></button>
+                <button type="button" class="btn btn-icon gal-move" data-gallery-move="down" aria-label={S.t('pe.moveDown', { n: '' })}><Icon name="down" /></button>
+                <label class="check-row"><input type="checkbox" name="g_del" value="" />{S.t('pe.removePhoto')}</label>
+              </div>
+            </li>
+          </template>
+          <details class="picker-details">
+            <summary><Icon name="plus" />{S.t('pe.addPhotos')}</summary>
+            <PhotoPicker name="g_add" label={S.t('pe.addPhotos')} hint={S.t('pe.addPhotosHint')} photos={options} selected={[]} multiple />
+          </details>
+        </section>
+
+        <section class="card pe-section" aria-labelledby="pe-story">
+          <h2 id="pe-story">{S.t('pe.story')}</h2>
+          <TextField name="about" label={S.t('pe.about')} value={v.about} multiline rows={6} max={2000} counter error={errors.about} />
+          <fieldset class="fieldset">
+            <legend class="field-label">{S.t('pe.love')}</legend>
+            <p class="field-hint" style="margin-bottom:8px">{S.t('pe.loveHint')}</p>
+            {Array.from({ length: loveRowsShown }, (_, k) => (
+              <TextField name={`love_${k}`} label={S.t('pe.lovePoint', { n: k + 1 })} value={v.loveRows[k]} max={160} error={errors[`love_${k}`] ?? (k === 0 ? errors.love : undefined)} />
+            ))}
+          </fieldset>
+          <TextField name="use_head" label={S.t('pe.useHead')} hint={S.t('pe.useHeadHint')} value={v.useHead} max={60} placeholder="How to enjoy" error={errors.use_head} />
+          <TextField name="use_text" label={S.t('pe.use')} value={v.use} multiline rows={3} max={600} counter error={errors.use_text} />
+          <TextField name="store_text" label={S.t('pe.store')} value={v.store} multiline rows={2} max={400} counter error={errors.store_text} />
+        </section>
+
+        <section class="card pe-section" aria-labelledby="pe-details">
+          <h2 id="pe-details">{S.t('pe.details')}</h2>
+          <fieldset class="fieldset">
+            <legend class="field-label">{S.t('pe.specs')}</legend>
+            <p class="field-hint" style="margin-bottom:8px">{S.t('pe.specsHint')}</p>
+            {errors.specs && <p class="field-error"><Icon name="alert" />{errors.specs}</p>}
+            {Array.from({ length: specRowsShown }, (_, k) => (
+              <div class="spec-row">
+                <TextField name={`spec_l_${k}`} label={S.t('pe.specLabel', { n: k + 1 })} value={v.specsRows[k][0]} max={40} error={errors[`spec_${k}`]} />
+                <TextField name={`spec_v_${k}`} label={S.t('pe.specValue', { n: k + 1 })} value={v.specsRows[k][1]} max={80} />
+              </div>
+            ))}
+          </fieldset>
+
+          <Toggle name="colour_on" label={S.t('pe.colourOn')} hint={S.t('pe.colourHint')} checked={v.colourOn} error={errors.colour} />
+          {(['colour_min', 'colour_max'] as const).map((field) => (
+            <fieldset class="fieldset">
+              <legend class="field-label">{S.t(field === 'colour_min' ? 'pe.colourFrom' : 'pe.colourTo')}</legend>
+              <div class="swatches">
+                {GRADES.map(([gname, hex], k) => (
+                  <label class="swatch">
+                    <input type="radio" name={field} value={k} checked={(field === 'colour_min' ? v.colourMin : v.colourMax) === String(k)} />
+                    <span class="swatch-chip" style={`background:${hex}`}></span>
+                    <span>{gname}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ))}
+
+          <fieldset class="fieldset">
+            <legend class="field-label">{S.t('pe.tone')}</legend>
+            <p class="field-hint" style="margin-bottom:8px">{S.t('pe.toneHint')}</p>
+            <div class="swatches">
+              {tones.map((hex) => (
+                <label class="swatch">
+                  <input type="radio" name="tone" value={hex} checked={toneIsSwatch && toneValue === hex} />
+                  <span class="swatch-chip" style={`background:${hex}`}></span>
+                  <span class="nowrap">{hex}</span>
+                </label>
+              ))}
+            </div>
+            <div class="row" style="margin-top:12px;align-items:flex-end">
+              <TextField name="tone_custom" label={S.t('pe.toneCustom')} value={which === 'product' ? v.toneCustom : toneIsSwatch ? '' : toneValue} max={7} placeholder="#EEF0D6" spellcheck={false} error={errors.tone} />
+              <span class="tone-sample" data-tone-sample style={`background:${/^#[0-9A-F]{6}$/.test(toneValue) ? toneValue : '#F4EBD6'}`} aria-hidden="true"></span>
+            </div>
+          </fieldset>
+        </section>
+
+        <section class="card pe-section" aria-labelledby="pe-finder">
+          <h2 id="pe-finder">{S.t('pe.finder')}</h2>
+          <Toggle name="finder_on" label={S.t('pe.finderOn')} checked={v.finderOn} error={errors.finder} />
+          <fieldset class="fieldset">
+            <legend class="field-label">{S.t('pe.taste')}</legend>
+            <div class="check-grid">
+              {TASTES.map((t) => <label class="check-row"><input type="checkbox" name="taste" value={t} checked={v.finder?.taste.includes(t as never)} />{S.t(`pe.taste.${t}`)}</label>)}
+            </div>
+          </fieldset>
+          <fieldset class="fieldset">
+            <legend class="field-label">{S.t('pe.uses')}</legend>
+            <div class="check-grid">
+              {USES.map((u) => <label class="check-row"><input type="checkbox" name="uses" value={u} checked={v.finder?.uses.includes(u as never)} />{S.t(`pe.use.${u}`)}</label>)}
+            </div>
+          </fieldset>
+          <Toggle name="rare" label={S.t('pe.rare')} checked={v.finder?.rare ?? false} />
+        </section>
+
+        <section class="card pe-section" aria-labelledby="pe-bloom">
+          <h2 id="pe-bloom">{S.t('pe.bloom')}</h2>
+          <Toggle name="bloom_on" label={S.t('pe.bloomOn')} checked={v.bloomOn} error={errors.bloom} />
+          <Toggle name="bloom_all" label={S.t('pe.bloomAll')} checked={v.bloomAll} />
+          <fieldset class="fieldset">
+            <legend class="field-label">{S.t('pe.months')}</legend>
+            <div class="check-grid">
+              {Array.from({ length: 12 }, (_, k) => k + 1).map((m) => (
+                <label class="check-row"><input type="checkbox" name="months" value={m} checked={v.months.includes(m)} />{S.t(`pe.month.${m}` as never)}</label>
+              ))}
+            </div>
+          </fieldset>
+          <TextField name="bloom_note" label={S.t('pe.bloomNote')} hint={S.t('pe.bloomNoteHint')} value={v.bloomNote} max={200} optional error={errors.bloom_note} />
+        </section>
+
+        <section class="card pe-section" aria-labelledby="pe-gift">
+          <h2 id="pe-gift">{S.t('pe.giftBox')}</h2>
+          <Toggle name="in_gift_box" label={S.t('pe.inGiftBox')} checked={v.inGiftBox} />
+        </section>
+
+        <div class="actionbar">
+          <button class="btn btn-primary btn-lg" name="_action" value="save"><Icon name="check" />{S.t(onSite ? 'pe.saveLive' : 'pe.save')}</button>
+        </div>
+      </form>
+
+      <section class="pe-section" id="packs" aria-labelledby="pe-packs">
+        <div class="section-head"><h2 class="section-title" id="pe-packs">{S.t('packs.title')}</h2></div>
+        <form method="post" data-draft={`packs-${p.id}`} data-risk-form novalidate>
+          <input type="hidden" name="confirm_big" value={risky.length ? '1' : '0'} />
+          {risky.length > 0 && (
+            <div class="notice notice-warn risk-box" role="alert">
+              <Icon name="alert" />
+              <div>
+                <p><strong>{S.t('risk.title')}</strong> {S.t('risk.text')}</p>
+                <ul>{risky.map((r) => <li>{S.t('risk.line', { name: r.name, old: inr(r.old), new: inr(r.new), why: r.why })}</li>)}</ul>
+                <button class="btn btn-honey" name="_action" value="save_packs">{S.t('risk.yes')}</button>
+              </div>
+            </div>
+          )}
+          <p class="field-hint" style="margin-bottom:10px">{S.t('packs.hint')}</p>
+          {errors.packs && <p class="field-error"><Icon name="alert" />{errors.packs}</p>}
+          <div class="table-wrap has-cards">
+            <table class="dtable">
+              <caption class="sr-only">{S.t('packs.title')}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">{S.t('packs.name')}</th>
+                  <th scope="col">{S.t('packs.netGrams')}</th>
+                  {multiPool && <th scope="col">{S.t('packs.pool')}</th>}
+                  {hasPiecePool && <th scope="col">{S.t('packs.poolQty')}</th>}
+                  <th scope="col">{S.t('packs.price')}</th>
+                  <th scope="col">{S.t('packs.mrp')}</th>
+                  <th scope="col" class="end">{S.t('packs.per100')}</th>
+                  <th scope="col">{S.t('packs.active')}</th>
+                  <th scope="col">{S.t('packs.giftOk')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...p.packs.map((x) => ({ key: x.id as number | 'new', x })), { key: 'new' as const, x: null }].map(({ key, x }) => {
+                  const pre = key === 'new' ? 'new_' : `p${key}_`;
+                  const err = errors[key === 'new' ? 'pack_new' : `pack_${key}`];
+                  const label = packVal(key, 'label', x?.label ?? '');
+                  const pool = x ? poolById.get(x.poolId) : p.pools[0];
+                  const price = packVal(key, 'price', x ? inrInput(x.pricePaise) : '');
+                  const grams = packVal(key, 'grams', x?.netGrams ? String(x.netGrams) : '');
+                  const per = perHundredGrams(x?.pricePaise ?? null, x?.netGrams ?? null);
+                  return (
+                    <tr class:list={[{ 'pack-new': key === 'new', 'tone-row-bad': !!err }]} data-pack-row>
+                      <td class="is-primary" data-label={key === 'new' ? S.t('packs.new') : S.t('packs.name')}>
+                        {x && <input type="hidden" name={`${pre}v`} value={x.version} />}
+                        <input class="input" name={`${pre}label`} value={label} maxlength="40" aria-label={key === 'new' ? S.t('packs.new') : `${S.t('packs.name')} ${x?.label}`} placeholder={key === 'new' ? '1 kg' : undefined} />
+                        {key === 'new' && <p class="field-hint">{S.t('packs.newHint')}</p>}
+                        {err && <p class="field-error"><Icon name="alert" />{err}</p>}
+                      </td>
+                      <td data-label={S.t('packs.netGrams')}>
+                        <input class="input input-sm" name={`${pre}grams`} value={grams} inputmode="numeric" maxlength="8" aria-label={`${S.t('packs.netGrams')} ${label}`} data-grams-input />
+                      </td>
+                      {multiPool && (
+                        <td data-label={S.t('packs.pool')}>
+                          <select class="input" name={`${pre}pool`} aria-label={`${S.t('packs.pool')} ${label}`}>
+                            {p.pools.map((s) => <option value={s.id} selected={String(s.id) === packVal(key, 'pool', String(pool?.id ?? ''))}>{s.name}</option>)}
+                          </select>
+                        </td>
+                      )}
+                      {hasPiecePool && (
+                        <td data-label={S.t('packs.poolQty')}>
+                          {pool?.unit === 'g' && !multiPool
+                            ? <span class="muted">{S.t('packs.gramsAuto')}</span>
+                            : <input class="input input-sm" name={`${pre}qty`} value={packVal(key, 'qty', x && pool?.unit === 'piece' ? String(x.poolQty) : '')} inputmode="numeric" maxlength="6" aria-label={`${S.t('packs.poolQty')} ${label}`} placeholder={pool?.unit === 'g' ? '—' : '1'} />}
+                        </td>
+                      )}
+                      <td data-label={S.t('packs.price')}>
+                        <input class="input input-sm" name={`${pre}price`} value={price} inputmode="decimal" maxlength="12" placeholder={S.t('money.priceOnWhatsApp')}
+                          aria-label={`${S.t('packs.price')} ${label} (₹)`} data-money data-price-input data-old={x?.pricePaise ?? ''} data-risk-name={`${p.name} ${label}`} />
+                      </td>
+                      <td data-label={S.t('packs.mrp')}>
+                        <input class="input input-sm" name={`${pre}mrp`} value={packVal(key, 'mrp', x ? inrInput(x.mrpPaise) : '')} inputmode="decimal" maxlength="12" aria-label={`${S.t('packs.mrp')} ${label} (₹)`} data-money />
+                      </td>
+                      <td class="end per100" data-label={S.t('packs.per100')} data-per100 data-grams={x?.netGrams ?? ''}>{per === null ? '—' : inr(per)}</td>
+                      <td class="cell-check" data-label={S.t('packs.active')}>
+                        {key === 'new' ? <span class="muted">{S.t('common.yes')}</span> : (
+                          <><input type="hidden" name={`${pre}active`} value="0" /><label class="check-cell"><input type="checkbox" name={`${pre}active`} value="1" checked={packBool(key as number, 'active', x!.active)} aria-label={`${S.t('packs.active')} ${label}`} /></label></>
+                        )}
+                      </td>
+                      <td class="cell-check" data-label={S.t('packs.giftOk')}>
+                        <input type="hidden" name={`${pre}gift`} value="0" />
+                        <label class="check-cell"><input type="checkbox" name={`${pre}gift`} value="1" checked={key === 'new' ? (which === 'packs' && form ? form.bool('new_gift') : false) : packBool(key as number, 'gift', x!.giftOk)} aria-label={`${S.t('packs.giftOk')} ${label}`} /></label>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary btn-lg" name="_action" value="save_packs"><Icon name="check" />{S.t('packs.save')}</button>
+          </div>
+        </form>
+
+        <details class="card" style="margin-top:16px" open={which === 'pool'}>
+          <summary class="field-label" style="min-height:48px;display:flex;align-items:center;cursor:pointer">{S.t('packs.addPool')}</summary>
+          <form method="post" style="margin-top:12px">
+            <p class="field-hint" style="margin-bottom:12px">{S.t('packs.addPoolHint')}</p>
+            <TextField name="pool_name" label={S.t('packs.poolName')} value={which === 'pool' ? form?.raw('pool_name') : ''} max={80} error={errors.pool_name} />
+            <Select name="pool_unit" label={S.t('packs.poolUnit')} value={which === 'pool' ? form?.raw('pool_unit') : 'piece'} options={[{ value: 'piece', label: S.t('packs.unit.piece') }, { value: 'g', label: S.t('packs.unit.g') }]} error={errors.pool_unit} />
+            <button class="btn" name="_action" value="add_pool"><Icon name="plus" />{S.t('packs.addPool')}</button>
+          </form>
+        </details>
+      </section>
+    </div>
+
+    <aside class="pe-aside" aria-labelledby="pe-preview">
+      <h2 class="section-title" id="pe-preview" style="margin-bottom:8px">{S.t('pe.preview')}</h2>
+      <div class="card preview-card" style={`background:${p.tone}`}>
+        {previewThumb ? <img src={previewThumb.src} alt="" width="300" height="375" /> : <div style="aspect-ratio:4/5"></div>}
+        <div class="pv-body">
+          <span class="pv-kind">{p.kind}</span>
+          <span class="pv-name">{p.name}</span>
+          <span>{p.tagline}</span>
+          <strong>{fromPrice !== null ? S.t('pe.fromPrice', { price: inr(fromPrice) }) : S.t('products.noPrice')}</strong>
+        </div>
+      </div>
+      <p class="field-hint" style="margin-top:8px">{S.t('pe.previewHint')}</p>
+    </aside>
+  </div>
+  <script>
+    import '../../../../admin/catalog/product-editor';
+  </script>
+</AdminLayout>

@@ -1,0 +1,48 @@
+---
+// Free text with suggestions (native <datalist>): the person may pick a suggestion or type something new.
+// Use it for things like courier names or cities. To pick a record by id, use Select instead.
+//   <Combobox name="courier" label="Courier" value={o.courier} options={['India Post', 'DTDC', 'ST Courier']} />
+import Field from './Field.astro';
+import { describedBy, fieldId } from './ids';
+
+interface Props {
+  name: string;
+  label: string;
+  value?: string | null;
+  options: (string | { value: string; label?: string })[];
+  id?: string;
+  required?: boolean;
+  max?: number;
+  placeholder?: string;
+  hint?: string | null;
+  error?: string | null;
+  optional?: boolean;
+  labelHidden?: boolean;
+  disabled?: boolean;
+  class?: string;
+}
+const { name, label, value, options, required, max = 120, placeholder, hint, error, optional, labelHidden, disabled, class: cls } = Astro.props;
+const id = fieldId(name, Astro.props.id);
+const listId = `${id}-list`;
+const items = options.map((o) => (typeof o === 'string' ? { value: o, label: undefined } : o));
+---
+<Field id={id} label={label} hint={hint} error={error} optional={optional} labelHidden={labelHidden} class={cls}>
+  <input
+    class="input"
+    id={id}
+    name={name}
+    type="text"
+    list={listId}
+    value={value ?? ''}
+    required={required}
+    maxlength={max}
+    placeholder={placeholder}
+    disabled={disabled}
+    autocomplete="off"
+    aria-invalid={error ? 'true' : undefined}
+    aria-describedby={describedBy(id, hint, error)}
+  />
+  <datalist id={listId}>
+    {items.map((o) => <option value={o.value} label={o.label} />)}
+  </datalist>
+</Field>

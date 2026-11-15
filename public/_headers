@@ -1,0 +1,11 @@
+# Cloudflare Workers static-asset headers. They apply ONLY to files served from dist/client (prerendered pages,
+# /_astro/*, images, build.json ...). On-demand routes (/api/*, /media/*, /admin/*) set their own headers in the
+# Worker (src/middleware.ts and each endpoint). HSTS is added only after the cutover rollback window (design §10).
+# @astrojs/cloudflare adds an immutable Cache-Control rule for /_astro/* to the built copy of this file.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/build.json
+  Cache-Control: no-store

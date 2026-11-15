@@ -1,0 +1,134 @@
+---
+// Count all (design §5 screen 8, amendment A3; owner and helper): one box per stock pool (kg for honey, pieces for
+// candles and sticks). Step 1 "Check the differences" (_action=review, nothing saved), step 2 "Save count"
+// (_action=save → countStock, one batch for every counted pool; tracking turns on for each). Empty boxes are skipped.
+export const prerender = false;
+
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import TextField from '../../../admin/components/TextField.astro';
+import '../../../admin/catalog/catalog.css';
+import { failureFlash, redirectWithFlash, takeFlash, type Flash } from '../../../admin/flash';
+import { newFormKey, readForm, type FormReader } from '../../../admin/forms';
+import { S } from '../../../admin/catalog/strings';
+import { adminOf, bindings, publishAfter } from '../../../admin/catalog/page';
+import { formatPoolAmount, parsePoolAmount } from '../../../lib/availability';
+import { countStock, listPools } from '../../../server/stock';
+
+const admin = adminOf(Astro);
+const SELF = '/admin/stock/count/';
+const pools = await listPools(bindings.DB, { includeDrafts: true });
+
+let form: FormReader | null = null;
+let errors: Record<string, string> = {};
+let flash: Flash | null = null;
+let review: { id: number; name: string; unit: 'g' | 'piece'; now: number; counted: number }[] | null = null;
+
+if (Astro.request.method === 'POST') {
+  form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  const action = form.action(['review', 'save', 'edit'] as const);
+  if (!action) return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  const counts: { id: number; name: string; unit: 'g' | 'piece'; now: number; counted: number }[] = [];
+  for (const p of pools) {
+    const raw = form.raw(`c_${p.id}`).trim();
+    if (!raw) continue;
+    const v = parsePoolAmount(raw, p.unit);
+    if (v === null) { form.fail(`c_${p.id}`, p.unit === 'g' ? 'form.notWeight' : 'form.notNumber'); continue; }
+    counts.push({ id: p.id, name: p.name, unit: p.unit, now: p.onHand, counted: v });
+  }
+  if (form.ok && !counts.length && action !== 'edit') form.failText('note', S.t('count.nothing'));
+  if (form.ok && action === 'review') {
+    review = counts;
+  } else if (form.ok && action === 'save') {
+    const r = await countStock(bindings.DB, admin, { counts: counts.map((c) => ({ poolId: c.id, amount: c.counted })), note: form.optText('note', { max: 200 }), idemKey: form.key() ?? undefined });
+    if (r.ok) {
+      await publishAfter(Astro, r.value.effects, 'Stock count');
+      return redirectWithFlash(Astro, '/admin/stock/', { tone: 'ok', text: S.t('count.saved', { n: counts.length }) });
+    }
+    if (r.error === 'conflict' || r.error === 'not_found') return redirectWithFlash(Astro, SELF, failureFlash(r));
+    flash = { tone: 'error', text: r.message };
+  }
+  errors = form.messages();
+  if (!review) {
+    flash ??= action === 'edit' ? null : { tone: 'error', text: errors.note ?? S.t('form.fixErrors') };
+    if (action !== 'edit') Astro.response.status = 422;
+  }
+} else {
+  flash = takeFlash(Astro);
+}
+const key = form?.key() ?? newFormKey();
+const changed = review?.filter((r) => r.counted !== r.now) ?? [];
+const same = review?.filter((r) => r.counted === r.now) ?? [];
+const diffText = (r: { unit: 'g' | 'piece'; now: number; counted: number }) => `${r.counted - r.now > 0 ? '+' : ''}${formatPoolAmount(r.counted - r.now, r.unit)}`;
+---
+<AdminLayout title={review ? S.t('count.reviewTitle') : S.t('count.title')} active="stock" flash={flash} back={{ href: '/admin/stock/', label: S.t('stock.title') }}>
+  <form method="post" data-draft={review ? undefined : 'stock-count'} novalidate>
+    <input type="hidden" name="_key" value={key} />
+    {review ? (
+      <>
+        <p class="field-hint section">{S.t('count.reviewHint')}</p>
+        <div class="table-wrap has-cards section">
+          <table class="dtable">
+            <caption class="sr-only">{S.t('count.reviewTitle')}</caption>
+            <thead><tr><th scope="col">{S.t('nav.stock')}</th><th scope="col" class="end">{S.t('count.now')}</th><th scope="col" class="end">{S.t('count.counted')}</th><th scope="col" class="end">{S.t('count.diff')}</th></tr></thead>
+            <tbody>
+              {changed.map((r) => (
+                <tr>
+                  <td class="is-primary" data-label={S.t('nav.stock')}>{r.name}</td>
+                  <td class:list={['end', { neg: r.now < 0 }]} data-label={S.t('count.now')}>{formatPoolAmount(r.now, r.unit)}</td>
+                  <td class="end" data-label={S.t('count.counted')}><strong>{formatPoolAmount(r.counted, r.unit)}</strong></td>
+                  <td class:list={['end', { neg: r.counted < r.now }]} data-label={S.t('count.diff')}>{diffText(r)}</td>
+                </tr>
+              ))}
+              {same.map((r) => (
+                <tr class="tone-row-muted">
+                  <td class="is-primary" data-label={S.t('nav.stock')}>{r.name}</td>
+                  <td class="end" data-label={S.t('count.now')}>{formatPoolAmount(r.now, r.unit)}</td>
+                  <td class="end" data-label={S.t('count.counted')}>{formatPoolAmount(r.counted, r.unit)}</td>
+                  <td class="end muted" data-label={S.t('count.diff')}>{S.t('count.noChange')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {pools.map((p) => form!.raw(`c_${p.id}`).trim() ? <input type="hidden" name={`c_${p.id}`} value={form!.raw(`c_${p.id}`)} /> : null)}
+        <input type="hidden" name="note" value={form!.raw('note')} />
+        <div class="form-actions">
+          <button class="btn btn-primary btn-lg" name="_action" value="save"><Icon name="check" />{S.t('count.save')}</button>
+          <button class="btn btn-lg" name="_action" value="edit"><Icon name="edit" />{S.t('count.edit')}</button>
+        </div>
+      </>
+    ) : (
+      <>
+        <p class="field-hint section">{S.t('count.hint')}</p>
+        <div class="table-wrap has-cards section">
+          <table class="dtable">
+            <caption class="sr-only">{S.t('count.title')}</caption>
+            <thead><tr><th scope="col">{S.t('nav.stock')}</th><th scope="col" class="end">{S.t('count.now')}</th><th scope="col">{S.t('count.counted')}</th></tr></thead>
+            <tbody>
+              {pools.map((p) => (
+                <tr class:list={{ 'tone-row-bad': !!errors[`c_${p.id}`] || p.onHand < 0 }}>
+                  <td class="is-primary" data-label={S.t('nav.stock')}>{p.name}{!p.trackStock && <span class="muted"> · {S.t('status.stock.untracked')}</span>}</td>
+                  <td class:list={['end', 'num', { neg: p.onHand < 0 }]} data-label={S.t('count.now')}>{p.amountText}</td>
+                  <td data-label={S.t('count.counted')}>
+                    <div class="affix affix-sm">
+                      <input class="input" name={`c_${p.id}`} value={form?.raw(`c_${p.id}`) ?? ''} inputmode={p.unit === 'g' ? 'decimal' : 'numeric'} maxlength="12" autocomplete="off"
+                        aria-label={S.t('count.countedFor', { name: p.name })} aria-invalid={errors[`c_${p.id}`] ? 'true' : undefined} />
+                      <span class="affix-text" aria-hidden="true">{p.unit === 'g' ? 'kg' : 'pcs'}</span>
+                    </div>
+                    {errors[`c_${p.id}`] && <p class="field-error"><Icon name="alert" />{errors[`c_${p.id}`]}</p>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <TextField name="note" label={S.t('pool.note')} value={form?.raw('note')} max={200} optional error={errors.note} />
+        <div class="actionbar">
+          <button class="btn btn-primary btn-lg" name="_action" value="review"><Icon name="search" />{S.t('count.review')}</button>
+        </div>
+      </>
+    )}
+  </form>
+</AdminLayout>

@@ -1,25 +1,16 @@
 ---
 import Base from '../layouts/Base.astro';
 import Icon from '../components/Icon.astro';
-import { BATCHES } from '../data/batches';
-import { PRODUCTS } from '../data/products';
+import { BATCHES, checkBatches } from '../data/batches';
+import { ALL_PRODUCTS } from '../data/products';
 import { link, waLink } from '../data/site';
 import { clientProducts, toJson } from '../lib/clientProducts';
 
-// Check every batch at build time, so a typo stops the build instead of showing a broken result
-const keyOf = (code: string) => code.toUpperCase().replace(/[^A-Z0-9]/g, '');
-const seen = new Set<string>();
-for (const b of BATCHES) {
-  const where = `src/data/batches.ts, batch "${b.code}"`;
-  if (!keyOf(b.code ?? '')) throw new Error(`${where}: the code is empty`);
-  if (seen.has(keyOf(b.code))) throw new Error(`${where}: this code is listed twice`);
-  seen.add(keyOf(b.code));
-  if (!PRODUCTS.some((p) => p.slug === b.product)) throw new Error(`${where}: unknown product "${b.product}" (use a slug from products.ts)`);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.packed) || Number.isNaN(Date.parse(b.packed))) throw new Error(`${where}: packed must look like 2026-11-10`);
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(b.bestBefore)) throw new Error(`${where}: bestBefore must look like 2028-11`);
-  if (!b.harvested?.trim()) throw new Error(`${where}: harvested is empty`);
-}
-const products = (await clientProducts()).map(({ slug, name, href, thumb, tone, source, kind }) => ({ slug, name, href, thumb, tone, source, kind }));
+// Check every batch at build time, so a typo stops the build instead of showing a broken result.
+// Jars of a paused or retired product are still out there, so batches are checked against (and looked up in)
+// every product in the catalog, not only the live ones.
+checkBatches(BATCHES, ALL_PRODUCTS);
+const products = (await clientProducts(ALL_PRODUCTS)).map(({ slug, name, href, thumb, tone, source, kind }) => ({ slug, name, href, thumb, tone, source, kind }));
 ---
 <Base title="Know Your Jar" page="jar" description="Look up the batch number on your Beezy Honey label to see when your honey was harvested and packed.">
   <section class="page-top wrap j-head">
@@ -47,7 +38,7 @@ const products = (await clientProducts()).map(({ slug, name, href, thumb, tone, 
     </div>
   </section>
 
-  <script type="application/json" id="jar-data" set:html={toJson({ batches: BATCHES, products, ask: waLink('Hi Beezy Honey! Can you tell me about batch '), shop: link('/shop/') })} />
+  <script type="application/json" id="jar-data" set:html={toJson({ batches: BATCHES, products, ask: waLink('Hi Beezy Honey! Can you tell me about batch '), shop: link('/shop/'), api: link('/api/batch.json') })} />
   <template id="jar-icons"><Icon name="whatsapp" /></template>
 </Base>
 
@@ -87,6 +78,8 @@ const products = (await clientProducts()).map(({ slug, name, href, thumb, tone, 
   .j-result :global(.j-miss) { display: grid; gap: 12px; padding: 22px; border-radius: 22px; background: var(--cream); animation: j-in .45s var(--ease) both; }
   .j-result :global(.j-miss h2) { font-size: 1.6rem; }
   .j-result :global(.j-miss .btn) { justify-self: start; min-height: 46px; }
+  .j-result :global(.j-wait) { padding: 22px; border-radius: 22px; background: var(--cream); color: var(--ink-2); font-weight: 600; }
+  .j-result :global(.j-photo.blank) { background: var(--cream-2); }
   @keyframes j-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
   .j-label { margin: 0; display: grid; gap: 10px; }
@@ -107,14 +100,14 @@ const products = (await clientProducts()).map(({ slug, name, href, thumb, tone, 
 </style>
 
 <script>
-  interface B { code: string; product: string; harvested: string; packed: string; bestBefore: string; note?: string }
+  interface B { code: string; product: string; harvested: string; packed: string; bestBefore: string; note?: string; productName?: string }
   interface P { slug: string; name: string; href: string; thumb: string; tone: string; source: string; kind: string }
 
   const form = document.querySelector<HTMLFormElement>('[data-jar-form]');
   const out = document.querySelector<HTMLElement>('[data-jar-result]');
   const dataEl = document.getElementById('jar-data');
   if (form && out && dataEl) {
-    const { batches, products, ask } = JSON.parse(dataEl.textContent!) as { batches: B[]; products: P[]; ask: string; shop: string };
+    const { batches, products, ask, api } = JSON.parse(dataEl.textContent!) as { batches: B[]; products: P[]; ask: string; shop: string; api: string };
     const input = form.querySelector<HTMLInputElement>('input')!;
     const waIcon = (document.getElementById('jar-icons') as HTMLTemplateElement).innerHTML;
     const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -139,8 +132,76 @@ const products = (await clientProducts()).map(({ slug, name, href, thumb, tone, 
       return now.getFullYear() * 12 + now.getMonth() > y * 12 + (m - 1);
     };
 
-    const show = (raw: string, updateUrl: boolean) => {
+    const miss = (code: string) => `
+          <div class="j-miss">
+            <h2>We couldn’t find batch ${esc(code)}</h2>
+            <p>Check the code on your label and try again. New batches are added here shortly after packing, so if your jar is very fresh, just ask us.</p>
+            <a class="btn btn-wa" href="${esc(askLink(code))}" target="_blank" rel="noopener">${waIcon}Ask about this batch</a>
+          </div>`;
+    const found = (b: B, p: P) => {
+      const old = isPast(b.bestBefore);
+      const photo = p.thumb
+        ? `<a class="j-photo" href="${esc(p.href)}" tabindex="-1" aria-hidden="true"><img src="${esc(p.thumb)}" alt="" width="520" height="520"></a>`
+        : '<span class="j-photo blank" aria-hidden="true"></span>';
+      return `
+        <article class="j-found" style="--tone:${esc(p.tone)}">
+          ${photo}
+          <div class="j-body">
+            <p class="eyebrow">Batch ${esc(tidy(b.code))}</p>
+            <h2>${p.href ? `<a href="${esc(p.href)}">${esc(p.name)}</a>` : esc(p.name)}</h2>
+            <span class="j-state${old ? ' old' : ''}">${old ? `Past its best-before date (${esc(fmtMonth(b.bestBefore))})` : `Best before ${esc(fmtMonth(b.bestBefore))}`}</span>
+            <dl>
+              ${p.source ? `<dt>From</dt><dd>${esc(p.source)}</dd>` : ''}
+              <dt>Harvested</dt><dd>${esc(b.harvested)}</dd>
+              <dt>Packed on</dt><dd>${esc(fmtDay(b.packed))}</dd>
+              <dt>Best before</dt><dd>${esc(fmtMonth(b.bestBefore))}</dd>
+            </dl>
+            ${b.note ? `<p class="j-note">${esc(b.note)}</p>` : ''}
+            <div class="j-actions">
+              ${p.href ? `<a class="btn btn-honey" href="${esc(p.href)}#order">Order this honey again</a>` : ''}
+              <a class="btn btn-wa" href="${esc(askLink(tidy(b.code)))}" target="_blank" rel="noopener">${waIcon}Ask about this batch</a>
+            </div>
+          </div>
+        </article>`;
+    };
+
+    // Batches added after this page was built are looked up live (GET /api/batch.json?code=). Answers:
+    // { found: false } or { found: true, code, productSlug, productName, harvested, packed, bestBefore, note }.
+    // undefined = could not ask (no endpoint yet, offline): the page then says it could not find the batch.
+    const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v : undefined);
+    const lookupLive = async (code: string): Promise<B | null | undefined> => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const ctrl = new AbortController();
+        timer = setTimeout(() => ctrl.abort(), 6000);
+        const res = await fetch(`${api}?code=${encodeURIComponent(code)}`, { headers: { accept: 'application/json' }, signal: ctrl.signal });
+        if (!res.ok) return undefined;
+        const j = await res.json() as Record<string, unknown> | null;
+        if (!j || j.found !== true) return j && j.found === false ? null : undefined;
+        const b: B = {
+          code: str(j.code) ?? code,
+          product: str(j.productSlug) ?? str(j.product) ?? str(j.slug) ?? '',
+          productName: str(j.productName) ?? str(j.name),
+          harvested: str(j.harvested) ?? str(j.harvestedLabel) ?? '',
+          packed: str(j.packed) ?? '',
+          bestBefore: str(j.bestBefore) ?? '',
+          note: str(j.note),
+        };
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(b.packed) || !/^\d{4}-\d{2}$/.test(b.bestBefore) || !b.harvested) return undefined;
+        return b;
+      } catch {
+        return undefined;
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+    const productFor = (b: B): P | undefined => products.find((x) => x.slug === b.product)
+      ?? (b.productName ? { slug: b.product, name: b.productName, href: '', thumb: '', tone: '#F4E4C8', source: '', kind: '' } : undefined);
+
+    let asked = 0;
+    const show = async (raw: string, updateUrl: boolean) => {
       const code = tidy(raw);
+      const turn = ++asked;
       if (!keyOf(code)) {
         out.innerHTML = `<div class="j-miss"><p>Type the batch number from your label, for example <b>MUR-2611-01</b>.</p></div>`;
         input.focus();
@@ -153,40 +214,18 @@ const products = (await clientProducts()).map(({ slug, name, href, thumb, tone, 
       }
       const b = batches.find((x) => keyOf(x.code) === keyOf(code));
       const p = b && products.find((x) => x.slug === b.product);
-      if (!b || !p) {
-        out.innerHTML = `
-          <div class="j-miss">
-            <h2>We couldn’t find batch ${esc(code)}</h2>
-            <p>Check the code on your label and try again. New batches are added here shortly after packing, so if your jar is very fresh, just ask us.</p>
-            <a class="btn btn-wa" href="${esc(askLink(code))}" target="_blank" rel="noopener">${waIcon}Ask about this batch</a>
-          </div>`;
-        return;
-      }
-      const old = isPast(b.bestBefore);
-      out.innerHTML = `
-        <article class="j-found" style="--tone:${esc(p.tone)}">
-          <a class="j-photo" href="${esc(p.href)}" tabindex="-1" aria-hidden="true"><img src="${esc(p.thumb)}" alt="" width="520" height="520"></a>
-          <div class="j-body">
-            <p class="eyebrow">Batch ${esc(tidy(b.code))}</p>
-            <h2><a href="${esc(p.href)}">${esc(p.name)}</a></h2>
-            <span class="j-state${old ? ' old' : ''}">${old ? `Past its best-before date (${esc(fmtMonth(b.bestBefore))})` : `Best before ${esc(fmtMonth(b.bestBefore))}`}</span>
-            <dl>
-              ${p.source ? `<dt>From</dt><dd>${esc(p.source)}</dd>` : ''}
-              <dt>Harvested</dt><dd>${esc(b.harvested)}</dd>
-              <dt>Packed on</dt><dd>${esc(fmtDay(b.packed))}</dd>
-              <dt>Best before</dt><dd>${esc(fmtMonth(b.bestBefore))}</dd>
-            </dl>
-            ${b.note ? `<p class="j-note">${esc(b.note)}</p>` : ''}
-            <div class="j-actions">
-              <a class="btn btn-honey" href="${esc(p.href)}#order">Order this honey again</a>
-              <a class="btn btn-wa" href="${esc(askLink(tidy(b.code)))}" target="_blank" rel="noopener">${waIcon}Ask about this batch</a>
-            </div>
-          </div>
-        </article>`;
+      if (b && p) { out.innerHTML = found(b, p); return; }
+      // Not on this page: ask the live lookup, for anything that could be a batch code
+      if (keyOf(code).length < 4 || keyOf(code).length > 24) { out.innerHTML = miss(code); return; }
+      out.innerHTML = `<p class="j-wait">Looking up batch ${esc(code)}…</p>`;
+      const live = await lookupLive(code);
+      if (turn !== asked) return; // a newer search started meanwhile
+      const lp = live ? productFor(live) : undefined;
+      out.innerHTML = live && lp ? found(live, lp) : miss(code);
     };
 
-    form.addEventListener('submit', (e) => { e.preventDefault(); show(input.value, true); });
+    form.addEventListener('submit', (e) => { e.preventDefault(); void show(input.value, true); });
     const fromUrl = new URLSearchParams(location.search).get('batch');
-    if (fromUrl) { input.value = tidy(fromUrl); show(fromUrl, false); }
+    if (fromUrl) { input.value = tidy(fromUrl); void show(fromUrl, false); }
   }
 </script>

@@ -1,0 +1,79 @@
+---
+// Inline SVG bar chart (no library). Bars scale to a "nice" top; labels thin out on phones; a hidden table carries
+// every value for screen readers; hovering a bar shows its value.
+//   <BarChart caption="Sales per month" format="money" highlight={11}
+//             data={months.map((m) => ({ label: 'Nov', title: 'Nov 2026', value: m.netPaise }))} />
+import { bars, labelStep, visibleLabels } from '../chart';
+import { inr, int, kg } from '../format';
+import { t } from '../strings';
+
+interface Point {
+  /** short label under the bar ('Nov', '15') */
+  label: string;
+  value: number;
+  /** longer label for the tooltip and the screen-reader table ('Nov 2026', '15 Nov') */
+  title?: string;
+}
+
+interface Props {
+  data: Point[];
+  caption: string;
+  /** how values are written: paise as ₹, grams as kg, or plain counts */
+  format?: 'money' | 'int' | 'grams';
+  /** index of the bar to stand out (e.g. this month) */
+  highlight?: number;
+  /** drawing height in px */
+  height?: number;
+  /** most labels under the bars on phones / wider screens */
+  maxLabels?: { phone?: number; desktop?: number };
+  /** shown instead of the chart when every value is 0 */
+  emptyText?: string;
+  class?: string;
+}
+const { data, caption, format = 'int', highlight, height = 180, maxLabels = {}, emptyText = t('chart.noData'), class: cls } = Astro.props;
+const fmt = (v: number) => (format === 'money' ? inr(Math.round(v)) : format === 'grams' ? kg(v) : int(v));
+const layout = bars(data.map((d) => d.value), { slot: 10, gap: data.length > 20 ? 2 : 3, height: 100 });
+const allZero = layout.max === 0;
+const phoneShown = visibleLabels(data.length, labelStep(data.length, maxLabels.phone ?? 6));
+const deskShown = visibleLabels(data.length, labelStep(data.length, maxLabels.desktop ?? 14));
+const yLabels = [layout.max, layout.max / 2, 0].map(fmt);
+const yWidth = Math.max(...yLabels.map((l) => l.length));
+---
+<figure class:list={['chart', cls]} style={`--chart-h:${height}px`}>
+  <figcaption class="chart-caption">{caption}</figcaption>
+  {allZero ? (
+    <p class="chart-empty">{emptyText}</p>
+  ) : (
+    <div class="chart-body">
+      <div class="chart-y" aria-hidden="true" style={`width:${yWidth}ch`}>
+        <span style="top:0">{yLabels[0]}</span>
+        <span style="top:50%">{yLabels[1]}</span>
+        <span style="top:100%">{yLabels[2]}</span>
+      </div>
+      <div class="chart-plot">
+        <svg class="chart-svg" viewBox={`0 0 ${layout.width} 100`} preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <line class="chart-grid" x1="0" x2={layout.width} y1="0.5" y2="0.5" />
+          <line class="chart-grid" x1="0" x2={layout.width} y1="50" y2="50" />
+          {layout.bars.map((b, i) => (
+            <rect class:list={['chart-bar', { 'is-hi': i === highlight }]} x={b.x} y={b.y} width={b.w} height={b.h}>
+              <title>{`${data[i].title ?? data[i].label}: ${fmt(data[i].value)}`}</title>
+            </rect>
+          ))}
+          <line class="chart-base" x1="0" x2={layout.width} y1="100" y2="100" />
+        </svg>
+        <div class="chart-x" style={`--n:${data.length}`} aria-hidden="true">
+          {data.map((d, i) => (
+            <span class:list={{ 'show-p': phoneShown.has(i), 'show-d': deskShown.has(i), 'is-hi': i === highlight }}>{d.label}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  )}
+  <table class="sr-only">
+    <caption>{t('chart.table')}</caption>
+    <thead><tr><th scope="col">{t('chart.label')}</th><th scope="col">{t('chart.value')}</th></tr></thead>
+    <tbody>
+      {data.map((d) => <tr><th scope="row">{d.title ?? d.label}</th><td>{fmt(d.value)}</td></tr>)}
+    </tbody>
+  </table>
+</figure>

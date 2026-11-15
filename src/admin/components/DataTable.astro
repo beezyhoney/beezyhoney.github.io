@@ -1,0 +1,114 @@
+---
+// Table on wide screens, a card per row on phones (each cell gets its column name as a label).
+// Values are formatted by column type; the `primary` column becomes the card title and links to row.href
+// (the whole row/card is then tappable).
+//   <DataTable caption="New orders" columns={[
+//       { key: 'ref', label: 'Order', primary: true },
+//       { key: 'age', label: 'Waiting', type: 'age' },
+//       { key: 'total', label: 'Total', type: 'money' },
+//       { key: 'status', label: 'Status', type: 'badge' } ]}
+//     rows={orders.map((o) => ({ href: `/admin/orders/${o.id}/`, ref: o.ref, age: o.createdAt,
+//       total: o.totalPaise, status: { kind: 'order', value: o.status } }))} />
+// For anything this cannot draw (inputs in cells, two-line cells), write the markup yourself with the same classes:
+// <div class="table-wrap has-cards"><table class="dtable"> … <td data-label="Total" class="end"> … (see README).
+import Badge from './Badge.astro';
+import EmptyState from './EmptyState.astro';
+import { ageShort, dateIST, dateTimeIST, inr, int, kg, pct } from '../format';
+import type { BadgeKind, Tone } from '../status';
+import { t } from '../strings';
+
+export type ColumnType = 'text' | 'money' | 'int' | 'grams' | 'pct' | 'date' | 'datetime' | 'age' | 'badge';
+
+export interface Column {
+  key: string;
+  label: string;
+  type?: ColumnType;
+  /** default: 'end' for numbers, 'start' otherwise */
+  align?: 'start' | 'end';
+  /** card title on phones; linked to row.href */
+  primary?: boolean;
+  /** leave the label out in the phone card */
+  hideLabel?: boolean;
+}
+
+export type BadgeValue = { kind: BadgeKind; value: string; text?: string } | { tone: Tone; text: string };
+export type CellValue = string | number | null | undefined | { text: string; href?: string } | BadgeValue;
+
+export interface Row {
+  /** link for the primary cell (makes the whole row tappable) */
+  href?: string;
+  /** coloured edge: 'bad' (e.g. negative stock), 'warn', or 'muted' (cancelled) */
+  tone?: 'bad' | 'warn' | 'muted';
+  [key: string]: CellValue | undefined;
+}
+
+interface Props {
+  columns: Column[];
+  rows: Row[];
+  caption?: string;
+  /** keep the caption for screen readers only */
+  captionHidden?: boolean;
+  /** text when there are no rows */
+  empty?: string;
+  /** stay a table on phones (wide grids); default: cards */
+  noCards?: boolean;
+  /** "now" for age columns (tests) */
+  now?: number;
+  class?: string;
+}
+const { columns, rows, caption, captionHidden, empty = t('table.empty'), noCards, now = Date.now(), class: cls } = Astro.props;
+const NUMERIC: ColumnType[] = ['money', 'int', 'grams', 'pct'];
+const alignOf = (c: Column) => c.align ?? (NUMERIC.includes(c.type ?? 'text') ? 'end' : 'start');
+
+function text(c: Column, v: CellValue): string {
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'object') return 'text' in v ? v.text : '';
+  switch (c.type) {
+    case 'money': return typeof v === 'number' ? inr(v) : String(v);
+    case 'int': return typeof v === 'number' ? int(v) : String(v);
+    case 'grams': return typeof v === 'number' ? kg(v) : String(v);
+    case 'pct': return typeof v === 'number' ? pct(v) : String(v);
+    case 'date': return dateIST(v);
+    case 'datetime': return dateTimeIST(v);
+    case 'age': return typeof v === 'string' || typeof v === 'number' ? ageShort(v, now) : '—';
+    default: return String(v);
+  }
+}
+const isBadge = (v: CellValue): v is BadgeValue => typeof v === 'object' && v !== null && ('kind' in v || 'tone' in v);
+const isNegative = (c: Column, v: CellValue) => typeof v === 'number' && v < 0 && NUMERIC.includes(c.type ?? 'text');
+---
+{rows.length === 0 ? (
+  <EmptyState title={empty} icon="info" compact />
+) : (
+  <div class:list={['table-wrap', cls, { 'has-cards': !noCards }]}>
+    <table class="dtable" role="table">
+      {caption && <caption class:list={{ 'sr-only': captionHidden }}>{caption}</caption>}
+      <thead role="rowgroup">
+        <tr role="row">
+          {columns.map((c) => <th scope="col" role="columnheader" class:list={{ end: alignOf(c) === 'end' }}>{c.label}</th>)}
+        </tr>
+      </thead>
+      <tbody role="rowgroup">
+        {rows.map((r) => (
+          <tr role="row" class:list={{ [`tone-row-${r.tone}`]: !!r.tone }}>
+            {columns.map((c) => {
+              const v = r[c.key];
+              const link = typeof v === 'object' && v !== null && 'href' in v && v.href ? v.href : c.primary ? r.href : undefined;
+              return (
+                <td role="cell" data-label={c.hideLabel ? '' : c.label} class:list={{ end: alignOf(c) === 'end', 'is-primary': c.primary, neg: isNegative(c, v) }}>
+                  {isBadge(v) ? (
+                    'kind' in v ? <Badge kind={v.kind} value={v.value} text={v.text} /> : <Badge tone={v.tone} text={v.text} />
+                  ) : link ? (
+                    <a class:list={{ 'row-link': c.primary }} href={link}>{text(c, v)}</a>
+                  ) : (
+                    text(c, v)
+                  )}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+)}

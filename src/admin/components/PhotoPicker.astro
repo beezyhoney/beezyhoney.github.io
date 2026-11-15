@@ -1,0 +1,76 @@
+---
+// Photo picker shell: a grid of thumbnails to choose one photo (radio) or several (checkbox). Works without JS.
+// Uploading: src/admin/catalog/upload.ts (initPhotoUploads) switches the tile on and adds new photos to [data-photo-grid].
+// Without JavaScript the tile stays disabled. Pages whose script does not call initPhotoUploads pass uploadable={false}.
+// A hidden "<name>__shown" input tells the server the picker was on the form, so "nothing ticked" can be told apart
+// from "field not sent" (form.has(`${name}__shown`)).
+//   <PhotoPicker name="photo" label="Main photo" photos={library} selected={p.photo} />
+//   <PhotoPicker name="gallery" label="Gallery" photos={library} selected={p.gallery.map((g) => g.src)} multiple />
+import Field from './Field.astro';
+import Icon from './Icon.astro';
+import { t } from '../strings';
+
+export interface PhotoOption {
+  /** the value posted: the image path, e.g. 'murungai-main.jpg' or 'uploads/01JD….jpg' */
+  path: string;
+  /** thumbnail URL to show (same origin) */
+  src: string;
+  /** describes the photo (screen readers; caption if you have one) */
+  alt: string;
+  width?: number;
+  height?: number;
+}
+
+interface Props {
+  name: string;
+  label: string;
+  photos: PhotoOption[];
+  selected?: string | string[] | null;
+  multiple?: boolean;
+  /** single choice only: add a "No photo" tile with this text (posts '') */
+  noneLabel?: string;
+  /** show the (not yet working) upload tile */
+  uploadable?: boolean;
+  required?: boolean;
+  hint?: string | null;
+  error?: string | null;
+  id?: string;
+  class?: string;
+}
+const { name, label, photos, selected, multiple, noneLabel, uploadable = true, required, hint, error, class: cls } = Astro.props;
+const id = Astro.props.id ?? `photos-${name}`;
+const chosen = new Set(Array.isArray(selected) ? selected : selected ? [selected] : []);
+const type = multiple ? 'checkbox' : 'radio';
+const describedBy = [hint ? `${id}-hint` : '', error ? `${id}-err` : ''].filter(Boolean).join(' ') || undefined;
+---
+<fieldset class:list={['fieldset', 'photo-picker', cls]} aria-describedby={describedBy} data-photo-picker={name} data-multiple={multiple ? '' : undefined}>
+  <legend class="field-label">{label}</legend>
+  {hint && <p class="field-hint" id={`${id}-hint`}>{hint}</p>}
+  <input type="hidden" name={`${name}__shown`} value="1" />
+  <div class="photos" data-photo-grid>
+    {!multiple && noneLabel !== undefined && (
+      <label class="photo photo-none">
+        <input type="radio" name={name} value="" checked={chosen.size === 0} required={required} />
+        <Icon name="image" />
+        <span>{noneLabel || t('photo.noneOption')}</span>
+        <span class="photo-check" aria-hidden="true"><Icon name="check" /></span>
+      </label>
+    )}
+    {photos.map((p, i) => (
+      <label class="photo" title={p.alt}>
+        <input type={type} name={name} value={p.path} checked={chosen.has(p.path)} required={!multiple && required && i === 0 && noneLabel === undefined ? true : undefined} />
+        <img src={p.src} alt={p.alt} width={p.width ?? 240} height={p.height ?? 240} loading="lazy" decoding="async" />
+        <span class="photo-check" aria-hidden="true"><Icon name="check" /></span>
+      </label>
+    ))}
+    {uploadable && (
+      <button type="button" class="photo photo-upload" data-photo-upload={name} disabled title={t('photo.uploadSoon')}>
+        <Icon name="upload" />
+        <span>{t('photo.upload')}</span>
+        <span class="sr-only">({t('photo.uploadSoon')})</span>
+      </button>
+    )}
+  </div>
+  {photos.length === 0 && <p class="field-hint">{t('photo.none')}</p>}
+  {error && <p class="field-error" id={`${id}-err`}><Icon name="alert" />{error}</p>}
+</fieldset>

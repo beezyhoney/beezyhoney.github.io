@@ -1,0 +1,56 @@
+---
+// Invoices list: the numbers given in one financial year (newest first) and the confirmed orders still without an
+// invoice. Each opens the print page /admin/invoice/<orderId>/. Owner and helper.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import DataTable from '../../../admin/components/DataTable.astro';
+import { takeFlash } from '../../../admin/flash';
+import { S } from '../../../admin/ops/strings';
+import { paymentState } from '../../../admin/status';
+import { listInvoices, ordersWithoutInvoice } from '../../../server/invoice';
+
+const db = env.DB;
+const flash = takeFlash(Astro);
+const [list, waiting] = await Promise.all([listInvoices(db, { fy: Astro.url.searchParams.get('fy') }), ordersWithoutInvoice(db, 50)]);
+---
+<AdminLayout title={S.t('invoice.list')} subtitle={S.t('invoice.listSub')} active="invoices" flash={flash}>
+  {list.years.length > 1 && (
+    <nav class="chips" aria-label={S.t('invoice.list')}>
+      {list.years.map((fy) => <a class="chip" href={`/admin/invoice/?fy=${fy}`} aria-current={fy === list.fy ? 'true' : undefined}>{fy}</a>)}
+    </nav>
+  )}
+  <section class="section" aria-labelledby="inv-fy">
+    <div class="section-head"><h2 class="section-title" id="inv-fy">{S.t('invoice.fy', { fy: list.fy })}</h2></div>
+    <DataTable caption={S.t('invoice.fy', { fy: list.fy })} captionHidden empty={S.t('invoice.none')}
+      columns={[
+        { key: 'no', label: S.t('invoice.no'), primary: true },
+        { key: 'date', label: S.t('invoice.date'), type: 'date' },
+        { key: 'ref', label: S.t('invoice.order') },
+        { key: 'name', label: S.t('invoice.billTo') },
+        { key: 'total', label: S.t('order.totalLabel'), type: 'money' },
+        { key: 'paid', label: S.t('orders.paid'), type: 'badge' },
+      ]}
+      rows={list.rows.map((r) => ({
+        href: `/admin/invoice/${r.orderId}/`, no: r.invoiceNo, date: r.invoiceDate, ref: r.ref,
+        name: r.customerName ?? '—', total: r.totalPaise, paid: { kind: 'payment' as const, value: paymentState(r.totalPaise, r.paidPaise) },
+        tone: r.status === 'cancelled' ? ('muted' as const) : undefined,
+      }))} />
+  </section>
+
+  <section class="section" aria-labelledby="inv-waiting">
+    <div class="section-head"><h2 class="section-title" id="inv-waiting">{S.t('invoice.waiting')}</h2></div>
+    <DataTable caption={S.t('invoice.waiting')} captionHidden empty={S.t('orders.empty')}
+      columns={[
+        { key: 'ref', label: S.t('invoice.order'), primary: true },
+        { key: 'when', label: S.t('order.when.confirmed'), type: 'date' },
+        { key: 'total', label: S.t('order.totalLabel'), type: 'money' },
+      ]}
+      rows={waiting.map((w) => ({ href: `/admin/invoice/${w.orderId}/`, ref: w.ref, when: w.confirmedAt, total: w.totalPaise }))} />
+  </section>
+</AdminLayout>
+
+<style>
+  .chips { margin-bottom: 16px; }
+</style>

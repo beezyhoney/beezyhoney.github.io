@@ -1,6 +1,9 @@
 name: Deploy to GitHub Pages
 
-# Every push to main builds the site and publishes it to https://beezyhoney.github.io/
+# Every push to main builds the site and publishes it to https://beezyhoney.github.io/ (custom domain beezyhoney.in).
+# Until the Cloudflare cutover (admin-portal design, Phase 9) GitHub Pages keeps serving the public site. The build now
+# uses @astrojs/cloudflare: the static site is in dist/client (dist/server is the Worker, not used by Pages).
+# No secrets are needed: the catalog comes from the committed snapshot and nothing is deployed to Cloudflare.
 on:
   push:
     branches: [main]
@@ -25,10 +28,11 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # sync-catalog (snapshot) → astro build → check-dist
       - run: npm run build
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: dist
+          path: dist/client
 
   deploy:
     needs: build

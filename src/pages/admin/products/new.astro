@@ -1,0 +1,72 @@
+---
+// New product / Copy from an existing product (design §5 screen 5, owner only). Makes a draft and opens the editor.
+export const prerender = false;
+
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import Select from '../../../admin/components/Select.astro';
+import TextField from '../../../admin/components/TextField.astro';
+import '../../../admin/catalog/catalog.css';
+import { failureFlash, redirectWithFlash, takeFlash, type Flash } from '../../../admin/flash';
+import { newFormKey, readForm, type FormReader } from '../../../admin/forms';
+import { canOpen } from '../../../admin/nav';
+import { S } from '../../../admin/catalog/strings';
+import { adminOf, bindings } from '../../../admin/catalog/page';
+import { categoryChoices, createProduct, productChoices } from '../../../server/products-admin';
+import { toId } from '../../../server/db';
+
+const admin = adminOf(Astro);
+const SELF = '/admin/products/new/';
+if (!canOpen(admin.role, 'products')) return redirectWithFlash(Astro, '/admin/', { key: 'flash.forbidden' });
+
+let form: FormReader | null = null;
+let errors: Record<string, string> = {};
+let flash: Flash | null = null;
+if (Astro.request.method === 'POST') {
+  form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  if (form.action(['create'] as const) !== 'create') return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  const name = form.text('name', { required: true, max: 60, min: 2 });
+  const start = form.choice('start', ['blank', 'copy'] as const) ?? 'blank';
+  const copyFromId = start === 'copy' ? toId(form.raw('copy_from')) : null;
+  if (start === 'copy' && !copyFromId) form.fail('copy_from', 'form.notChoice');
+  const category = form.raw('category');
+  if (start === 'blank' && !category) form.fail('category', 'form.required');
+  if (form.ok) {
+    const r = await createProduct(bindings.DB, admin, { name, category, copyFromId, idemKey: form.key() });
+    if (r.ok) return redirectWithFlash(Astro, `/admin/products/${r.value.id}/`, { tone: r.value.duplicate ? 'info' : 'ok', text: S.t(r.value.duplicate ? 'newp.duplicate' : 'newp.made') });
+    if (!form.takeFailure(r, ['name', 'category', 'copy_from'])) return redirectWithFlash(Astro, SELF, failureFlash(r));
+  }
+  errors = form.messages();
+  flash = { tone: 'error', text: S.t('form.fixErrors') };
+  Astro.response.status = 422;
+} else {
+  flash = takeFlash(Astro);
+}
+const [cats, products] = await Promise.all([categoryChoices(bindings.DB), productChoices(bindings.DB)]);
+const copyParam = Astro.url.searchParams.get('copy');
+const start = form ? (form.raw('start') || 'blank') : copyParam ? 'copy' : 'blank';
+const copyFrom = form ? form.raw('copy_from') : copyParam && copyParam !== '1' ? copyParam : '';
+---
+<AdminLayout title={S.t('newp.title')} active="products" flash={flash} back={{ href: '/admin/products/' }}>
+  <form class="card" method="post" style="max-width:640px">
+    <input type="hidden" name="_key" value={form?.key() ?? newFormKey()} />
+    <p class="muted" style="margin-bottom:16px">{S.t('newp.note')}</p>
+    <TextField name="name" label={S.t('newp.name')} hint={S.t('newp.nameHint')} value={form?.raw('name')} max={60} required error={errors.name} />
+    <fieldset class="fieldset">
+      <legend class="field-label">{S.t('newp.start')}</legend>
+      <label class="check-row"><input type="radio" name="start" value="blank" checked={start !== 'copy'} />{S.t('newp.blank')}</label>
+      <p class="field-hint" style="margin:0 0 8px 34px">{S.t('newp.blankHint')}</p>
+      <label class="check-row"><input type="radio" name="start" value="copy" checked={start === 'copy'} />{S.t('newp.copyFrom')}</label>
+      <p class="field-hint" style="margin:0 0 8px 34px">{S.t('newp.copyHint')}</p>
+    </fieldset>
+    <Select name="copy_from" label={S.t('newp.copyFrom')} placeholder={S.t('newp.pickProduct')} value={copyFrom} optional
+      options={products.map((p) => ({ value: p.id, label: `${p.name} (${S.t(`status.product.${p.status}`)})` }))} error={errors.copy_from} />
+    <Select name="category" label={S.t('newp.category')} value={form?.raw('category') ?? ''} placeholder="—"
+      hint={S.t('newp.categoryHint')}
+      options={cats.map((c) => ({ value: c.id, label: c.name }))} error={errors.category} />
+    <div class="form-actions">
+      <button class="btn btn-primary btn-lg" name="_action" value="create"><Icon name="plus" />{S.t('newp.make')}</button>
+    </div>
+  </form>
+</AdminLayout>

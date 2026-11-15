@@ -1,0 +1,54 @@
+---
+// On/off switch (a real checkbox with role="switch"; the whole row is the tap target).
+// A hidden "0" goes first, so the server always gets a value: form.bool(name) is true only when switched on.
+//   <Toggle name="show_prices" label="Show prices on the website" checked={s.showPrices} hint="Turn on after go-live." />
+import Icon from './Icon.astro';
+import { fieldId } from './ids';
+import { t } from '../strings';
+
+interface Props {
+  name: string;
+  label: string;
+  checked?: boolean;
+  id?: string;
+  hint?: string | null;
+  error?: string | null;
+  disabled?: boolean;
+  /** value sent when on (default '1') */
+  value?: string;
+  /** value sent when off (default '0'); null sends nothing when off */
+  offValue?: string | null;
+  /** words shown next to the switch */
+  onText?: string;
+  offText?: string;
+  class?: string;
+}
+const { name, label, checked, hint, error, disabled, value = '1', offValue = '0', onText = t('common.on'), offText = t('common.off'), class: cls } = Astro.props;
+const id = fieldId(name, Astro.props.id);
+const described = [hint ? `${id}-hint` : '', error ? `${id}-err` : ''].filter(Boolean).join(' ') || undefined;
+---
+<div class:list={['field', 'field-toggle', cls, { 'has-error': !!error }]}>
+  {offValue !== null && !disabled && <input type="hidden" name={name} value={offValue} />}
+  <label class="switch" for={id}>
+    <span class="switch-text">
+      <span class="switch-label" id={`${id}-lbl`}>{label}</span>
+      {hint && <span class="field-hint" id={`${id}-hint`}>{hint}</span>}
+    </span>
+    <input
+      class="switch-input"
+      type="checkbox"
+      role="switch"
+      id={id}
+      name={name}
+      value={value}
+      checked={checked}
+      disabled={disabled}
+      aria-labelledby={`${id}-lbl`}
+      aria-invalid={error ? 'true' : undefined}
+      aria-describedby={described}
+    />
+    <span class="switch-state" data-on={onText} data-off={offText} aria-hidden="true"></span>
+    <span class="switch-track" aria-hidden="true"><span class="switch-thumb"><Icon name="check" /></span></span>
+  </label>
+  {error && <p class="field-error" id={`${id}-err`}><Icon name="alert" />{error}</p>}
+</div>

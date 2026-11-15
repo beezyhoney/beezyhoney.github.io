@@ -15,7 +15,7 @@ const total = FINDER_QUESTIONS.length;
   </section>
 
   <section class="wrap" aria-label="Honey Finder quiz">
-    <div class="f-card" data-finder>
+    <div class="f-card" data-finder data-live>
       <div class="f-top">
         <p class="f-count eyebrow" data-count aria-live="polite">Question 1 of {total}</p>
         <div class="f-bar" aria-hidden="true"><i data-bar></i></div>
@@ -100,9 +100,13 @@ const total = FINDER_QUESTIONS.length;
   .f-picks :global(.f-packs) { display: flex; flex-wrap: wrap; gap: 6px; border: 0; padding: 0; margin: 0; }
   .f-picks :global(.f-pack) { position: relative; cursor: pointer; }
   .f-picks :global(.f-pack input) { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .f-picks :global(.f-pack span) { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--choc); background: var(--paper); font-weight: 700; font-size: .88rem; }
+  .f-picks :global(.f-pack > span) { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--choc); background: var(--paper); font-weight: 700; font-size: .88rem; white-space: nowrap; }
   .f-picks :global(.f-pack input:checked + span) { background: var(--choc); color: var(--cream); }
   .f-picks :global(.f-pack input:focus-visible + span) { outline: 2px solid var(--honey-deep); outline-offset: 2px; }
+  .f-picks :global(.f-pack .pk-extra) { font-weight: 600; white-space: pre; font-variant-numeric: tabular-nums; }
+  .f-picks :global(.f-pack input:disabled), .f-picks :global(.f-pack:has(input:disabled)) { cursor: not-allowed; }
+  .f-picks :global(.f-pack input:disabled + span) { border-style: dashed; color: var(--ink-3); background: transparent; }
+  .f-picks :global(.f-buy .btn[disabled]) { opacity: .45; pointer-events: none; }
   .f-picks :global(.f-buy .btn) { min-height: 44px; }
   .f-picks :global(.f-more) { font-weight: 700; color: var(--honey-deep); text-decoration: none; }
   .f-picks :global(.f-more:hover) { text-decoration: underline; }
@@ -129,6 +133,8 @@ const total = FINDER_QUESTIONS.length;
 <script>
   import { cart } from '../scripts/cart';
   import { lenis } from '../scripts/motion';
+  import { onLiveChange, priceOf } from '../scripts/live';
+  import { formatINR } from '../lib/money';
 
   interface P {
     slug: string; name: string; short: string; kind: string; tagline: string; tone: string; href: string; packs: string[];
@@ -192,7 +198,25 @@ const total = FINDER_QUESTIONS.length;
     };
 
     /* ---- rendering ---- */
-    const card = (p: P, why: string[], title: string) => `
+    // Packs with live prices: "250 g · ₹310", sold-out packs disabled. The first available pack is chosen
+    // (250 g when it can be), or the pack the visitor had chosen before a live update.
+    const packChips = (p: P, keep?: string) => {
+      const state = p.packs.map((k) => ({ k, pp: priceOf(p.slug, k) }));
+      const open = state.filter((s) => s.pp?.avail !== 'out');
+      const pick = (keep && open.some((s) => s.k === keep) ? keep : undefined) ?? open.find((s) => s.k === '250 g')?.k ?? open[0]?.k;
+      return state.map(({ k, pp }) => {
+        const out = pp?.avail === 'out';
+        const extra = out ? ' · Sold out' : pp?.price != null ? ` · ${formatINR(pp.price)}` : '';
+        return `<label class="f-pack"><input type="radio" name="pack-${esc(p.slug)}" value="${esc(k)}"${k === pick ? ' checked' : ''}${out ? ' disabled' : ''}><span>${esc(k)}${extra ? `<span class="pk-extra">${esc(extra)}</span>` : ''}</span></label>`;
+      }).join('');
+    };
+    // "Add to order · ₹310": the price of the pack that one tap adds
+    const addLabel = (p: P, pack: string | undefined) => {
+      if (!pack) return 'Sold out';
+      const price = priceOf(p.slug, pack)?.price;
+      return price != null ? `Add to order · ${formatINR(price)}` : 'Add to order';
+    };
+    const card = (p: P, why: string[], title: string, keep?: string) => `
       <article class="f-pick" style="--tone:${esc(p.tone)}">
         <a class="f-pick-photo" href="${esc(p.href)}" tabindex="-1" aria-hidden="true"><img src="${esc(p.thumb)}" alt="" width="520" height="520" loading="lazy"></a>
         <div class="f-pick-body">
@@ -201,15 +225,41 @@ const total = FINDER_QUESTIONS.length;
           <p class="f-taste">${esc(p.taste || p.tagline)}</p>
           ${why.length ? `<ul class="f-why" aria-label="Why it matches">${why.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
           <div class="f-buy">
-            <div class="f-packs" role="radiogroup" aria-label="Pack for ${esc(p.name)}">
-              ${p.packs.map((k, n) => `<label class="f-pack"><input type="radio" name="pack-${esc(p.slug)}" value="${esc(k)}"${(p.packs.includes('250 g') ? k === '250 g' : n === 0) ? ' checked' : ''}><span>${esc(k)}</span></label>`).join('')}
-            </div>
+            <div class="f-packs" role="radiogroup" aria-label="Pack for ${esc(p.name)}">${packChips(p, keep)}</div>
             <button type="button" class="btn btn-honey" data-add="${esc(p.slug)}">Add to order</button>
             <a class="f-more" href="${esc(p.href)}">View details →</a>
           </div>
           <p class="f-added" role="status" aria-live="polite"></p>
         </div>
       </article>`;
+
+    // Each card's button follows its chosen pack
+    const syncAddButtons = () => {
+      picksEl.querySelectorAll<HTMLButtonElement>('[data-add]').forEach((b) => {
+        const p = products.find((x) => x.slug === b.dataset.add);
+        if (!p) return;
+        const pack = b.closest('.f-pick-body')?.querySelector<HTMLInputElement>('input[type="radio"]:checked:not(:disabled)')?.value;
+        const text = addLabel(p, pack);
+        if (b.textContent !== text) b.textContent = text;
+        b.disabled = !pack;
+      });
+    };
+    // Newer prices or stock: redraw the pack chips that changed, keeping each card's chosen pack
+    const drawn = new WeakMap<Element, string>();
+    const refreshPicks = () => {
+      if (results.hidden) return;
+      picksEl.querySelectorAll<HTMLElement>('.f-pick').forEach((el) => {
+        const add = el.querySelector<HTMLButtonElement>('[data-add]');
+        const p = products.find((x) => x.slug === add?.dataset.add);
+        const box = el.querySelector<HTMLElement>('.f-packs');
+        if (!p || !box) return;
+        const html = packChips(p, box.querySelector<HTMLInputElement>('input:checked:not(:disabled)')?.value);
+        if (drawn.get(box) !== html) { box.innerHTML = html; drawn.set(box, html); }
+      });
+      syncAddButtons();
+    };
+    onLiveChange(refreshPicks);
+    root.addEventListener('change', (e) => { if ((e.target as Element).closest('.f-packs')) syncAddButtons(); });
 
     const showResults = () => {
       const ranked = rank(answers);
@@ -224,6 +274,8 @@ const total = FINDER_QUESTIONS.length;
       const shown = new Set(top.map((t) => t.p.slug));
       const also = ranked.filter((r) => !shown.has(r.p.slug)).slice(0, 2);
       picksEl.innerHTML = top.map((t) => card(t.p, t.why, t.title)).join('');
+      picksEl.querySelectorAll('.f-packs').forEach((box, i) => drawn.set(box, packChips(top[i].p)));
+      syncAddButtons();
       alsoEl.innerHTML = also.length ? `You might also like ${also.map((r) => `<a href="${esc(r.p.href)}">${esc(r.p.name)}</a>`).join(' and ')}.` : '';
       const giftPicks = top.filter((t) => t.p.honey).map((t) => t.p.slug);
       giftLink.hidden = answers.use !== 'gift' || giftPicks.length === 0;
@@ -279,7 +331,7 @@ const total = FINDER_QUESTIONS.length;
       if (add) {
         const p = products.find((x) => x.slug === add.dataset.add);
         const body = add.closest('.f-pick-body');
-        const pack = body?.querySelector<HTMLInputElement>('input[type="radio"]:checked')?.value;
+        const pack = body?.querySelector<HTMLInputElement>('input[type="radio"]:checked:not(:disabled)')?.value;
         if (!p || !pack) return;
         const qty = (cart.find(p.slug, pack)?.qty ?? 0) + 1;
         cart.set({ slug: p.slug, name: p.name, pack, qty });

@@ -1,0 +1,322 @@
+---
+// Prices (design §5 screen 7, owner only).
+//   save_all     the grid: price, MRP and "Price on WhatsApp" per pack (only changed rows are saved)
+//   bulk_preview ± % or ± ₹ for all or one product / one pack size, rounded to ₹5: shows the new prices (no save)
+//   bulk_apply   saves the previewed prices
+//   undo         puts one price change back
+// Changes of more than 50 % or prices under ₹10 ask "Please check these prices" first (server side; the page script
+// asks earlier with the dialog). A save is live in about a minute (live_version) and asks for a rebuild (site_version).
+export const prerender = false;
+
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import ConfirmButton from '../../../admin/components/ConfirmButton.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import Select from '../../../admin/components/Select.astro';
+import TextField from '../../../admin/components/TextField.astro';
+import ClientWords from '../../../admin/catalog/ClientWords.astro';
+import '../../../admin/catalog/catalog.css';
+import { failureFlash, redirectWithFlash, takeFlash, type Flash } from '../../../admin/flash';
+import { readForm, type FormReader } from '../../../admin/forms';
+import { dateTimeIST, inr, inrInput } from '../../../admin/format';
+import { canOpen } from '../../../admin/nav';
+import { parsePaiseText } from '../../../admin/parse';
+import { S } from '../../../admin/catalog/strings';
+import { adminOf, bindings, publishAfter } from '../../../admin/catalog/page';
+import { getSetting } from '../../../server/settings';
+import { toId } from '../../../server/db';
+import {
+  bulkPreview, listPriceGrid, priceHistory, riskyChanges, savePrices, undoPriceChange, type BulkMode, type PriceChange,
+} from '../../../server/prices';
+
+const admin = adminOf(Astro);
+const SELF = '/admin/prices/';
+if (!canOpen(admin.role, 'prices')) return redirectWithFlash(Astro, '/admin/', { key: 'flash.forbidden' });
+
+const BULK_HOWS = ['up_pct', 'down_pct', 'up_rs', 'down_rs'] as const;
+type How = (typeof BULK_HOWS)[number];
+let form: FormReader | null = null;
+let which: 'grid' | 'bulk' | null = null;
+let errors: Record<string, string> = {};
+let flash: Flash | null = null;
+let risky: { name: string; old: number | null; new: number | null; why: string }[] = [];
+let preview: ReturnType<typeof bulkPreview> | null = null;
+let rows = await listPriceGrid(bindings.DB);
+
+const savedText = (n: number, live: boolean) => (n === 0 ? S.t('prices.nothing') : !live ? S.t('prices.savedDraft', { n }) : n === 1 ? S.t('prices.savedOne') : S.t('prices.saved', { n }));
+const howWords = (how: How, amount: string) => `${S.t(`prices.bulk.${how}`)} ${amount}`;
+
+function riskList(changes: PriceChange[]) {
+  const byId = new Map(rows.map((r) => [r.variantId, r]));
+  return riskyChanges(changes.map((c) => ({ name: `${byId.get(c.variantId)?.productName} ${byId.get(c.variantId)?.label}`, oldPaise: byId.get(c.variantId)?.pricePaise ?? null, newPaise: c.pricePaise })))
+    .map((c) => ({ name: c.name, old: c.oldPaise, new: c.newPaise, why: S.t(c.risk === 'big' ? 'risk.big' : 'risk.low') }));
+}
+
+if (Astro.request.method === 'POST') {
+  form = await readForm(Astro.request, { maxBytes: 128 * 1024 });
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  const action = form.action(['save_all', 'bulk_preview', 'bulk_apply', 'undo'] as const);
+  if (!action) return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+
+  if (action === 'undo') {
+    const hid = toId(form.raw('history_id'));
+    if (!hid) return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+    const r = await undoPriceChange(bindings.DB, admin, { historyId: hid });
+    if (!r.ok) return redirectWithFlash(Astro, `${SELF}#history`, failureFlash(r));
+    await publishAfter(Astro, r.value.effects, 'Price change undone');
+    return redirectWithFlash(Astro, `${SELF}#history`, { tone: 'ok', text: S.t('prices.undone') });
+  }
+
+  if (action === 'save_all') {
+    which = 'grid';
+    const changes: PriceChange[] = [];
+    for (const r of rows) {
+      if (!form.has(`v_${r.variantId}`)) continue;
+      const version = Number(form.raw(`v_${r.variantId}`));
+      const wa = form.bool(`wa_${r.variantId}`);
+      const priceRaw = form.raw(`price_${r.variantId}`).trim();
+      const mrpRaw = form.raw(`mrp_${r.variantId}`).trim();
+      const price = wa || !priceRaw ? null : parsePaiseText(priceRaw);
+      const mrp = wa || !mrpRaw ? null : parsePaiseText(mrpRaw);
+      if (!wa && priceRaw && price === null) { form.fail(`price_${r.variantId}`, 'form.notMoney'); continue; }
+      if (!wa && mrpRaw && mrp === null) { form.fail(`price_${r.variantId}`, 'form.notMoney'); continue; }
+      if (price === r.pricePaise && (mrp === r.mrpPaise || (mrp !== null && mrp === price && r.mrpPaise === null))) continue;
+      changes.push({ variantId: r.variantId, version, pricePaise: price, mrpPaise: mrp });
+    }
+    if (form.ok) {
+      risky = riskList(changes);
+      if (risky.length && form.raw('confirm_big') !== '1') {
+        flash = { tone: 'warn', text: S.t('risk.text') };
+      } else {
+        risky = [];
+        const r = await savePrices(bindings.DB, admin, { changes });
+        if (r.ok) {
+          await publishAfter(Astro, r.value.effects, 'Prices changed');
+          return redirectWithFlash(Astro, SELF, { tone: r.value.changed.length ? 'ok' : 'info', text: savedText(r.value.changed.length, r.value.effects.live || r.value.effects.publish !== null) });
+        }
+        if (!r.field || !form.takeFailure(r, [r.field])) flash = { tone: r.error === 'conflict' ? 'warn' : 'error', text: r.message };
+      }
+    }
+  }
+
+  if (action === 'bulk_preview' || action === 'bulk_apply') {
+    which = 'bulk';
+    const how = form.choice('how', BULK_HOWS, { required: true });
+    const amountRaw = form.raw('amount').trim().replace(/[₹%\s]/g, '');
+    const amount = Number(amountRaw.replace(/,/g, ''));
+    if (!how) form.fail('how', 'form.notChoice');
+    if (!amountRaw || !Number.isFinite(amount) || amount <= 0 || amount > (how?.endsWith('pct') ? 90 : 100000)) form.failText('amount', S.t('prices.bulkBadAmount'));
+    const productId = toId(form.raw('product'));
+    const size = form.raw('size');
+    if (form.ok && how) {
+      const mode: BulkMode = how.endsWith('pct') ? 'pct' : 'rs';
+      const signed = (how.startsWith('down') ? -1 : 1) * (mode === 'pct' ? amount : Math.round(amount * 100));
+      const scope = rows.filter((r) => (!productId || r.productId === productId) && (!size || r.label === size));
+      preview = bulkPreview(scope, mode, signed);
+      if (action === 'bulk_apply') {
+        // apply exactly what was previewed (hidden fields), version-checked
+        const changes: PriceChange[] = [];
+        for (const pv of preview) {
+          const sent = form.raw(`b_${pv.variantId}`);
+          if (sent === '') continue;
+          changes.push({ variantId: pv.variantId, version: Number(form.raw(`bv_${pv.variantId}`)), pricePaise: pv.pricePaise, mrpPaise: pv.mrpPaise });
+        }
+        risky = riskList(changes);
+        if (risky.length && form.raw('confirm_big') !== '1') {
+          flash = { tone: 'warn', text: S.t('risk.text') };
+        } else {
+          risky = [];
+          const r = await savePrices(bindings.DB, admin, { changes, reason: S.t('prices.bulkReason', { how: howWords(how, amountRaw) }) });
+          if (r.ok) {
+            await publishAfter(Astro, r.value.effects, 'Bulk price change');
+            return redirectWithFlash(Astro, SELF, { tone: 'ok', text: savedText(r.value.changed.length, r.value.effects.live || r.value.effects.publish !== null) });
+          }
+          flash = { tone: r.error === 'conflict' ? 'warn' : 'error', text: r.message };
+        }
+      }
+    }
+  }
+  errors = form.messages();
+  if (preview && !flash && form.ok) {
+    Astro.response.status = 200; // a preview is not an error
+  } else {
+    flash ??= { tone: 'error', text: S.t('form.fixErrors') };
+    Astro.response.status = 422;
+  }
+} else {
+  flash = takeFlash(Astro);
+}
+
+const [history, showPrices] = await Promise.all([priceHistory(bindings.DB, { limit: 30 }), getSetting(bindings.DB, 'show_prices')]);
+const products = [...new Map(rows.map((r) => [r.productId, r.productName])).entries()];
+const sizes = [...new Set(rows.map((r) => r.label))];
+const gridVal = (id: number, field: string, saved: string) => (which === 'grid' && form ? form.raw(`${field}_${id}`) : saved);
+const gridWa = (id: number, saved: boolean) => (which === 'grid' && form ? form.bool(`wa_${id}`) : saved);
+const groups = products.map(([pid, name]) => ({ pid, name, rows: rows.filter((r) => r.productId === pid) }));
+---
+<AdminLayout title={S.t('prices.title')} active="prices" flash={flash} wide>
+  <ClientWords />
+  {!showPrices && <p class="notice notice-info section"><Icon name="info" /><span>{S.t('prices.hiddenNote')}</span></p>}
+
+  <section class="section" aria-labelledby="pr-grid">
+    <div class="section-head"><h2 class="section-title" id="pr-grid">{S.t('prices.grid')}</h2></div>
+    <p class="field-hint" style="margin-bottom:10px">{S.t('prices.hint')}</p>
+    <form method="post" data-draft="prices" data-risk-form novalidate>
+      <input type="hidden" name="confirm_big" value={which === 'grid' && risky.length ? '1' : '0'} />
+      {which === 'grid' && risky.length > 0 && (
+        <div class="notice notice-warn risk-box" role="alert">
+          <Icon name="alert" />
+          <div>
+            <p><strong>{S.t('risk.title')}</strong> {S.t('risk.text')}</p>
+            <ul>{risky.map((r) => <li>{S.t('risk.line', { name: r.name, old: inr(r.old), new: inr(r.new), why: r.why })}</li>)}</ul>
+            <button class="btn btn-honey" name="_action" value="save_all">{S.t('risk.yes')}</button>
+          </div>
+        </div>
+      )}
+      <div class="table-wrap has-cards">
+        <table class="dtable">
+          <caption class="sr-only">{S.t('prices.grid')}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{S.t('prices.pack')}</th>
+              <th scope="col">{S.t('prices.price')}</th>
+              <th scope="col">{S.t('prices.mrp')}</th>
+              <th scope="col" class="end">{S.t('prices.per100')}</th>
+              <th scope="col">{S.t('prices.whatsapp')}</th>
+            </tr>
+          </thead>
+          {groups.map((g) => (
+            <tbody>
+              <tr><th scope="rowgroup" colspan="5" class="is-primary" style="text-align:left;padding-top:14px">
+                <a href={`/admin/products/${g.pid}/#packs`}>{g.name}</a>
+                {g.rows[0].productStatus !== 'live' && <span class="muted"> ({S.t(`status.product.${g.rows[0].productStatus}`)})</span>}
+              </th></tr>
+              {g.rows.map((r) => {
+                const err = errors[`price_${r.variantId}`];
+                const wa = gridWa(r.variantId, r.pricePaise === null);
+                return (
+                  <tr data-pack-row class:list={{ 'tone-row-bad': !!err }}>
+                    <td class="is-primary" data-label={S.t('prices.pack')}>
+                      <input type="hidden" name={`v_${r.variantId}`} value={r.version} />
+                      {r.label}
+                      {err && <p class="field-error"><Icon name="alert" />{err}</p>}
+                    </td>
+                    <td data-label={S.t('prices.price')}>
+                      <input class="input input-sm" name={`price_${r.variantId}`} value={gridVal(r.variantId, 'price', inrInput(r.pricePaise))} inputmode="decimal" maxlength="12"
+                        placeholder={S.t('money.priceOnWhatsApp')} aria-label={S.t('prices.priceFor', { name: r.productName, pack: r.label })}
+                        data-money data-price-input data-old={r.pricePaise ?? ''} data-risk-name={`${r.productName} ${r.label}`} data-wa-target={r.variantId} />
+                    </td>
+                    <td data-label={S.t('prices.mrp')}>
+                      <input class="input input-sm" name={`mrp_${r.variantId}`} value={gridVal(r.variantId, 'mrp', inrInput(r.mrpPaise))} inputmode="decimal" maxlength="12"
+                        aria-label={S.t('prices.mrpFor', { name: r.productName, pack: r.label })} data-money data-wa-target={r.variantId} />
+                    </td>
+                    <td class="end per100" data-label={S.t('prices.per100')} data-per100 data-grams={r.netGrams ?? ''}>{r.per100 === null ? '—' : inr(r.per100)}</td>
+                    <td class="cell-check" data-label={S.t('prices.whatsapp')}>
+                      <input type="hidden" name={`wa_${r.variantId}`} value="0" />
+                      <label class="check-cell"><input type="checkbox" name={`wa_${r.variantId}`} value="1" checked={wa} data-wa={r.variantId} aria-label={S.t('prices.waFor', { name: r.productName, pack: r.label })} /></label>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          ))}
+        </table>
+      </div>
+      <div class="actionbar">
+        <button class="btn btn-primary btn-lg" name="_action" value="save_all"><Icon name="check" />{S.t('prices.save')}</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="section card" aria-labelledby="pr-bulk" id="bulk">
+    <h2 class="section-title" id="pr-bulk" style="margin-bottom:8px">{S.t('prices.bulk')}</h2>
+    <p class="field-hint" style="margin-bottom:12px">{S.t('prices.bulkHint')}</p>
+    <form method="post" data-risk-form novalidate>
+      <input type="hidden" name="confirm_big" value={which === 'bulk' && risky.length ? '1' : '0'} />
+      <div class="grid-3">
+        <Select name="product" label={S.t('prices.bulkWhich')} value={which === 'bulk' ? form?.raw('product') : ''} placeholder={S.t('prices.bulkAll')} options={products.map(([pid, name]) => ({ value: pid, label: name }))} />
+        <Select name="size" label={S.t('prices.bulkSize')} value={which === 'bulk' ? form?.raw('size') : ''} placeholder={S.t('prices.bulkAllSizes')} options={sizes.map((s) => ({ value: s, label: s }))} />
+        <Select name="how" label={S.t('prices.bulkHow')} value={which === 'bulk' ? form?.raw('how') : 'up_pct'} options={BULK_HOWS.map((h) => ({ value: h, label: S.t(`prices.bulk.${h}`) }))} error={errors.how} />
+        <TextField name="amount" label={S.t('prices.bulkAmount')} hint={S.t('prices.bulkAmountHint')} value={which === 'bulk' ? form?.raw('amount') : ''} inputmode="decimal" max={8} error={errors.amount} />
+      </div>
+      <button class="btn" name="_action" value="bulk_preview"><Icon name="search" />{S.t('prices.bulkPreview')}</button>
+
+      {preview && (
+        <div style="margin-top:16px">
+          <h3 class="field-label" style="margin-bottom:8px">{S.t('prices.bulkPreviewTitle')}</h3>
+          {preview.length === 0 ? <p class="muted">{S.t('prices.bulkNone')}</p> : (
+            <>
+              {which === 'bulk' && risky.length > 0 && (
+                <div class="notice notice-warn risk-box" role="alert">
+                  <Icon name="alert" />
+                  <div>
+                    <p><strong>{S.t('risk.title')}</strong> {S.t('risk.text')}</p>
+                    <ul>{risky.map((r) => <li>{S.t('risk.line', { name: r.name, old: inr(r.old), new: inr(r.new), why: r.why })}</li>)}</ul>
+                  </div>
+                </div>
+              )}
+              <div class="table-wrap has-cards">
+                <table class="dtable">
+                  <thead><tr><th scope="col">{S.t('prices.pack')}</th><th scope="col" class="end">{S.t('prices.bulkOld')}</th><th scope="col" class="end">{S.t('prices.bulkNew')}</th><th scope="col" class="end">{S.t('prices.mrp')}</th></tr></thead>
+                  <tbody>
+                    {preview.map((pv) => (
+                      <tr>
+                        <td class="is-primary" data-label={S.t('prices.pack')}>
+                          {pv.row.productName} {pv.row.label}
+                          <input type="hidden" name={`b_${pv.variantId}`} value={pv.pricePaise ?? ''} />
+                          <input type="hidden" name={`bv_${pv.variantId}`} value={pv.version} />
+                        </td>
+                        <td class="end" data-label={S.t('prices.bulkOld')}>{inr(pv.row.pricePaise)}</td>
+                        <td class="end" data-label={S.t('prices.bulkNew')}><strong>{inr(pv.pricePaise)}</strong></td>
+                        <td class="end" data-label={S.t('prices.mrp')}>{pv.mrpPaise === null ? S.t('prices.sameAsPrice') : inr(pv.mrpPaise)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-primary" name="_action" value="bulk_apply"><Icon name="check" />{S.t('prices.bulkApply', { n: preview.length })}</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </form>
+  </section>
+
+  <section class="section" aria-labelledby="pr-history" id="history">
+    <div class="section-head"><h2 class="section-title" id="pr-history">{S.t('prices.history')}</h2></div>
+    {history.length === 0 ? <EmptyState compact icon="prices" title={S.t('prices.historyEmpty')} /> : (
+      <div class="table-wrap has-cards">
+        <table class="dtable">
+          <thead><tr><th scope="col">{S.t('prices.pack')}</th><th scope="col">{S.t('prices.change')}</th><th scope="col">{S.t('prices.when')}</th><th scope="col">{S.t('prices.by')}</th><th scope="col"><span class="sr-only">{S.t('prices.undo')}</span></th></tr></thead>
+          <tbody>
+            {history.map((h) => (
+              <tr>
+                <td class="is-primary" data-label={S.t('prices.pack')}>{h.productName} {h.label}</td>
+                <td data-label={S.t('prices.change')}>
+                  {inr(h.oldPrice, S.t('prices.whatsapp'))} → <strong>{inr(h.newPrice, S.t('prices.whatsapp'))}</strong>
+                  {h.oldMrp !== h.newMrp && <span class="muted"> · {S.t('prices.mrpWord')} {inr(h.oldMrp, S.t('prices.sameAsPrice'))} → {inr(h.newMrp, S.t('prices.sameAsPrice'))}</span>}
+                  {h.reason && <span class="muted"> · {h.reason}</span>}
+                </td>
+                <td data-label={S.t('prices.when')}>{dateTimeIST(h.at)}</td>
+                <td data-label={S.t('prices.by')} style="overflow-wrap:anywhere">{h.by}</td>
+                <td data-label="">
+                  {h.canUndo && (
+                    <form method="post">
+                      <input type="hidden" name="history_id" value={h.id} />
+                      <ConfirmButton value="undo" icon="refresh" message={S.t('prices.undoConfirm', { name: `${h.productName} ${h.label}`, old: inr(h.oldPrice, S.t('prices.whatsapp')) })} confirmLabel={S.t('prices.undo')}>{S.t('prices.undo')}</ConfirmButton>
+                    </form>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </section>
+  <script>
+    import '../../../admin/catalog/prices-page';
+  </script>
+</AdminLayout>

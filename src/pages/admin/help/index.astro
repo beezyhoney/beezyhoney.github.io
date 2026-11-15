@@ -1,0 +1,124 @@
+---
+// Help (design §5 screen 13, amendments A1–A2): how-tos, what each order word means, and the Self-check (database
+// answers, website version in D1 against the deployed /build.json, last automatic job runs, last backup, login
+// settings present, KV storage reachable, login email binding, publishing, stock and payment totals reconcile).
+// Everyone may open it; "Check totals now" only reads.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Badge from '../../../admin/components/Badge.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import { redirectWithFlash, takeFlash } from '../../../admin/flash';
+import { dateIST, dateTimeIST } from '../../../admin/format';
+import { readForm } from '../../../admin/forms';
+import { S } from '../../../admin/ops/strings';
+import { fullSelfCheck } from '../../../admin/ops/system';
+import { runReconcile } from '../../../server/jobs-impl';
+import { getSetting } from '../../../server/settings';
+
+const db = env.DB;
+const SELF = '/admin/help/';
+
+if (Astro.request.method === 'POST') {
+  const form = await readForm(Astro.request);
+  if (!form || form.action(['run_check'] as const) !== 'run_check') return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  const r = await runReconcile(db);
+  return redirectWithFlash(Astro, SELF, r.ok
+    ? { text: S.t('help.checkRan'), tone: 'ok' }
+    : { text: S.t('help.checkRanBad', { pools: r.pools.length, paid: r.paid.length + r.totals.length }), tone: 'warn' });
+}
+
+const flash = takeFlash(Astro);
+const alerts = await getSetting(db, 'alerts');
+const check = await fullSelfCheck(env as unknown as Parameters<typeof fullSelfCheck>[0], undefined, alerts.backupStaleDays);
+type Tone = 'ok' | 'bad' | 'neutral' | 'warn';
+const lastRun = Object.values(check.lastRuns).filter((r): r is { at: string; ok: boolean | null } => !!r).map((r) => r.at).sort().pop() ?? null;
+const rows: { label: string; tone: Tone; text: string }[] = [
+  { label: S.t('help.c.d1'), tone: check.d1 ? 'ok' : 'bad', text: check.d1 ? S.t('help.ok') : S.t('help.problem') },
+  {
+    label: S.t('help.c.versions'),
+    tone: check.versions.built === null ? 'neutral' : check.versions.built >= check.versions.site ? 'ok' : 'warn',
+    text: S.t('help.c.versionsText', { site: check.versions.site, built: check.versions.built ?? S.t('help.c.versionsUnknown') }),
+  },
+  { label: S.t('help.c.cron'), tone: lastRun ? 'ok' : 'neutral', text: lastRun ? S.t('help.c.cronText', { when: dateTimeIST(lastRun) }) : S.t('help.c.cronNever') },
+  {
+    label: S.t('help.c.backup'), tone: check.backupStale ? 'warn' : 'ok',
+    text: check.lastBackup ? S.t('backup.lastWhen', { date: dateIST(check.lastBackup.date), time: dateTimeIST(check.lastBackup.finishedAt) }) : S.t('backup.lastNone'),
+  },
+  {
+    label: S.t('help.c.login'), tone: check.loginConfig.adminEmails && check.loginConfig.loginSecret ? 'ok' : 'bad',
+    text: S.t('help.c.loginText', { emails: S.t(check.loginConfig.adminEmails ? 'help.c.set' : 'help.c.missing'), secret: S.t(check.loginConfig.loginSecret ? 'help.c.set' : 'help.c.missing') }),
+  },
+  {
+    label: S.t('help.c.kv'), tone: check.kv.media === false || check.kv.backups === false ? 'bad' : check.kv.media && check.kv.backups ? 'ok' : 'neutral',
+    text: check.kv.media === false || check.kv.backups === false ? S.t('help.problem') : check.kv.media && check.kv.backups ? S.t('help.ok') : S.t('help.unknown'),
+  },
+  { label: S.t('help.c.mail'), tone: check.mail ? 'ok' : 'bad', text: check.mail ? S.t('help.ok') : S.t('help.problem') },
+  { label: S.t('help.c.publish'), tone: check.publishing === 'on' ? 'ok' : 'neutral', text: S.t(check.publishing === 'on' ? 'help.c.publishOn' : 'help.c.publishOff') },
+  {
+    label: S.t('help.c.reconcile'), tone: !check.reconcile ? 'neutral' : check.reconcile.mismatch ? 'bad' : 'ok',
+    text: !check.reconcile ? S.t('help.c.reconcileNever') : S.t(check.reconcile.mismatch ? 'help.c.reconcileBad' : 'help.c.reconcileOk', { when: dateTimeIST(check.reconcile.at) }),
+  },
+];
+const HOWTO = ['orders', 'paid', 'send', 'phone', 'missing', 'stock', 'website', 'backup'] as const;
+const STATUSES = ['new', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled', 'spam'] as const;
+const WORD: Record<Tone, string> = { ok: S.t('help.ok'), bad: S.t('help.problem'), warn: S.t('flash.tone.warn'), neutral: S.t('help.unknown') };
+---
+<AdminLayout title={S.t('help.title')} active="help" flash={flash}>
+  <section class="section" aria-labelledby="h-check">
+    <div class="section-head"><h2 class="section-title" id="h-check">{S.t('help.check')}</h2></div>
+    <p class="field-hint hint-gap">{S.t('help.checkHint')}</p>
+    <ul class="linklist checks">
+      {rows.map((r) => (
+        <li><span class="linklist-row check-row">
+          <span class="check-text"><strong>{r.label}</strong><span class="muted">{r.text}</span></span>
+          <Badge tone={r.tone} text={WORD[r.tone]} />
+        </span></li>
+      ))}
+    </ul>
+    <form method="post" class="runcheck"><button class="btn" name="_action" value="run_check"><Icon name="refresh" />{S.t('help.runCheck')}</button></form>
+  </section>
+
+  <section class="section" aria-labelledby="h-howto">
+    <div class="section-head"><h2 class="section-title" id="h-howto">{S.t('help.howto')}</h2></div>
+    <div class="stack">
+      {HOWTO.map((k) => (
+        <details class="card howto">
+          <summary>{S.t(`help.h.${k}`)}</summary>
+          <p>{S.t(`help.h.${k}Text`)}</p>
+        </details>
+      ))}
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="h-status">
+    <div class="section-head"><h2 class="section-title" id="h-status">{S.t('help.statuses')}</h2></div>
+    <ul class="linklist">
+      {STATUSES.map((s) => <li><span class="linklist-row status-row"><Badge kind="order" value={s} /><span>{S.t(`help.status.${s}`)}</span></span></li>)}
+    </ul>
+    <p class="field-hint pay-note">{S.t('help.payStatuses')}</p>
+  </section>
+
+  <section class="section" aria-labelledby="h-login">
+    <div class="section-head"><h2 class="section-title" id="h-login">{S.t('help.login')}</h2></div>
+    <ul class="linklist">
+      <li><a href="/admin/login/recovery/">{S.t('help.recoveryLink')}</a></li>
+      <li><a href="/admin/logout/">{S.t('help.logoutAllLink')}</a></li>
+    </ul>
+    <p class="field-hint pay-note">{S.t('help.loginHint')}</p>
+  </section>
+</AdminLayout>
+
+<style>
+  .hint-gap { margin: -6px 0 12px; }
+  .check-row { justify-content: space-between; gap: 12px; }
+  .check-text { display: grid; gap: 2px; min-width: 0; }
+  .runcheck { margin-top: 12px; }
+  .howto { padding-top: 0; padding-bottom: 0; }
+  .howto summary { min-height: 48px; display: flex; align-items: center; font-weight: 700; cursor: pointer; }
+  .howto p { padding-bottom: 16px; }
+  .status-row { gap: 12px; align-items: flex-start; }
+  .status-row :global(.badge) { flex: none; margin-top: 2px; }
+  .pay-note { margin-top: 10px; }
+</style>

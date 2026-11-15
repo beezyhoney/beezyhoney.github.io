@@ -1,9 +1,11 @@
 // Data for the interactive features: Honey Finder quiz, bloom calendar and gift box builder.
-// The batches for "Know your jar" live in batches.ts.
+// Each honey's quiz profile and flowering months come from the catalog (see catalog.ts);
+// the questions, month names and gift box choices stay here. The batches for "Know your jar" are in batches.ts.
+
+export { FINDER_PROFILES, BLOOM, BLOOM_NOTE } from './catalog';
 
 /* ---------- Honey Finder ---------- */
-export type Taste = 'mild' | 'floral' | 'rich' | 'herbal';
-export type Use = 'daily' | 'kids' | 'remedy' | 'gift' | 'onthego';
+export type { Taste, Use } from './catalog.types';
 export type Shade = 'light' | 'amber' | 'dark' | 'any';
 export type Rarity = 'everyday' | 'rare';
 
@@ -45,48 +47,13 @@ export const FINDER_QUESTIONS = [
   },
 ] as const;
 
-/** How each honey answers the quiz: first taste and first use count a little more than the rest.
-    Colour comes from the product's colour grade. */
-export const FINDER_PROFILES: Record<string, { taste: Taste[]; uses: Use[]; rare?: boolean }> = {
-  'murungai-honey': { taste: ['mild', 'herbal'], uses: ['daily', 'remedy'] },
-  'multifloral-honey': { taste: ['floral', 'mild'], uses: ['daily', 'kids'] },
-  'forest-honey': { taste: ['rich'], uses: ['daily', 'remedy'] },
-  'sunflower-honey': { taste: ['mild', 'floral'], uses: ['kids', 'daily'] },
-  'mustard-honey': { taste: ['mild'], uses: ['kids', 'daily'] },
-  'coriander-honey': { taste: ['herbal', 'floral'], uses: ['daily', 'remedy'] },
-  'native-honey': { taste: ['mild'], uses: ['remedy', 'daily'] },
-  'forest-coffee-honey': { taste: ['rich', 'floral'], uses: ['daily', 'kids'] },
-  'karanji-honey': { taste: ['rich', 'herbal'], uses: ['remedy', 'daily'] },
-  'litchi-honey': { taste: ['floral', 'mild'], uses: ['kids', 'daily'] },
-  'tulasi-honey': { taste: ['herbal'], uses: ['remedy', 'daily'] },
-  'dammar-honey': { taste: ['herbal'], uses: ['remedy'], rare: true },
-  'kombu-honey': { taste: ['rich'], uses: ['remedy', 'daily'], rare: true },
-  'neela-kurinji-honey': { taste: ['floral'], uses: ['gift', 'daily'], rare: true },
-};
+/* How each honey answers the quiz (FINDER_PROFILES): first taste and first use count a little more than the rest.
+   Colour comes from the product's colour grade. The profiles are part of each product in the catalog. */
 
 /* ---------- Bloom calendar ----------
-   Months are 1–12. 'all' = flowers through most of the year.
-   These are the usual flowering seasons; change them here if your harvests differ. */
-export const BLOOM: Record<string, number[] | 'all'> = {
-  'murungai-honey': [1, 2, 3, 4],
-  'multifloral-honey': 'all',
-  'forest-honey': [3, 4, 5, 6],
-  'sunflower-honey': [1, 2, 3],
-  'mustard-honey': [12, 1, 2],
-  'coriander-honey': [1, 2, 3],
-  'native-honey': 'all',
-  'forest-coffee-honey': [2, 3, 4],
-  'karanji-honey': [3, 4, 5],
-  'litchi-honey': [2, 3],
-  'tulasi-honey': 'all',
-  'dammar-honey': 'all',
-  'kombu-honey': [2, 3, 4, 5],
-  'neela-kurinji-honey': [8, 9, 10],
-};
-/** Honeys whose bloom is not every year (shown on the calendar, never marked "in bloom now") */
-export const BLOOM_NOTE: Record<string, string> = {
-  'neela-kurinji-honey': 'Blooms together only about once every twelve years',
-};
+   BLOOM: months are 1–12, 'all' = flowers through most of the year.
+   BLOOM_NOTE: honeys whose bloom is not every year (shown on the calendar, never marked "in bloom now").
+   Both are part of each product in the catalog. */
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /** "January – April", "December – February", "All year" */

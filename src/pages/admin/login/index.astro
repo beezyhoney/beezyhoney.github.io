@@ -1,0 +1,117 @@
+---
+// /admin/login/ — the admin login (amendment A1): email → 6-digit email code (or a recovery code) → session.
+// Open path (no session needed). Every rule, limit and message lives in src/server/auth.ts (loginGet / loginPost);
+// this page only shows the step. Plain forms posting to this URL with _action; works without JavaScript.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import TextField from '../../../admin/components/TextField.astro';
+import type { Flash } from '../../../admin/flash';
+import { LIMITS, LOGIN_ERRORS, LOGIN_NOTES, loginGet, loginPost, loginUrl, type LoginView } from '../../../server/auth';
+
+const ctx = (Astro.locals as { cfContext?: ExecutionContext }).cfContext;
+const outcome = Astro.request.method === 'POST'
+  ? await loginPost(env, Astro.request, Astro.url, { waitUntil: ctx ? (p) => ctx.waitUntil(p) : undefined })
+  : await loginGet(env, Astro.request, Astro.url);
+if (outcome.kind === 'redirect') return outcome.response;
+
+const view: LoginView | null = outcome.kind === 'view' ? outcome.view : null;
+if (!view) {
+  Astro.response.status = 503;
+  Astro.response.headers.set('retry-after', '3600');
+} else {
+  Astro.response.status = view.status;
+}
+
+const step = view?.step ?? 'email';
+const next = view?.next ?? '/admin/';
+// a typing mistake in the email box is shown on the field; everything else at the top
+const emailError = view?.error === LOGIN_ERRORS.email ? view.error : null;
+const flash: Flash | null = view?.error && !emailError
+  ? { tone: 'error', text: view.error }
+  : view?.note
+    ? { tone: view.note === 'limit15' || view.note === 'limitday' ? 'warn' : view.note === 'out' || view.note === 'out_all' ? 'ok' : 'info', text: LOGIN_NOTES[view.note] }
+    : null;
+const title = !view ? 'Admin login is not set up yet'
+  : step === 'code' ? 'Type your login code'
+    : step === 'recovery' ? 'Use a recovery code'
+      : 'Log in';
+const stepHref = (s: 'email' | 'code' | 'recovery') => loginUrl(next, s === 'email' ? {} : { step: s });
+---
+<AdminLayout title={title} bare flash={flash}>
+  {!view && (
+    <div class="stack login-body">
+      <p>The admin cannot be opened until its login is set up. The website itself works as usual.</p>
+      <p class="muted">For the helper: add the Worker secrets ADMIN_EMAILS and LOGIN_SECRET (see docs/DEV-NOTES.md).</p>
+    </div>
+  )}
+
+  {view && step === 'email' && (
+    <form method="post" class="stack login-form login-body">
+      <p class="muted login-intro">Type your email. If it may use the admin, we send a 6-digit code to the inbox linked to it.</p>
+      <input type="hidden" name="next" value={next} />
+      <TextField name="email" label="Your email (e.g. name@beezyhoney.in)" type="email" value={view.typedEmail ?? ''} required max={254}
+        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck={false} enterkeyhint="send"
+        error={emailError} noDraft />
+      <button type="submit" class="btn btn-primary btn-lg btn-block" name="_action" value="send">
+        <Icon name="next" />Send me a login code
+      </button>
+      <button type="submit" class="btn btn-quiet btn-block" name="_action" value="use_recovery">I have a recovery code</button>
+      {view.note === 'out_all' && next === '/admin/' && (
+        <a class="btn btn-block" href={loginUrl('/admin/login/recovery/')}><Icon name="refresh" />Log in and replace my recovery codes</a>
+      )}
+    </form>
+  )}
+
+  {view && step === 'code' && (
+    <div class="stack login-body">
+      {view.email && <p class="login-for">Code for <strong>{view.email}</strong></p>}
+      <form method="post" class="stack login-form">
+        <input type="hidden" name="next" value={next} />
+        <TextField name="code" label="6-digit code from the email" required max={9}
+          inputmode="numeric" autocomplete="one-time-code" enterkeyhint="go" spellcheck={false}
+          hint={`It works once, for ${LIMITS.codeMinutes} minutes.`} noDraft />
+        <button type="submit" class="btn btn-primary btn-lg btn-block" name="_action" value="verify">
+          <Icon name="ok" />Log in
+        </button>
+      </form>
+      <form method="post" class="login-more">
+        <input type="hidden" name="next" value={next} />
+        <button type="submit" class="btn btn-block" name="_action" value="resend"><Icon name="refresh" />Send a new code</button>
+      </form>
+      <nav class="login-links" aria-label="Other ways to log in">
+        <a class="btn btn-quiet" href={stepHref('recovery')}>Use a recovery code instead</a>
+        <a class="btn btn-quiet" href={stepHref('email')}>Use another email</a>
+      </nav>
+    </div>
+  )}
+
+  {view && step === 'recovery' && (
+    <div class="stack login-body">
+      {view.email && <p class="login-for">Recovery code for <strong>{view.email}</strong></p>}
+      <form method="post" class="stack login-form">
+        <input type="hidden" name="next" value={next} />
+        <TextField name="recovery" label="Recovery code" required max={20} placeholder="XXXXX-XXXXX"
+          autocomplete="off" autocapitalize="characters" spellcheck={false} enterkeyhint="go"
+          hint="One of the codes you printed or saved at your first login. Each code works once." noDraft />
+        <button type="submit" class="btn btn-primary btn-lg btn-block" name="_action" value="recover">
+          <Icon name="ok" />Log in
+        </button>
+      </form>
+      <nav class="login-links" aria-label="Other ways to log in">
+        <a class="btn btn-quiet" href={stepHref('code')}>Use an email code instead</a>
+        <a class="btn btn-quiet" href={stepHref('email')}>Use another email</a>
+      </nav>
+    </div>
+  )}
+</AdminLayout>
+
+<style>
+  .login-body { margin-top: 12px; }
+  .login-intro, .login-for { margin: 0; text-align: center; overflow-wrap: anywhere; }
+  .login-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; }
+  .login-form :global(input[name='code']) { font-size: 1.5rem; letter-spacing: .3em; text-align: center; }
+  .login-form :global(input[name='recovery']) { font-size: 1.25rem; letter-spacing: .12em; text-align: center; text-transform: uppercase; }
+</style>

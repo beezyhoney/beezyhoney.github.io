@@ -4,10 +4,14 @@ import Icon from './Icon.astro';
 import { PRODUCTS } from '../data/products';
 import { SITE, link } from '../data/site';
 import { img } from '../lib/images';
+import { fromPaise, toJson } from '../lib/clientProducts';
+import { formatINR } from '../lib/money';
 
 const n = PRODUCTS.length;
 const first = PRODUCTS[0];
-const data = PRODUCTS.map((p) => ({ name: p.name, kind: p.kind, href: link(`/shop/${p.slug}/`) }));
+const data = PRODUCTS.map((p) => ({ slug: p.slug, name: p.name, kind: p.kind, href: link(`/shop/${p.slug}/`) }));
+// "from ₹125" after the kind (hidden while prices are off); a live slot that follows the slide
+const firstFrom = fromPaise(first);
 ---
 <section class="carousel" data-carousel aria-roledescription="carousel" aria-label="Beezy Honey products">
   <h1 class="sr-only">Beezy Honey: raw comb honey, wild honey and beeswax from {SITE.farm}, since {SITE.established}</h1>
@@ -36,7 +40,7 @@ const data = PRODUCTS.map((p) => ({ name: p.name, kind: p.kind, href: link(`/sho
     <div class="cap-mask">
       <div class="cap-track" aria-live="polite">
         <div class="cap-item">
-          <p class="cap-kind" data-cap-kind>{first.kind}</p>
+          <p class="cap-kind"><span data-cap-kind>{first.kind}</span><span data-cap-from data-from={first.slug} data-prefix=" · from " hidden={firstFrom === null}>{firstFrom === null ? '' : ` · from ${formatINR(firstFrom)}`}</span></p>
           <h2 class="cap-name"><a data-cap-link href={link(`/shop/${first.slug}/`)}>{first.name}</a></h2>
         </div>
       </div>
@@ -59,7 +63,7 @@ const data = PRODUCTS.map((p) => ({ name: p.name, kind: p.kind, href: link(`/sho
 
   <p class="scroll-hint" aria-hidden="true"><span class="h-mouse">Scroll or use the arrows</span><span class="h-touch">Swipe for more honey</span></p>
 </section>
-<script type="application/json" id="carousel-data" set:html={JSON.stringify(data)} />
+<script type="application/json" id="carousel-data" set:html={toJson(data)} />
 
 <style>
   .carousel { position: relative; isolation: isolate; height: 100svh; min-height: 560px; overflow: hidden; color: var(--choc); touch-action: none; }
@@ -153,10 +157,11 @@ const data = PRODUCTS.map((p) => ({ name: p.name, kind: p.kind, href: link(`/sho
 
 <script>
   import { gsap, onReady, reducedMotion } from '../scripts/motion';
+  import { fillSlot } from '../scripts/live';
 
   const root = document.querySelector<HTMLElement>('[data-carousel]');
   if (root) {
-    const data: { name: string; kind: string; href: string }[] = JSON.parse(document.getElementById('carousel-data')!.textContent!);
+    const data: { slug: string; name: string; kind: string; href: string }[] = JSON.parse(document.getElementById('carousel-data')!.textContent!);
     const slides = [...root.querySelectorAll<HTMLElement>('[data-slide]')];
     const links = slides.map((s) => s.querySelector<HTMLAnchorElement>('a')!);
     const ring = root.querySelector<SVGElement>('.ring')!;
@@ -205,6 +210,8 @@ const data = PRODUCTS.map((p) => ({ name: p.name, kind: p.kind, href: link(`/sho
       const prev = capItem;
       const next = prev.cloneNode(true) as HTMLElement;
       next.querySelector('[data-cap-kind]')!.textContent = d.kind;
+      const from = next.querySelector<HTMLElement>('[data-cap-from]');
+      if (from) { from.dataset.from = d.slug; fillSlot(from); }
       const a = next.querySelector<HTMLAnchorElement>('[data-cap-link]')!;
       a.textContent = d.name;
       a.href = d.href;

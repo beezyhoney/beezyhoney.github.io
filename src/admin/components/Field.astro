@@ -1,0 +1,37 @@
+---
+// Label + hint + control (slot) + error. The control inside must use id={id} and
+// aria-describedby={describedBy(id, hint, error)} (see ids.ts); the ready-made inputs do this for you.
+// Slot "foot" sits under the control on the right (e.g. a character counter).
+import Icon from './Icon.astro';
+import { t } from '../strings';
+
+interface Props {
+  /** id of the control inside */
+  id: string;
+  label: string;
+  hint?: string | null;
+  error?: string | null;
+  /** shows "(optional)" after the label */
+  optional?: boolean;
+  /** keeps the label for screen readers only (compact grids) */
+  labelHidden?: boolean;
+  class?: string;
+}
+const { id, label, hint, error, optional, labelHidden, class: cls } = Astro.props;
+// render the foot slot first: a slot given through a false condition still "exists" but is empty
+const foot = Astro.slots.has('foot') ? (await Astro.slots.render('foot')).trim() : '';
+const hasFoot = !!error || foot !== '';
+---
+<div class:list={['field', cls, { 'has-error': !!error }]}>
+  <label class:list={['field-label', { 'sr-only': labelHidden }]} for={id}>
+    {label}{optional && <span class="field-opt"> ({t('common.optional')})</span>}
+  </label>
+  {hint && <p class="field-hint" id={`${id}-hint`}>{hint}</p>}
+  <slot />
+  {hasFoot && (
+    <div class="field-foot">
+      {error && <p class="field-error" id={`${id}-err`}><Icon name="alert" />{error}</p>}
+      {foot && <Fragment set:html={foot} />}
+    </div>
+  )}
+</div>

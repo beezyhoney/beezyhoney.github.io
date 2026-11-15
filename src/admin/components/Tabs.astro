@@ -1,0 +1,26 @@
+---
+// Filter tabs as links (each is its own URL, so Back works and nothing needs JavaScript).
+//   <Tabs label="Order filters" items={[
+//     { href: '/admin/orders/?f=new', label: 'New', count: 3, current: f === 'new' },
+//     { href: '/admin/orders/?f=all', label: 'All', current: f === 'all' } ]} />
+interface Item {
+  href: string;
+  label: string;
+  count?: number | null;
+  current?: boolean;
+}
+interface Props {
+  items: Item[];
+  label: string;
+  class?: string;
+}
+const { items, label, class: cls } = Astro.props;
+---
+<nav class:list={['tabs', cls]} aria-label={label}>
+  {items.map((i) => (
+    <a href={i.href} aria-current={i.current ? 'page' : undefined}>
+      {i.label}
+      {i.count !== undefined && i.count !== null && <span class="tab-count">{i.count}</span>}
+    </a>
+  ))}
+</nav>

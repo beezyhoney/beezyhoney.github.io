@@ -1,28 +1,76 @@
 ---
-import { Image } from 'astro:assets';
+import { Image, getImage } from 'astro:assets';
 import Base from '../../layouts/Base.astro';
 import Icon from '../../components/Icon.astro';
 import PhotoSlider from '../../components/PhotoSlider.astro';
 import OtherProducts from '../../components/OtherProducts.astro';
-import { PRODUCTS, GRADES, CATEGORIES, productName, type Product } from '../../data/products';
+import { PRODUCT_PAGES, GRADES, CATEGORIES, productName, type Product } from '../../data/products';
+import { SETTINGS } from '../../data/catalog';
 import { SITE, link, waLink } from '../../data/site';
 import { BLOOM, BLOOM_NOTE, bloomText } from '../../data/features';
 import { img } from '../../lib/images';
+import { offersOf } from '../../lib/clientProducts';
+import { formatINR, perHundredGrams } from '../../lib/money';
+import { buildOrderMessage } from '../../lib/orderMessage';
 
+// Live products and paused ones (a paused product keeps its page, shown as not available, so old links work).
 export function getStaticPaths() {
-  return PRODUCTS.map((p) => ({ params: { slug: p.slug }, props: { p } }));
+  return PRODUCT_PAGES.map((p) => ({ params: { slug: p.slug }, props: { p } }));
 }
 interface Props { p: Product }
 const { p } = Astro.props;
 const category = CATEGORIES.find((c) => c.id === p.category)!;
-const defaultPack = p.packs.includes('250 g') ? '250 g' : p.packs[0];
 const fullName = productName(p);
-const directMsg = `Hi Beezy Honey! I'd like to order:\n1. ${fullName} – ${defaultPack} × 1\n\nPlease share the price and delivery details.`;
 const grade = p.colour;
 const bloom = BLOOM[p.slug];
 const bloomMonths = Array.isArray(bloom) && !BLOOM_NOTE[p.slug] ? bloom.join(',') : '';
+
+// Packs with today's prices (null while prices are switched off) and availability.
+// Everything below is also rendered in the browser from live.ts, which writes only what changes.
+const show = SETTINGS.showPrices;
+const paused = p.status === 'paused';
+const offers = offersOf(p);
+const shownAvail = (a: 'in' | 'low' | 'out') => (a === 'low' && SETTINGS.stockDisplay === 'sold_out' ? 'in' : a);
+const available = offers.filter((o) => o.avail !== 'out');
+const allOut = available.length === 0;
+const first = available.find((o) => o.label === '250 g') ?? available[0];
+const defaultPack = first?.label ?? '';
+const grams = Object.fromEntries(p.variants.map((v) => [v.label, v.netGrams]));
+const price = first?.price ?? null;
+const mrp = first?.mrp ?? null;
+const unit = perHundredGrams(price, first ? grams[first.label] : null);
+const askBack = `Hi Beezy Honey! Please let me know when ${fullName} is back in stock.`;
+// The link that works without JavaScript (no order code); the page script replaces it with one that has a code.
+const directMsg = allOut
+  ? askBack
+  : buildOrderMessage({ ref: '', showPrices: show, lines: [{ name: fullName, pack: defaultPack, qty: 1, unitPaise: show ? price : null }] });
+
+// Product structured data with one Offer per priced pack, only while prices are switched on.
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const priced = offers.filter((o) => o.price !== null);
+const productLd = show && !paused && priced.length ? {
+  '@context': 'https://schema.org',
+  '@type': 'Product',
+  name: fullName,
+  description: p.tagline,
+  image: [new URL((await getImage({ src: img(p.photo), width: 1100, format: 'webp' })).src, Astro.site).href],
+  brand: { '@type': 'Brand', name: SITE.name },
+  category: category.name,
+  url: canonical,
+  offers: priced.map((o) => ({
+    '@type': 'Offer',
+    sku: o.code,
+    name: `${fullName}, ${o.label}`,
+    price: ((o.price as number) / 100).toFixed(2),
+    priceCurrency: 'INR',
+    availability: o.avail === 'out' ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
+    itemCondition: 'https://schema.org/NewCondition',
+    url: canonical,
+  })),
+} : null;
 ---
 <Base title={p.name} page="product" description={`${p.tagline} ${p.name} from Beezy Honey: ${p.specs.map((s) => s[1].toLowerCase()).slice(1, 3).join(', ')}. Order on WhatsApp.`}>
+  {productLd && <script slot="head" type="application/ld+json" set:html={JSON.stringify(productLd).replace(/</g, '\\u003c')} />}
   <article style={`--tone:${p.tone}`}>
     <section class="p-hero page-top wrap">
       <h1 class="t-giant p-title" data-split="chars" data-now>{p.name}</h1>
@@ -75,33 +123,64 @@ const bloomMonths = Array.isArray(bloom) && !BLOOM_NOTE[p.slug] ? bloom.join(','
     </section>
 
     <section class="order wrap" id="order" aria-labelledby="order-title">
-      <div class="order-card" data-fade>
-        <div class="order-copy">
-          <h2 id="order-title" class="t-display">Order {p.name}</h2>
-          <p>Choose a pack and add it to your order, or message us straight away. We reply on WhatsApp with the price and delivery details.</p>
-        </div>
-        <form class="order-form" data-order data-slug={p.slug} data-name={fullName}>
-          <fieldset class="packs">
-            <legend class="eyebrow">Pack</legend>
-            {p.packs.map((k) => (
-              <label class="pack-opt"><input type="radio" name="pack" value={k} checked={k === defaultPack} /><span>{k}</span></label>
-            ))}
-          </fieldset>
-          <div class="qty-row">
-            <label class="eyebrow" for={`qty-${p.slug}`}>Quantity</label>
-            <div class="qty">
-              <button type="button" data-step="-1" aria-label="One less">−</button>
-              <input id={`qty-${p.slug}`} name="qty" value="1" inputmode="numeric" pattern="[0-9]*" maxlength="2" />
-              <button type="button" data-step="1" aria-label="One more">+</button>
+      {paused ? (
+        <div class="order-card" data-fade>
+          <div class="order-copy">
+            <h2 id="order-title" class="t-display">Not available right now</h2>
+            <p>{p.name} is taking a break. Have a look at our other products, or ask us on WhatsApp when it will be back.</p>
+          </div>
+          <div class="order-form">
+            <div class="order-actions">
+              <a class="btn btn-honey" href={link('/shop/')}>See all products</a>
+              <a class="btn btn-wa" href={waLink(askBack)} target="_blank" rel="noopener"><Icon name="whatsapp" />Ask on WhatsApp</a>
             </div>
           </div>
-          <div class="order-actions">
-            <button type="submit" class="btn btn-honey"><Icon name="bag" /><span data-label>Add to order</span></button>
-            <a class="btn btn-wa" data-direct href={waLink(directMsg)} target="_blank" rel="noopener"><Icon name="whatsapp" />Order now on WhatsApp</a>
+        </div>
+      ) : (
+        <div class="order-card" data-fade>
+          <div class="order-copy">
+            <h2 id="order-title" class="t-display">Order {p.name}</h2>
+            <p data-hide-prices hidden={show}>Choose a pack and add it to your order, or message us straight away. We reply on WhatsApp with the price and delivery details.</p>
+            <p data-show-prices hidden={!show}>Choose a pack and add it to your order, or message us straight away. Send your order on WhatsApp and we confirm delivery and payment.</p>
           </div>
-          <p class="added" role="status" aria-live="polite"></p>
-        </form>
-      </div>
+          <form class="order-form" data-order data-live data-slug={p.slug} data-name={fullName} data-grams={JSON.stringify(grams)} data-ask={askBack}>
+            <fieldset class="packs">
+              <legend class="eyebrow">Pack</legend>
+              {offers.map((o) => {
+                const out = o.avail === 'out';
+                const extra = out ? ' · Sold out' : o.price !== null ? ` · ${formatINR(o.price)}` : '';
+                return (
+                  <label class="pack-opt"><input type="radio" name="pack" value={o.label} checked={o.label === defaultPack} disabled={out} /><span>{o.label}<span class="pk-extra" data-pk-extra hidden={!extra}>{extra}</span></span></label>
+                );
+              })}
+            </fieldset>
+            <p class="sold-note" data-allout hidden={!allOut}>Sold out right now. Ask us on WhatsApp and we’ll tell you when it’s back.</p>
+            <div class="qty-row" data-qty-row hidden={allOut}>
+              <label class="eyebrow" for={`qty-${p.slug}`}>Quantity</label>
+              <div class="qty">
+                <button type="button" data-step="-1" aria-label="One less">−</button>
+                <input id={`qty-${p.slug}`} name="qty" value="1" inputmode="numeric" pattern="[0-9]*" maxlength="2" />
+                <button type="button" data-step="1" aria-label="One more">+</button>
+              </div>
+            </div>
+            <div class="price" data-price-line hidden={!show || allOut}>
+              <p class="price-main">
+                <b data-pl-price>{price === null ? 'Price on WhatsApp' : formatINR(price)}</b>
+                <span class="price-mrp" data-pl-mrp hidden={mrp === null}>MRP <s data-pl-mrp-amount>{mrp === null ? '' : formatINR(mrp)}</s></span>
+                <span class="price-unit" data-pl-unit hidden={unit === null}>{unit === null ? '' : `· ${formatINR(unit)} per 100 g`}</span>
+              </p>
+              <p class="price-qty" data-pl-qty hidden></p>
+              <p class="price-low" data-pl-low hidden={!first || shownAvail(first.avail) !== 'low'}>Only a few left</p>
+              <p class="price-tax" data-pl-tax hidden={price === null}>MRP incl. of all taxes</p>
+            </div>
+            <div class="order-actions">
+              <button type="submit" class="btn btn-honey" data-add hidden={allOut}><Icon name="bag" /><span data-label>Add to order</span></button>
+              <a class="btn btn-wa" data-direct href={waLink(directMsg)} target="_blank" rel="noopener"><Icon name="whatsapp" /><span data-direct-label>{allOut ? 'Ask on WhatsApp when it’s back' : 'Order now on WhatsApp'}</span></a>
+            </div>
+            <p class="added" role="status" aria-live="polite"></p>
+          </form>
+        </div>
+      )}
     </section>
 
     <PhotoSlider photos={p.gallery} label={`${p.name} photos`} />
@@ -153,11 +232,22 @@ const bloomMonths = Array.isArray(bloom) && !BLOOM_NOTE[p.slug] ? bloom.join(','
   .packs legend { margin-bottom: 10px; padding: 0; }
   .pack-opt { position: relative; cursor: pointer; }
   .pack-opt input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
-  .pack-opt span { display: inline-flex; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--choc); font-weight: 700; background: var(--paper); transition: background-color .25s, color .25s; }
+  .pack-opt > span { display: inline-flex; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--choc); font-weight: 700; background: var(--paper); transition: background-color .25s, color .25s; white-space: nowrap; }
   .pack-opt input:checked + span { background: var(--choc); color: var(--cream); }
   .pack-opt input:focus-visible + span { outline: 2px solid var(--honey-deep); outline-offset: 3px; }
+  .pack-opt input:disabled, .pack-opt:has(input:disabled) { cursor: not-allowed; }
+  .pack-opt input:disabled + span { border-style: dashed; color: var(--ink-3); background: transparent; }
+  .pk-extra { font-weight: 600; font-variant-numeric: tabular-nums; white-space: pre; }
+  .sold-note { font-weight: 700; color: #8A2A12; }
   .qty-row { display: flex; align-items: center; gap: 16px; }
   .qty-row .qty { background: var(--paper); height: 46px; }
+  .price { display: grid; gap: 4px; }
+  .price-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; font-variant-numeric: tabular-nums; }
+  .price-main b { font-family: var(--f-display); font-weight: 500; font-size: clamp(1.9rem, 3.2vw, 2.6rem); line-height: 1.05; color: var(--choc); }
+  .price-mrp, .price-unit { font-weight: 600; color: var(--ink-2); }
+  .price-qty { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .price-low { font-weight: 700; color: var(--honey-deep); }
+  .price-tax { font-size: .78rem; letter-spacing: .04em; color: var(--ink-2); }
   .order-actions { display: flex; flex-wrap: wrap; gap: 10px; }
   .added { min-height: 1.5em; font-weight: 600; color: var(--honey-deep); }
 
@@ -167,43 +257,123 @@ const bloomMonths = Array.isArray(bloom) && !BLOOM_NOTE[p.slug] ? bloom.join(','
     .p-side { grid-row: 2; }
     .p-meta, .order-card { grid-template-columns: 1fr; }
     .order-actions .btn { width: 100%; }
+    .pack-opt > span { padding: 0 16px; }
   }
 </style>
 
 <script>
   import { gsap, onReady, reducedMotion } from '../../scripts/motion';
-  import { cart, orderLink } from '../../scripts/cart';
+  import { cart, loadOrderTools, prepareOrder, sendOrder } from '../../scripts/cart';
+  import { onLiveChange, priceOf, setHidden, setText, showPrices } from '../../scripts/live';
+  import { formatINR, perHundredGrams } from '../../lib/money';
+  import { waLink } from '../../data/site';
 
   const form = document.querySelector<HTMLFormElement>('[data-order]');
   if (form) {
+    const slug = form.dataset.slug!;
+    const name = form.dataset.name!;
+    const grams: Record<string, number | null> = JSON.parse(form.dataset.grams || '{}');
+    const radios = [...form.querySelectorAll<HTMLInputElement>('input[name="pack"]')];
     const qty = form.querySelector<HTMLInputElement>('input[name="qty"]')!;
     const direct = form.querySelector<HTMLAnchorElement>('[data-direct]')!;
+    const directLabel = form.querySelector<HTMLElement>('[data-direct-label]')!;
+    const addBtn = form.querySelector<HTMLButtonElement>('[data-add]')!;
     const label = form.querySelector<HTMLElement>('[data-label]')!;
     const status = form.querySelector<HTMLElement>('.added')!;
+    const qtyRow = form.querySelector<HTMLElement>('[data-qty-row]')!;
+    const allOutNote = form.querySelector<HTMLElement>('[data-allout]')!;
+    const q = <T extends HTMLElement = HTMLElement>(s: string) => form.querySelector<T>(s)!;
+    const pl = {
+      line: q('[data-price-line]'), price: q('[data-pl-price]'), mrp: q('[data-pl-mrp]'), mrpAmount: q('[data-pl-mrp-amount]'),
+      unit: q('[data-pl-unit]'), qty: q('[data-pl-qty]'), low: q('[data-pl-low]'), tax: q('[data-pl-tax]'),
+    };
+
     const read = () => ({
-      slug: form.dataset.slug!,
-      name: form.dataset.name!,
-      pack: (form.querySelector<HTMLInputElement>('input[name="pack"]:checked')?.value) ?? '',
+      slug,
+      name,
+      pack: radios.find((r) => r.checked && !r.disabled)?.value ?? '',
       qty: Math.max(1, Math.min(99, parseInt(qty.value, 10) || 1)),
     });
-    const sync = () => { direct.href = orderLink([read()]); };
+
+    // Pack chips follow the live data: "250 g · ₹310", or "250 g · Sold out" (disabled). If the chosen pack sells
+    // out, the first available one is chosen instead (250 g when it can be). Returns whether any pack is available.
+    const syncPacks = () => {
+      let anyIn = false;
+      for (const r of radios) {
+        const pp = priceOf(slug, r.value);
+        const out = !pp || pp.avail === 'out';
+        if (r.disabled !== out) r.disabled = out;
+        if (!out) anyIn = true;
+        const extra = r.parentElement!.querySelector<HTMLElement>('[data-pk-extra]');
+        const text = out ? ' · Sold out' : pp!.price !== null ? ` · ${formatINR(pp!.price)}` : '';
+        if (extra) { if (text) setText(extra, text); setHidden(extra, !text); }
+      }
+      const checked = radios.find((r) => r.checked);
+      if (!checked || checked.disabled) {
+        const next = radios.find((r) => !r.disabled && r.value === '250 g') ?? radios.find((r) => !r.disabled);
+        if (checked && next) checked.checked = false;
+        if (next) next.checked = true;
+      }
+      return anyIn;
+    };
+
+    // "₹310 · ₹124 per 100 g", MRP struck through only when higher, and "2 × ₹310 = ₹620"
+    const renderPrice = (anyIn: boolean) => {
+      const { pack, qty: n } = read();
+      const pp = pack ? priceOf(slug, pack) : null;
+      setHidden(pl.line, !showPrices() || !anyIn || !pp);
+      if (!showPrices() || !pp) return;
+      const price = pp.price;
+      setText(pl.price, price === null ? 'Price on WhatsApp' : formatINR(price));
+      const mrp = price !== null ? pp.mrp : null;
+      if (mrp !== null) setText(pl.mrpAmount, formatINR(mrp));
+      setHidden(pl.mrp, mrp === null);
+      const unit = perHundredGrams(price, grams[pack]);
+      if (unit !== null) setText(pl.unit, `· ${formatINR(unit)} per 100 g`);
+      setHidden(pl.unit, unit === null);
+      const many = price !== null && n > 1;
+      if (many) setText(pl.qty, `${n} × ${formatINR(price)} = ${formatINR(price * n)}`);
+      setHidden(pl.qty, !many);
+      setHidden(pl.low, pp.avail !== 'low');
+      setHidden(pl.tax, price === null);
+    };
+
+    // The direct order has its own code (made in the browser) and is recorded on the tap, like the cart.
+    const askHref = waLink(form.dataset.ask!);
+    let anyAvailable = true;
+    const syncDirect = () => {
+      if (!anyAvailable || !read().pack) {
+        if (direct.getAttribute('href') !== askHref) direct.href = askHref;
+        setText(directLabel, 'Ask on WhatsApp when it’s back');
+        return;
+      }
+      const order = prepareOrder('product', [read()]);
+      if (direct.getAttribute('href') !== order.href) direct.href = order.href;
+      setText(directLabel, 'Order now on WhatsApp');
+    };
+    const sync = () => { renderPrice(anyAvailable); syncDirect(); };
+
     // The quantity box shows what is already in the order for the chosen pack,
     // and the button then updates that quantity instead of adding on top of it.
     const fromCart = (resetQty: boolean) => {
-      const { slug, pack } = read();
-      const inOrder = cart.find(slug, pack);
+      anyAvailable = syncPacks();
+      setHidden(addBtn, !anyAvailable);
+      setHidden(qtyRow, !anyAvailable);
+      setHidden(allOutNote, anyAvailable);
+      const { pack } = read();
+      const inOrder = pack ? cart.find(slug, pack) : undefined;
       if (inOrder) {
         qty.value = String(inOrder.qty);
-        label.textContent = 'Update order';
-        status.textContent = `In your order: ${pack} × ${inOrder.qty}`;
+        setText(label, 'Update order');
+        setText(status, `In your order: ${pack} × ${inOrder.qty}`);
       } else {
         if (resetQty) qty.value = '1';
-        label.textContent = 'Add to order';
-        status.textContent = '';
+        setText(label, 'Add to order');
+        setText(status, '');
       }
       sync();
     };
-    form.querySelectorAll<HTMLInputElement>('input[name="pack"]').forEach((r) => r.addEventListener('change', () => fromCart(true)));
+    radios.forEach((r) => r.addEventListener('change', () => fromCart(true)));
     qty.addEventListener('input', sync);
     qty.addEventListener('blur', () => { qty.value = String(read().qty); sync(); });
     form.querySelectorAll<HTMLButtonElement>('[data-step]').forEach((b) => b.addEventListener('click', () => {
@@ -213,12 +383,22 @@ const bloomMonths = Array.isArray(bloom) && !BLOOM_NOTE[p.slug] ? bloom.join(','
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       const item = read();
+      if (!item.pack) return;
       cart.set(item);
       status.textContent = `Your order now has ${item.pack} × ${item.qty}`;
       window.dispatchEvent(new CustomEvent('cart:open'));
     });
+    direct.addEventListener('click', () => {
+      if (!anyAvailable || !read().pack) return;
+      const order = prepareOrder('product', [read()]);
+      if (direct.getAttribute('href') !== order.href) direct.href = order.href;
+      sendOrder(order);
+    });
     window.addEventListener('cart:change', () => fromCart(false));
+    onLiveChange(() => fromCart(false));
     fromCart(true);
+    // the direct order gets its code and record once the order tools are loaded (until then: the plain message)
+    void loadOrderTools().then((ok) => { if (ok) sync(); });
   }
 
   onReady(() => {

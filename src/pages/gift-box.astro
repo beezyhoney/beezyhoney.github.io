@@ -3,17 +3,30 @@ import Base from '../layouts/Base.astro';
 import Icon from '../components/Icon.astro';
 import { GIFT_SIZES, GIFT_JARS, GIFT_OCCASIONS, GIFT_EXTRAS } from '../data/features';
 import { clientProducts, toJson } from '../lib/clientProducts';
+import { SETTINGS } from '../data/catalog';
+import { formatINR } from '../lib/money';
 
-const honeys = (await clientProducts()).filter((p) => p.honey).map(({ slug, name, short, kind, thumb, tone }) => ({ slug, name, short, kind, thumb, tone }));
+// Each honey with the jar sizes it may go in a gift box at (giftOk). Prices and stock come from the live
+// price table in the browser (src/scripts/live.ts); the price shown here is the baked one for the default jar.
+const honeys = (await clientProducts()).filter((p) => p.honey).map(({ slug, name, short, kind, thumb, tone, offers }) => ({
+  slug, name, short, kind, thumb, tone,
+  giftOk: Object.fromEntries(GIFT_JARS.map((j) => [j, offers.some((o) => o.label === j && o.giftOk)])),
+  price: offers.find((o) => o.label === GIFT_JARS[0])?.price ?? null,
+  out: offers.find((o) => o.label === GIFT_JARS[0])?.avail === 'out',
+}));
 const defaults = { size: 3, jar: GIFT_JARS[0] };
+const show = SETTINGS.showPrices;
+// box fee, gift extras → pack codes (null = price on WhatsApp) and the bulk threshold, from the website settings
+const giftSettings = SETTINGS.gift;
+const tileNote = (h: (typeof honeys)[number]) => (!h.giftOk[defaults.jar] ? `Not in ${defaults.jar}` : h.out ? 'Sold out' : '');
 ---
 <Base title="Gift Box" page="gift" description="Build a Beezy Honey gift box: pick two to four honeys, add a beeswax candle or honey sticks, and send your gift order on WhatsApp.">
   <section class="page-top wrap g-head">
     <h1 class="t-giant page-title" data-split="chars" data-now>Gift Box</h1>
-    <p class="t-lead" data-fade>Build a box of honeys for weddings, festivals or your team. Pick the honeys, tell us how many boxes, and we’ll reply with the price.</p>
+    <p class="t-lead" data-fade>Build a box of honeys for weddings, festivals or your team. Pick the honeys, tell us how many boxes, <span data-hide-prices hidden={show}>and we’ll reply with the price.</span><span data-show-prices hidden={!show}>see the estimate here and we confirm on WhatsApp.</span></p>
   </section>
 
-  <section class="wrap g-wrap" data-gift aria-label="Gift box builder">
+  <section class="wrap g-wrap" data-gift data-live aria-label="Gift box builder">
     <div class="g-builder">
       <fieldset class="g-step">
         <legend class="g-h"><span>1</span>Box size</legend>
@@ -34,9 +47,11 @@ const defaults = { size: 3, jar: GIFT_JARS[0] };
         <ul class="g-grid">
           {honeys.map((h) => (
             <li>
-              <button type="button" class="g-honey" data-slug={h.slug} aria-pressed="false" style={`--tone:${h.tone}`}>
+              <button type="button" class="g-honey" data-slug={h.slug} aria-pressed="false" aria-disabled={tileNote(h) ? 'true' : undefined} style={`--tone:${h.tone}`}>
                 <img src={h.thumb} alt="" width="520" height="520" loading="lazy" />
                 <b>{h.short}</b><span>{h.kind}</span>
+                <span class="g-price" data-g-price hidden={!show || h.price === null || Boolean(tileNote(h))}>{h.price === null ? '' : formatINR(h.price)}</span>
+                <span class="g-na" data-g-na hidden={!tileNote(h)}>{tileNote(h)}</span>
                 <i class="g-tick" aria-hidden="true">✓</i>
               </button>
             </li>
@@ -89,14 +104,14 @@ const defaults = { size: 3, jar: GIFT_JARS[0] };
         <ul class="g-lines" data-lines></ul>
         <p class="g-warn" data-warn role="status" aria-live="polite"></p>
         <a class="btn btn-wa" data-send href="#" target="_blank" rel="noopener" aria-disabled="true"><Icon name="whatsapp" />Send gift order on WhatsApp</a>
-        <p class="g-note">WhatsApp opens with your gift order typed out. We reply with the price and delivery details.</p>
+        <p class="g-note"><span data-hide-prices hidden={show}>WhatsApp opens with your gift order typed out. We reply with the price and delivery details.</span><span data-show-prices hidden={!show}>WhatsApp opens with your gift order and the estimate typed out. We confirm the price, delivery and payment on WhatsApp.</span></p>
         <button type="button" class="g-reset" data-reset>Start over</button>
       </div>
     </aside>
     <noscript><p class="g-note">The gift box builder needs JavaScript. You can plan gifts with us on WhatsApp instead.</p></noscript>
   </section>
 
-  <script type="application/json" id="gift-data" set:html={toJson({ honeys, sizes: GIFT_SIZES, jars: GIFT_JARS, defaults })} />
+  <script type="application/json" id="gift-data" set:html={toJson({ honeys: honeys.map(({ price, out, ...h }) => h), sizes: GIFT_SIZES, jars: GIFT_JARS, defaults, gift: giftSettings })} />
 </Base>
 
 <style>
@@ -126,6 +141,11 @@ const defaults = { size: 3, jar: GIFT_JARS[0] };
   .g-honey span { font-size: .8rem; color: var(--ink-2); }
   .g-honey:hover { transform: translateY(-2px); }
   .g-honey[aria-pressed="true"] { border-color: var(--choc); }
+  .g-honey .g-price { margin-top: 2px; font-size: .9rem; font-weight: 700; color: var(--choc); font-variant-numeric: tabular-nums; }
+  .g-honey .g-na { margin-top: 2px; font-size: .78rem; font-weight: 700; color: #8A2A12; }
+  .g-honey[aria-disabled="true"] { cursor: not-allowed; }
+  .g-honey[aria-disabled="true"] img, .g-honey[aria-disabled="true"] b { opacity: .45; filter: grayscale(.6); }
+  .g-honey[aria-disabled="true"]:hover { transform: none; }
   .g-tick { position: absolute; top: 16px; right: 16px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--choc); color: var(--amber); font-style: normal; font-weight: 700; opacity: 0; transform: scale(.4); transition: .3s var(--ease); }
   .g-honey[aria-pressed="true"] .g-tick { opacity: 1; transform: none; }
   .g-full { min-height: 1.4em; font-weight: 600; color: var(--honey-deep); }
@@ -156,6 +176,9 @@ const defaults = { size: 3, jar: GIFT_JARS[0] };
   .g-lines :global(li) { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--rule); padding-bottom: 6px; }
   .g-lines :global(li span:first-child) { color: var(--ink-3); }
   .g-lines :global(li span:last-child) { font-weight: 600; text-align: right; }
+  .g-lines :global(li.g-total) { border-bottom: 0; padding-top: 4px; font-size: 1.05rem; }
+  .g-lines :global(li.g-total span:first-child) { color: var(--choc); font-weight: 700; }
+  .g-lines :global(li.g-total span:last-child) { font-weight: 700; font-variant-numeric: tabular-nums; }
   .g-warn { min-height: 1.4em; font-weight: 700; color: var(--honey-deep); }
   .g-sum-card .btn { width: 100%; }
   .g-note { font-size: .86rem; color: var(--ink-2); line-height: 1.45; }
@@ -172,15 +195,86 @@ const defaults = { size: 3, jar: GIFT_JARS[0] };
 </style>
 
 <script>
+  import { currentRef, hashOf, loadOrderTools, orderTools, productRef, sendGift, type OrderPayload } from '../scripts/cart';
+  import { findCode, liveVersion, onLiveChange, priceOf, setHidden, setText, showPrices } from '../scripts/live';
+  import { formatINR } from '../lib/money';
   import { waLink } from '../data/site';
 
-  interface H { slug: string; name: string; short: string; kind: string; thumb: string; tone: string }
+  interface H { slug: string; name: string; short: string; kind: string; thumb: string; tone: string; giftOk: Record<string, boolean> }
+  interface GiftSettings { feePaise: number; extras: Record<string, string | null>; bulkFrom: number }
   interface State { size: number; jar: string; picks: string[]; extras: string[]; boxes: number; occasion: string; date: string; message: string }
+  interface GiftOrderInput {
+    size: number; jar: string; picks: string[]; extras: string[]; boxes: number; occasion: string;
+    /** 'YYYY-MM-DD' or '' */
+    date: string;
+    /** date as shown, e.g. '20 Dec 2026' */
+    dateLabel: string;
+    message: string;
+    /** settings.gift: fee per box, extra name → variant code (null = price on WhatsApp), bulk threshold */
+    settings: GiftSettings;
+  }
+  interface PreparedGift {
+    ref: string; href: string; payload: OrderPayload;
+    /** every honey and extra has a price */
+    complete: boolean;
+    /** price of one box from the priced parts, or null (also null while prices are hidden) */
+    perBoxPaise: number | null;
+    /** estimated total (null for bulk orders or without prices) */
+    estimatePaise: number | null;
+    bulk: boolean;
+    /** extra name → price for one box (null = price on WhatsApp) */
+    extraPrices: Record<string, number | null>;
+  }
+
+  /**
+   * The gift box as an order: each honey at the jar size and each mapped extra, × the number of boxes; the WhatsApp
+   * text with the order code (and the estimate when prices are on) and the order record (source 'gift' + gift object).
+   * null until the order tools are loaded (asked for when the page starts; the page renders again then).
+   */
+  function prepareGift(g: GiftOrderInput): PreparedGift | null {
+    const tools = orderTools();
+    if (!tools) return null;
+    const show = showPrices();
+    const qty = Math.max(1, Math.min(99, g.boxes)); // the record allows 1–99 per line; the real box count is in gift.boxes
+    const items: OrderPayload['items'] = [];
+    const picks = g.picks.map((slug) => {
+      const pp = priceOf(slug, g.jar);
+      if (pp) items.push({ c: pp.code, s: slug, p: g.jar, q: qty });
+      return { name: productRef(slug)?.name ?? slug, unitPaise: show ? pp?.price ?? null : null };
+    });
+    const extraPrices: Record<string, number | null> = {};
+    const extras = g.extras.map((name) => {
+      const code = g.settings.extras[name] ?? null;
+      const at = code ? findCode(code) : null;
+      const pp = at ? priceOf(at.slug, at.label) : null;
+      if (at && pp) items.push({ c: pp.code, s: at.slug, p: at.label, q: qty });
+      const unitPaise = show && pp ? pp.price : null;
+      extraPrices[name] = unitPaise;
+      return { name, unitPaise };
+    });
+    const bulk = g.boxes >= g.settings.bulkFrom;
+    const feePaise = show ? g.settings.feePaise : 0;
+    const est = tools.giftEstimate({ picks, extras, feePaise, boxes: g.boxes, bulk });
+    const gift = { size: g.size, jar: g.jar, picks: [...g.picks], extras: [...g.extras], boxes: g.boxes, occasion: g.occasion, neededBy: g.date, card: g.message.trim() };
+    const { ref, key } = currentRef('gift', hashOf(JSON.stringify(['gift', items.map((i) => [i.c, i.q]), gift])));
+    const text = tools.buildGiftMessage({
+      ref, showPrices: show, size: g.size, jar: g.jar, picks, extras, feePaise, boxes: g.boxes, bulk,
+      occasion: g.occasion, neededBy: g.dateLabel, card: g.message,
+    });
+    // The record's `shown` is what the server can check against its own prices: the honeys and extras (not the box fee).
+    const priced = [...picks, ...extras].filter((x) => x.unitPaise !== null);
+    const shown = show && !bulk && priced.length ? priced.reduce((s, x) => s + (x.unitPaise as number) * qty, 0) : null;
+    return {
+      ref, href: waLink(text), complete: est.complete, bulk, extraPrices,
+      perBoxPaise: show ? est.perBoxPaise : null, estimatePaise: show ? est.totalPaise : null,
+      payload: { v: 1, ref, key, src: 'gift', items, shown, lv: liveVersion(), gift },
+    };
+  }
 
   const root = document.querySelector<HTMLElement>('[data-gift]');
   const dataEl = document.getElementById('gift-data');
   if (root && dataEl) {
-    const { honeys, sizes, jars, defaults } = JSON.parse(dataEl.textContent!) as { honeys: H[]; sizes: number[]; jars: string[]; defaults: { size: number; jar: string } };
+    const { honeys, sizes, jars, defaults, gift } = JSON.parse(dataEl.textContent!) as { honeys: H[]; sizes: number[]; jars: string[]; defaults: { size: number; jar: string }; gift: GiftSettings };
     const KEY = 'beezy-giftbox-v1';
     const bySlug = new Map(honeys.map((h) => [h.slug, h]));
     const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -201,13 +295,22 @@ const defaults = { size: 3, jar: GIFT_JARS[0] };
     const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
     dateIn.min = today();
     const clampBoxes = (v: unknown) => Math.max(1, Math.min(999, Math.round(Number(v)) || 1));
+    // A honey can go in the box at this jar size when that pack may be a gift and is not sold out
+    const tile = (slug: string, jar: string) => {
+      const h = bySlug.get(slug);
+      const pp = priceOf(slug, jar);
+      if (!h || !h.giftOk[jar] || !pp) return { ok: false, note: `Not in ${jar}`, price: null };
+      if (pp.avail === 'out') return { ok: false, note: 'Sold out', price: null };
+      return { ok: true, note: '', price: pp.price };
+    };
+    const usable = (picks: string[], jar: string) => picks.filter((s) => tile(s, jar).ok);
 
     const fresh = (): State => ({ size: defaults.size, jar: defaults.jar, picks: [], extras: [], boxes: 1, occasion: '', date: '', message: '' });
     const clean = (s: Partial<State>): State => {
       const st = { ...fresh(), ...s };
       st.size = sizes.includes(Number(st.size)) ? Number(st.size) : defaults.size;
       st.jar = jars.includes(st.jar) ? st.jar : defaults.jar;
-      st.picks = [...new Set((Array.isArray(st.picks) ? st.picks : []).filter((x) => bySlug.has(x)))].slice(0, st.size);
+      st.picks = usable([...new Set((Array.isArray(st.picks) ? st.picks : []).filter((x) => bySlug.has(x)))], st.jar).slice(0, st.size);
       st.extras = (Array.isArray(st.extras) ? st.extras : []).filter((x) => typeof x === 'string');
       st.boxes = clampBoxes(st.boxes);
       st.occasion = typeof st.occasion === 'string' ? st.occasion : '';
@@ -229,16 +332,19 @@ const defaults = { size: 3, jar: GIFT_JARS[0] };
 
     const fmtDate = (iso: string) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); };
 
-    const message = () => {
-      const lines = [`Hi Beezy Honey! I'd like to order gift boxes.`, '', `Each box: ${state.size} honeys, ${state.jar} each`];
-      state.picks.forEach((s, i) => lines.push(`${i + 1}. ${bySlug.get(s)!.name}`));
-      if (state.extras.length) lines.push(`Extras in each box: ${state.extras.join(', ')}`);
-      lines.push(`Number of boxes: ${state.boxes}`);
-      if (state.occasion) lines.push(`Occasion: ${state.occasion}`);
-      if (state.date) lines.push(`Needed by: ${fmtDate(state.date)}`);
-      if (state.message.trim()) lines.push(`Message on the card: "${state.message.trim()}"`);
-      lines.push('', 'Please share the price and delivery details.');
-      return lines.join('\n');
+    // The order: WhatsApp text with the order code (and the estimate when prices are on) plus the order record.
+    // null for the moment until the order tools have loaded (they are asked for when the page starts).
+    const prepare = (): PreparedGift | null => prepareGift({
+      size: state.size, jar: state.jar, picks: state.picks, extras: state.extras, boxes: state.boxes,
+      occasion: state.occasion, date: state.date, dateLabel: state.date ? fmtDate(state.date) : '', message: state.message,
+      settings: gift,
+    });
+    // Picks that cannot go in the box any more (jar size changed, or sold out meanwhile) are taken out, with a note
+    const dropUnusable = () => {
+      const gone = state.picks.filter((s) => !tile(s, state.jar).ok);
+      if (!gone.length) return;
+      state.picks = state.picks.filter((s) => !gone.includes(s));
+      fullEl.textContent = `Removed ${gone.map((s) => bySlug.get(s)!.short).join(', ')}: not available in ${state.jar} right now.`;
     };
 
     const render = () => {
@@ -251,7 +357,17 @@ const defaults = { size: 3, jar: GIFT_JARS[0] };
       dateIn.value = state.date;
       if (msgIn.value !== state.message) msgIn.value = state.message;
       msgCount.textContent = `${state.message.length} / 140`;
-      root.querySelectorAll<HTMLButtonElement>('.g-honey').forEach((b) => b.setAttribute('aria-pressed', String(state.picks.includes(b.dataset.slug!))));
+      const show = showPrices();
+      root.querySelectorAll<HTMLButtonElement>('.g-honey').forEach((b) => {
+        const slug = b.dataset.slug!;
+        b.setAttribute('aria-pressed', String(state.picks.includes(slug)));
+        const t = tile(slug, state.jar);
+        if (t.ok) { if (b.hasAttribute('aria-disabled')) b.removeAttribute('aria-disabled'); } else if (b.getAttribute('aria-disabled') !== 'true') b.setAttribute('aria-disabled', 'true');
+        const priceEl = b.querySelector<HTMLElement>('[data-g-price]');
+        const naEl = b.querySelector<HTMLElement>('[data-g-na]');
+        if (priceEl) { if (t.price !== null) setText(priceEl, formatINR(t.price)); setHidden(priceEl, !show || !t.ok || t.price === null); }
+        if (naEl) { if (t.note) setText(naEl, t.note); setHidden(naEl, t.ok); }
+      });
 
       const left = state.size - state.picks.length;
       countEl.textContent = `${state.picks.length} of ${state.size} picked`;
@@ -262,20 +378,30 @@ const defaults = { size: 3, jar: GIFT_JARS[0] };
           ? `<button type="button" class="filled" data-remove="${esc(h.slug)}" aria-label="Remove ${esc(h.name)}" title="Remove ${esc(h.short)}"><img src="${esc(h.thumb)}" alt=""><span class="x" aria-hidden="true">×</span></button>`
           : `<button type="button" tabindex="-1" aria-hidden="true"><span class="plus">+</span></button>`;
       }).join('');
-      const row = (k: string, v: string) => `<li><span>${esc(k)}</span><span>${esc(v)}</span></li>`;
+      const order = prepare();
+      // prices in the summary: only when prices are on (and the estimate once the order tools are there)
+      const est = show ? order : null;
+      const row = (k: string, v: string, cls = '') => `<li${cls ? ` class="${cls}"` : ''}><span>${esc(k)}</span><span>${esc(v)}</span></li>`;
+      const amount = (p: number | null) => (p === null ? 'price on WhatsApp' : formatINR(p));
+      const soFar = est && !est.complete ? ' so far' : '';
       linesEl.innerHTML = [
         row('Box', `${state.size} honeys × ${state.jar}`),
-        ...state.picks.map((s, i) => row(`Honey ${i + 1}`, bySlug.get(s)!.name)),
-        state.extras.length ? row('Extras', state.extras.join(', ')) : '',
+        ...state.picks.map((s, i) => row(`Honey ${i + 1}`, show ? `${bySlug.get(s)!.name} · ${amount(tile(s, state.jar).price)}` : bySlug.get(s)!.name)),
+        state.extras.length ? row('Extras', est ? state.extras.map((x) => `${x} · ${amount(est.extraPrices[x] ?? null)}`).join(', ') : state.extras.join(', ')) : '',
+        show && gift.feePaise > 0 ? row('Box fee', formatINR(gift.feePaise)) : '',
+        est && est.perBoxPaise !== null ? row('Per box', formatINR(est.perBoxPaise) + soFar) : '',
         row('Boxes', String(state.boxes)),
         state.occasion ? row('Occasion', state.occasion) : '',
         state.date ? row('Needed by', fmtDate(state.date)) : '',
+        est && est.bulk ? row('Estimated total', 'Bulk price confirmed on WhatsApp', 'g-total') : '',
+        est && !est.bulk && est.estimatePaise !== null ? row('Estimated total', formatINR(est.estimatePaise) + soFar, 'g-total') : '',
       ].join('');
       const ready = left === 0;
+      const canSend = ready && order !== null;
       warnEl.textContent = ready ? 'Your box is ready to send.' : `Pick ${left} more ${left === 1 ? 'honey' : 'honeys'} to fill your box.`;
-      send.setAttribute('aria-disabled', String(!ready));
-      send.tabIndex = ready ? 0 : -1;
-      send.href = ready ? waLink(message()) : '#';
+      send.setAttribute('aria-disabled', String(!canSend));
+      send.tabIndex = canSend ? 0 : -1;
+      send.href = canSend && order ? order.href : '#';
       save();
     };
 
@@ -289,7 +415,7 @@ const defaults = { size: 3, jar: GIFT_JARS[0] };
           fullEl.textContent = `Removed ${dropped.join(', ')} to fit a box of ${state.size}.`;
         } else fullEl.textContent = '';
       }
-      if (t.name === 'jar') state.jar = t.value;
+      if (t.name === 'jar') { state.jar = t.value; fullEl.textContent = ''; dropUnusable(); }
       if (t.name === 'extras') state.extras = [...root.querySelectorAll<HTMLInputElement>('input[name="extras"]:checked')].map((c) => c.value);
       if (t.name === 'occasion') state.occasion = (t as unknown as HTMLSelectElement).value;
       if (t.name === 'date') state.date = t.value && t.value >= today() ? t.value : '';
@@ -305,7 +431,9 @@ const defaults = { size: 3, jar: GIFT_JARS[0] };
       const honey = t.closest<HTMLButtonElement>('.g-honey');
       if (honey) {
         const slug = honey.dataset.slug!;
+        const t = tile(slug, state.jar);
         if (state.picks.includes(slug)) { state.picks = state.picks.filter((s) => s !== slug); fullEl.textContent = ''; }
+        else if (!t.ok) fullEl.textContent = `${bySlug.get(slug)!.short}: ${t.note === 'Sold out' ? `sold out in ${state.jar} right now` : `not available in ${state.jar} gift boxes`}.`;
         else if (state.picks.length < state.size) { state.picks.push(slug); fullEl.textContent = ''; }
         else fullEl.textContent = `Your box holds ${state.size} honeys. Tap a honey in your box to swap it.`;
         render();
@@ -316,8 +444,18 @@ const defaults = { size: 3, jar: GIFT_JARS[0] };
       const step = t.closest<HTMLButtonElement>('[data-boxes-step]');
       if (step) { state.boxes = clampBoxes(state.boxes + Number(step.dataset.boxesStep)); render(); return; }
       if (t.closest('[data-send]') && send.getAttribute('aria-disabled') === 'true') { e.preventDefault(); warnEl.focus?.(); return; }
+      if (t.closest('[data-send]')) {
+        // WhatsApp opens from the link as it is; the order record goes out at the same time
+        const order = prepare();
+        if (!order) { e.preventDefault(); return; }
+        if (send.getAttribute('href') !== order.href) send.href = order.href;
+        sendGift(order);
+        return;
+      }
       if (t.closest('[data-reset]')) { state = fresh(); fullEl.textContent = ''; render(); }
     });
+    onLiveChange(() => { dropUnusable(); render(); });
     render();
+    void loadOrderTools().then((ok) => { if (ok) render(); });
   }
 </script>

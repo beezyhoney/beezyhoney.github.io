@@ -1,0 +1,141 @@
+---
+// /admin/login/recovery/ — one-time recovery codes (amendment A1). Needs a session (not an open path).
+// - First login (no codes yet): the login sends people here with ?first=1; one tap shows 8 new codes.
+// - Later: how many are left, and "Make new codes" (the old ones stop working). Help / Backup can link here.
+// - Making codes needs a session made in the last 10 minutes, or else a fresh email code (security review 16 Nov
+//   2026): "Email me a code" sends one, then the code goes with "Make new codes". Every time codes are made, a notice
+//   is emailed to the admin (makeRecoveryCodes in src/server/auth.ts).
+// The codes appear only in the answer to the POST that made them (never stored in clear, never in a redirect).
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../../admin/AdminLayout.astro';
+import ConfirmButton from '../../../../admin/components/ConfirmButton.astro';
+import Icon from '../../../../admin/components/Icon.astro';
+import TextField from '../../../../admin/components/TextField.astro';
+import type { Flash } from '../../../../admin/flash';
+import { dateIST } from '../../../../admin/format';
+import {
+  authConfig, clientIp, isFreshSession, LIMITS, LOGIN_ERRORS, makeRecoveryCodes, readCookie, recoveryStatus, requestLoginCode,
+  safeNext, SESSION_COOKIE,
+} from '../../../../server/auth';
+
+const admin = Astro.locals.admin!;
+const cfg = authConfig(env);
+const ctx = (Astro.locals as { cfContext?: ExecutionContext }).cfContext;
+const waitUntil = ctx ? (p: Promise<unknown>) => ctx.waitUntil(p) : undefined;
+const next = safeNext(Astro.url.searchParams.get('next'));
+const first = Astro.url.searchParams.get('first') === '1';
+const token = readCookie(Astro.request, SESSION_COOKIE);
+let codes: string[] | null = null;
+let flash: Flash | null = null;
+/** an email code was asked for: show the code box */
+let codeAsked = false;
+let codeError: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  let action = '';
+  let typed = '';
+  try {
+    const form = await Astro.request.formData();
+    action = String(form.get('_action') ?? '');
+    typed = String(form.get('code') ?? '').slice(0, 20);
+  } catch {
+    // unreadable form: show the page again
+  }
+  if (!cfg) {
+    flash = { tone: 'error', text: 'The login is not set up on this computer, so recovery codes cannot be made.' };
+    Astro.response.status = 503;
+  } else if (action === 'send_code') {
+    const r = await requestLoginCode(env, cfg, { email: admin.email, ip: clientIp(Astro.request), purpose: 'recovery', waitUntil });
+    codeAsked = true;
+    flash = r.ok ? { tone: 'info', text: `A 6-digit code is on its way to your email. It works for ${LIMITS.codeMinutes} minutes.` }
+      : r.reason === 'ip_limit' ? { tone: 'error', text: LOGIN_ERRORS.ipLimit }
+        : { tone: 'warn', text: r.reason === 'day_limit' ? 'Too many codes were asked for today. Try again tomorrow.' : 'Too many codes were asked for. Use the newest code you got, or wait 15 minutes.' };
+  } else if (action === 'make') {
+    const r = await makeRecoveryCodes(env, cfg, admin, { token, code: typed, ip: clientIp(Astro.request), waitUntil });
+    if (r.ok) codes = r.codes;
+    else if (r.reason === 'needs_code') flash = { tone: 'warn', text: 'For your safety, ask for an email code first, then type it here.' };
+    else if (r.reason === 'ip_limit') flash = { tone: 'error', text: LOGIN_ERRORS.ipLimit };
+    else { codeAsked = true; codeError = 'That code is not right or has expired. Check the newest email from Beezy, or ask for a new code.'; Astro.response.status = 422; }
+  }
+}
+
+const status = codes ? null : await recoveryStatus(env.DB, admin.email);
+const fresh = cfg ? await isFreshSession(env.DB, cfg, token) : false;
+const title = codes ? 'Your recovery codes' : first && status?.total === 0 ? 'Save your recovery codes' : 'Recovery codes';
+const self = `/admin/login/recovery/${Astro.url.search}`;
+---
+<AdminLayout title={title} active="help" flash={flash}>
+  {codes && (
+    <div class="stack">
+      <p class="notice notice-warn"><Icon name="alert" /><span>These codes are shown only now. Print this page or take a screenshot, and keep it somewhere safe (not only on this phone).</span></p>
+      <ol class="rc-list card" aria-label="Recovery codes">
+        {codes.map((c) => <li><code>{c}</code></li>)}
+      </ol>
+      <p class="muted">If the login email ever does not arrive, choose “I have a recovery code” on the login page and type one of these instead of the email code. Each code works once. We also emailed you a note that new codes were made.</p>
+      <div class="form-actions rc-actions">
+        <button type="button" class="btn" data-print><Icon name="print" />Print</button>
+        <a class="btn btn-primary" href={next}><Icon name="ok" />I have saved them</a>
+      </div>
+    </div>
+  )}
+
+  {!codes && status && (
+    <div class="stack">
+      {status.total === 0
+        ? <>
+            <p>If the login email ever does not arrive, a recovery code lets you in instead. You get {LIMITS.recoveryCodes} codes; each one works once.</p>
+            <p class="muted">Make them now, then print them or take a screenshot and keep it safe.</p>
+          </>
+        : <>
+            <p>You have <strong>{status.unused} of {status.total}</strong> recovery codes left{status.createdAt ? ` (made on ${dateIST(status.createdAt)})` : ''}.</p>
+            {status.unused <= 2 && <p class="notice notice-warn"><Icon name="alert" /><span>Few codes left. Make new ones and keep them safe.</span></p>}
+            <p class="muted">Lost them, used most of them, or someone else may have them? Make new codes. The old ones stop working at once.</p>
+          </>}
+
+      {fresh ? (
+        <form method="post" action={self} class="stack">
+          {status.total === 0
+            ? <button type="submit" class="btn btn-primary btn-lg btn-block" name="_action" value="make"><Icon name="ok" />Show my recovery codes</button>
+            : <ConfirmButton value="make" icon="refresh" message="Make new recovery codes? The old ones stop working at once." confirmLabel="Make new codes">Make new codes</ConfirmButton>}
+        </form>
+      ) : (
+        <div class="stack" data-rc-stepup>
+          <p class="notice notice-info"><Icon name="info" /><span>For your safety, making recovery codes needs a code from your email (you logged in more than {LIMITS.freshSessionMinutes} minutes ago).</span></p>
+          {!codeAsked && (
+            <form method="post" action={self}>
+              <button type="submit" class="btn btn-primary btn-block" name="_action" value="send_code"><Icon name="next" />Email me a code</button>
+            </form>
+          )}
+          {codeAsked && (
+            <>
+              <form method="post" action={self} class="stack">
+                <TextField name="code" label="6-digit code from the email" required max={9} inputmode="numeric" autocomplete="one-time-code"
+                  spellcheck={false} hint={`It works once, for ${LIMITS.codeMinutes} minutes.`} error={codeError} noDraft />
+                <button type="submit" class="btn btn-primary btn-block" name="_action" value="make"><Icon name="ok" />{status.total === 0 ? 'Show my recovery codes' : 'Make new codes'}</button>
+              </form>
+              <form method="post" action={self}>
+                <button type="submit" class="btn btn-quiet btn-block" name="_action" value="send_code"><Icon name="refresh" />Send a new code</button>
+              </form>
+            </>
+          )}
+        </div>
+      )}
+      {first && <a class="btn btn-quiet btn-block" href={next}>{status.total === 0 ? 'Later' : 'Continue'}</a>}
+    </div>
+  )}
+</AdminLayout>
+
+<script is:inline>
+  document.querySelector('[data-print]')?.addEventListener('click', function () { window.print(); });
+</script>
+
+<style>
+  .rc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px 24px; margin: 0; padding: 20px 20px 20px 48px; }
+  .rc-list li { font-size: 1.25rem; }
+  .rc-list code { font-family: ui-monospace, monospace; font-weight: 700; letter-spacing: .08em; }
+  @media print {
+    .rc-actions { display: none; }
+  }
+</style>

@@ -1,0 +1,20 @@
+---
+// The notice at the top of a page after a save (AdminLayout renders it from the `flash` prop or ?flash=).
+// Errors are announced at once (role="alert"); other tones politely (role="status").
+import Icon from './Icon.astro';
+import type { Flash } from '../flash';
+import { t } from '../strings';
+
+interface Props {
+  flash: Flash;
+  /** AdminLayout gives the page's own flash id="page-flash" (drafts look for it) */
+  id?: string;
+}
+const { flash, id } = Astro.props;
+const ICON = { ok: 'ok', info: 'info', warn: 'alert', error: 'error' } as const;
+---
+<div class:list={['flash', `flash-${flash.tone}`]} id={id} role={flash.tone === 'error' ? 'alert' : 'status'} data-flash={flash.tone}>
+  <Icon name={ICON[flash.tone]} />
+  <p class="flash-text"><strong class="sr-only">{t(`flash.tone.${flash.tone}`)}:</strong>{flash.text}</p>
+  <button type="button" class="flash-close" data-flash-close aria-label={t('common.dismiss')}><Icon name="close" /></button>
+</div>

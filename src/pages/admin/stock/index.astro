@@ -1,0 +1,96 @@
+---
+// Stock (design §5 screen 8, amendment A3; owner and helper): every stock pool (honey in kg with one decimal, candles
+// and sticks in pieces), red when below zero, rough jar equivalents, tracking, low level, the website override and
+// what each pack shows; the low-stock list sorted by days of cover. Tap a pool to count, adjust or see its history.
+export const prerender = false;
+
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Badge from '../../../admin/components/Badge.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import '../../../admin/catalog/catalog.css';
+import { takeFlash } from '../../../admin/flash';
+import { dateIST } from '../../../admin/format';
+import { S } from '../../../admin/catalog/strings';
+import { adminOf, bindings } from '../../../admin/catalog/page';
+import { formatPoolAmount } from '../../../lib/availability';
+import { stockOverview, type StockRow } from '../../../server/products-admin';
+
+adminOf(Astro);
+const flash = takeFlash(Astro);
+const showAll = Astro.url.searchParams.get('all') === '1';
+const { pools, low } = await stockOverview(bindings.DB, { includeDrafts: showAll, includeRetired: showAll });
+const levelBadge = (r: StockRow) => (r.level === 'untracked' ? 'untracked' : r.level === 'negative' ? 'negative' : r.level === 'empty' ? 'out' : r.level === 'low' ? 'low' : 'in');
+const coverText = (r: StockRow) => (r.daysOfCover === null ? S.t('stock.coverUnknown') : r.daysOfCover === 0 ? S.t('stock.coverZero') : S.t('stock.cover', { n: r.daysOfCover }));
+---
+<AdminLayout title={S.t('stock.title')} active="stock" flash={flash} subtitle={S.t('stock.sub')}>
+  <Fragment slot="actions">
+    <a class="btn btn-primary" href="/admin/stock/count/"><Icon name="scale" />{S.t('stock.countAll')}</a>
+    <a class="btn" href="/admin/harvests/new/"><Icon name="harvests" />{S.t('stock.addHarvest')}</a>
+  </Fragment>
+
+  <section class="section" aria-labelledby="st-low">
+    <div class="section-head"><h2 class="section-title" id="st-low">{S.t('stock.low')}</h2></div>
+    {low.length === 0 ? <EmptyState compact icon="ok" title={S.t('stock.lowNone')} /> : (
+      <>
+        <p class="field-hint" style="margin-bottom:8px">{S.t('stock.lowHint')}</p>
+        <ul class="linklist">
+          {low.map((r) => (
+            <li><a href={`/admin/stock/${r.id}/`}>
+              <span style="flex:1 1 auto"><strong>{r.name}</strong><br /><span class="muted">{coverText(r)} · {S.t('stock.used30', { amount: formatPoolAmount(r.used30, r.unit) })}</span></span>
+              <span class:list={['num', { neg: r.onHand < 0 }]}>{r.amountText}</span>
+              <Badge kind="stock" value={levelBadge(r)} />
+            </a></li>
+          ))}
+        </ul>
+      </>
+    )}
+  </section>
+
+  <section class="section" aria-labelledby="st-all">
+    <div class="section-head">
+      <h2 class="section-title" id="st-all">{S.t('stock.all')}</h2>
+      <a class="section-link" href={showAll ? '/admin/stock/' : '/admin/stock/?all=1'}>{showAll ? S.t('stock.all') : S.t('stock.showAll')}</a>
+    </div>
+    {pools.length === 0 ? <EmptyState compact title={S.t('stock.empty')} /> : (
+      <div class="table-wrap has-cards">
+        <table class="dtable">
+          <caption class="sr-only">{S.t('stock.all')}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{S.t('nav.stock')}</th>
+              <th scope="col" class="end">{S.t('stock.onHand')}</th>
+              <th scope="col">{S.t('stock.jars')}</th>
+              <th scope="col">{S.t('stock.tracking')}</th>
+              <th scope="col">{S.t('stock.lowAt')}</th>
+              <th scope="col">{S.t('stock.website')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pools.map((r) => (
+              <tr class:list={{ 'tone-row-bad': r.level === 'negative', 'tone-row-muted': r.productStatus === 'retired' || r.productStatus === 'draft' }}>
+                <td class="is-primary" data-label={S.t('nav.stock')}>
+                  <a class="row-link" href={`/admin/stock/${r.id}/`} aria-label={S.t('stock.open', { name: r.name })}>{r.name}</a>
+                  {r.productStatus !== 'live' && <> <Badge kind="product" value={r.productStatus} /></>}
+                </td>
+                <td class:list={['end', 'num', { neg: r.onHand < 0 }]} data-label={S.t('stock.onHand')}><span class="stock-amount">{r.amountText}</span></td>
+                <td data-label={S.t('stock.jars')}>{r.equivalents || '—'}</td>
+                <td data-label={S.t('stock.tracking')}>
+                  <Badge kind="stock" value={levelBadge(r)} />
+                  {r.trackStock && r.trackingSince && <><br /><span class="muted">{S.t('stock.trackedSince', { date: dateIST(r.trackingSince) })}</span></>}
+                </td>
+                <td data-label={S.t('stock.lowAt')}>{r.lowAt === null ? S.t('stock.noLow') : formatPoolAmount(r.lowAt, r.unit)}</td>
+                <td data-label={S.t('stock.website')}>
+                  {r.availability !== 'auto' && <><Badge kind="avail" value={r.availability} /><br /></>}
+                  <span class="pack-chips">
+                    {r.packs.filter((x) => x.active).map((x) => <Badge kind="stock" value={x.avail} text={`${x.label}: ${S.t(`status.stock.${x.avail}`)}`} />)}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </section>
+</AdminLayout>

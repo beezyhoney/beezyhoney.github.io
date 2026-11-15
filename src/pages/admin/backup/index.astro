@@ -1,0 +1,238 @@
+---
+// Backup (design §5 screen 12, §7, amendments A2 and A4), owner only: the last automatic backup (warning when it is
+// older than the alert setting), saved backups with Download, "Back up now", "Download everything now" (built in
+// the browser from /admin/api/dump.json pages, in the daily backup format, so it restores the same way), CSV
+// downloads with an opt-in for customer details, test orders with "Clear test data" (only before go-live), the
+// one-time "Set go-live", and uploaded photos nothing uses.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Badge from '../../../admin/components/Badge.astro';
+import ConfirmButton from '../../../admin/components/ConfirmButton.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import { failureFlash, redirectWithFlash, takeFlash } from '../../../admin/flash';
+import { dateIST, dateTimeIST, int, timeIST } from '../../../admin/format';
+import { readForm } from '../../../admin/forms';
+import { canOpen } from '../../../admin/nav';
+import { testOrderCount } from '../../../admin/ops/data';
+import { S } from '../../../admin/ops/strings';
+import { backupTick, lastBackup, listBackups, type BackupManifest } from '../../../server/backup';
+import { orphanUploads } from '../../../server/media';
+import { clearTestData } from '../../../server/orders';
+import { handleEffects } from '../../../server/publish';
+import { EXPORTS } from '../../../server/sales';
+import { getSettings, updateSettings } from '../../../server/settings';
+import { addTime, nowIso } from '../../../server/time';
+import { toJson } from '../../../lib/json';
+
+const db = env.DB;
+const admin = Astro.locals.admin!;
+const SELF = '/admin/backup/';
+if (!canOpen(admin.role, 'backup')) return redirectWithFlash(Astro, '/admin/', { key: 'flash.forbidden' });
+const backups = (env as unknown as { BACKUPS?: KVNamespace }).BACKUPS;
+
+if (Astro.request.method === 'POST') {
+  const form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  const action = form.action(['backup_now', 'clear_test', 'set_go_live'] as const);
+  if (action === 'backup_now') {
+    if (!backups) return redirectWithFlash(Astro, SELF, { key: 'flash.error' });
+    // a few steps in this request; whatever is left finishes on the next automatic run
+    let state = 'not_due';
+    for (let i = 0; i < 4; i++) {
+      const r = await backupTick({ DB: db, BACKUPS: backups }, nowIso(), { force: true });
+      state = r.state;
+      if (r.state !== 'progress') break;
+    }
+    const key = state === 'finished' ? 'backup.nowDone' : state === 'done_today' ? 'backup.nowAlready' : 'backup.nowProgress';
+    return redirectWithFlash(Astro, SELF, { text: S.t(key), tone: state === 'progress' ? 'info' : 'ok' });
+  }
+  if (action === 'clear_test') {
+    const r = await clearTestData(db, admin);
+    if (!r.ok) return redirectWithFlash(Astro, SELF, failureFlash(r));
+    const ctx = (Astro.locals as { cfContext?: ExecutionContext }).cfContext;
+    if (ctx) await handleEffects(env, ctx, admin, r.value.effects, 'Test data cleared');
+    return redirectWithFlash(Astro, SELF, { text: S.t('backup.testCleared', { count: r.value.orders }), tone: 'ok' });
+  }
+  if (action === 'set_go_live') {
+    const { versions } = await getSettings(db);
+    const r = await updateSettings(db, admin, { values: { go_live_at: nowIso() }, versions: { go_live_at: form.int('v_go_live_at', { min: 1 }) ?? versions.go_live_at } });
+    if (!r.ok) return redirectWithFlash(Astro, SELF, failureFlash(r));
+    return redirectWithFlash(Astro, SELF, { text: S.t('backup.goLiveDone'), tone: 'ok' });
+  }
+  return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+}
+
+const flash = takeFlash(Astro);
+const at = nowIso();
+const [{ values: s, versions: v }, last, tests, orphans] = await Promise.all([getSettings(db), lastBackup(db), testOrderCount(db), orphanUploads(db)]);
+let saved: BackupManifest[] = [];
+let listError = false;
+if (backups) {
+  try { saved = await listBackups({ DB: db, BACKUPS: backups }); } catch { listError = true; }
+}
+const stale = !last || last.finishedAt < addTime(at, { days: -s.alerts.backupStaleDays });
+const rowsOf = (m: BackupManifest) => Object.values(m.tables).reduce((a, b) => a + b, 0);
+const scriptWords = toJson({
+  working: S.t('backup.working'), ready: S.t('backup.ready'), failed: S.t('backup.failed'),
+});
+---
+<AdminLayout title={S.t('backup.title')} active="backup" flash={flash}>
+  <section class="section" aria-labelledby="b-last">
+    <div class="section-head"><h2 class="section-title" id="b-last">{S.t('backup.last')}</h2>{last && <Badge tone={stale ? 'warn' : 'ok'} text={dateIST(last.date)} />}</div>
+    <div class="card stack">
+      {last ? <p>{S.t('backup.lastWhen', { date: dateIST(last.date), time: timeIST(last.finishedAt) })}</p> : <p>{S.t('backup.lastNone')}</p>}
+      {last && stale && <p class="notice notice-warn"><Icon name="alert" /><span>{S.t('backup.stale', { days: s.alerts.backupStaleDays })}</span></p>}
+      <form method="post"><button class="btn" name="_action" value="backup_now"><Icon name="backup" />{S.t('backup.now')}</button></form>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="b-all">
+    <div class="section-head"><h2 class="section-title" id="b-all">{S.t('backup.everything')}</h2></div>
+    <div class="card stack" data-dump-box>
+      <p>{S.t('backup.everythingHint')}</p>
+      <button type="button" class="btn btn-primary btn-lg js-only" data-dump><Icon name="backup" />{S.t('backup.everything')}</button>
+      <p class="field-hint" role="status" aria-live="polite" data-dump-status></p>
+      <noscript><p class="notice notice-info"><span>{S.t('backup.everythingNoJs')}</span></p></noscript>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="b-list">
+    <div class="section-head"><h2 class="section-title" id="b-list">{S.t('backup.list')}</h2></div>
+    <p class="field-hint hint-gap">{S.t('backup.listHint')}</p>
+    {saved.length === 0 ? <EmptyState compact icon="backup" title={listError ? S.t('flash.error') : S.t('backup.listEmpty')} /> : (
+      <ul class="linklist">
+        {saved.map((m) => (
+          <li><a href={`/admin/api/backups/${m.date}.json`} download><span class="bk"><strong>{dateIST(m.date)}</strong><span class="muted">{dateTimeIST(m.finishedAt)} · {S.t('backup.rows', { rows: int(rowsOf(m)) })}</span></span><span class="bk-dl"><Icon name="backup" />{S.t('backup.download')}</span></a></li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <section class="section" aria-labelledby="b-csv">
+    <div class="section-head"><h2 class="section-title" id="b-csv">{S.t('backup.csv')}</h2></div>
+    <form method="get" class="card stack" action="/admin/api/export/orders.csv" data-no-once>
+      <p class="field-hint">{S.t('backup.csvHint')}</p>
+      <label class="check"><input type="checkbox" name="personal" value="1" />{S.t('sales.personal')}</label>
+      <p class="field-hint">{S.t('sales.personalHint')}</p>
+      <div class="row">
+        {EXPORTS.map((name) => <button class="btn" type="submit" formaction={`/admin/api/export/${name}.csv`}><Icon name="backup" />{S.t(`sales.export.${name}`)}</button>)}
+      </div>
+    </form>
+  </section>
+
+  <section class="section" aria-labelledby="b-test">
+    <div class="section-head"><h2 class="section-title" id="b-test">{S.t('backup.test')}</h2></div>
+    <div class="card stack">
+      <p>{tests ? S.t('backup.testCount', { count: tests }) : S.t('backup.testNone')}</p>
+      {s.go_live_at === null && tests > 0 && (
+        <form method="post">
+          <ConfirmButton value="clear_test" tone="danger" icon="close" message={S.t('backup.testClearQ', { count: tests })} confirmLabel={S.t('backup.testClear')}>{S.t('backup.testClear')}</ConfirmButton>
+        </form>
+      )}
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="b-golive">
+    <div class="section-head"><h2 class="section-title" id="b-golive">{S.t('backup.goLive')}</h2>{s.go_live_at && <Badge tone="ok" text={dateIST(s.go_live_at)} />}</div>
+    <div class="card stack">
+      {s.go_live_at ? <p>{S.t('backup.goLiveSet', { date: dateTimeIST(s.go_live_at) })}</p> : (
+        <form method="post" class="stack">
+          <input type="hidden" name="v_go_live_at" value={v.go_live_at} />
+          <p class="field-hint">{S.t('backup.goLiveHint')}</p>
+          <ConfirmButton value="set_go_live" icon="calendar" message={S.t('backup.goLiveQ')} confirmLabel={S.t('backup.goLiveBtn')}>{S.t('backup.goLiveBtn')}</ConfirmButton>
+        </form>
+      )}
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="b-photos">
+    <div class="section-head"><h2 class="section-title" id="b-photos">{S.t('backup.photos')}</h2></div>
+    <p class="field-hint hint-gap">{S.t('backup.photosHint')}</p>
+    {orphans.length === 0 ? <p class="muted">{S.t('backup.photosNone')}</p> : (
+      <ul class="linklist">{orphans.map((o) => <li><span class="linklist-row"><code>{o.path}</code><span class="muted">{dateIST(o.createdAt)}</span></span></li>)}</ul>
+    )}
+  </section>
+
+  <section class="section" aria-labelledby="b-login">
+    <div class="section-head"><h2 class="section-title" id="b-login">{S.t('help.login')}</h2></div>
+    <ul class="linklist">
+      <li><a href="/admin/login/recovery/">{S.t('help.recoveryLink')}</a></li>
+      <li><a href="/admin/logout/">{S.t('help.logoutAllLink')}</a></li>
+    </ul>
+  </section>
+
+  <script type="application/json" id="dump-words" set:html={scriptWords}></script>
+</AdminLayout>
+
+<style>
+  .hint-gap { margin: -6px 0 12px; }
+  .bk { display: grid; gap: 2px; flex: 1 1 auto; }
+  .bk-dl { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+  .check { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
+  .check input { width: 22px; height: 22px; accent-color: var(--choc); }
+  :global(html.no-js) .js-only { display: none !important; }
+</style>
+
+<script>
+  // "Download everything now": reads every backed-up table page by page from /admin/api/dump.json and saves ONE file
+  // in the daily backup format ({ format, manifest, chunks }), so scripts/restore-backup.mjs restores it the same way.
+  const button = document.querySelector<HTMLButtonElement>('[data-dump]');
+  const status = document.querySelector<HTMLElement>('[data-dump-status]');
+  const words = JSON.parse(document.getElementById('dump-words')?.textContent || '{}') as Record<string, string>;
+  const fill = (text: string, vars: Record<string, string | number>) => text.replace(/\{(\w+)\}/g, (w, k: string) => (k in vars ? String(vars[k]) : w));
+
+  async function getJson(url: string): Promise<any> {
+    const res = await fetch(url, { credentials: 'same-origin', headers: { accept: 'application/json' } });
+    if (!res.ok || !(res.headers.get('content-type') || '').includes('json')) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  button?.addEventListener('click', async () => {
+    if (!status) return;
+    button.disabled = true;
+    try {
+      const startedAt = new Date().toISOString().slice(0, 19) + 'Z';
+      const meta = await getJson('/admin/api/dump.json');
+      const tables: string[] = meta.tables;
+      const chunks: { format: number; date: string; chunk: number; tables: { name: string; columns: string[]; rows: unknown[][] }[] }[] = [];
+      const counts: Record<string, number> = {};
+      for (const [i, name] of tables.entries()) {
+        status.textContent = fill(words.working || '', { table: name, done: i, total: tables.length });
+        let after = 0;
+        let columns: string[] = [];
+        const rows: unknown[][] = [];
+        for (;;) {
+          const page = await getJson(`/admin/api/dump.json?table=${encodeURIComponent(name)}&after=${after}`);
+          columns = page.columns;
+          rows.push(...page.rows);
+          if (page.next === null || page.next === undefined) break;
+          after = page.next;
+        }
+        counts[name] = rows.length;
+        if (rows.length) chunks.push({ format: meta.format, date: meta.date, chunk: chunks.length + 1, tables: [{ name, columns, rows }] });
+      }
+      const text = (c: unknown) => JSON.stringify(c);
+      const manifest = {
+        format: meta.format, date: meta.date, startedAt, finishedAt: new Date().toISOString().slice(0, 19) + 'Z', migrations: meta.migrations,
+        tables: counts, chunks: chunks.map((c) => `download/${meta.date}/chunk-${String(c.chunk).padStart(3, '0')}.json`),
+        bytes: chunks.reduce((n, c) => n + text(c).length, 0),
+      };
+      const blob = new Blob([JSON.stringify({ format: meta.format, manifest, chunks })], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `beezy-everything-${meta.date}.json`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+      status.textContent = words.ready || '';
+    } catch {
+      status.textContent = words.failed || '';
+    } finally {
+      button.disabled = false;
+    }
+  });
+</script>

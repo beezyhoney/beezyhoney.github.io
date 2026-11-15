@@ -1,0 +1,58 @@
+---
+// Harvest log (amendment A3; owner and helper): newest first, with the batch each harvest made.
+export const prerender = false;
+
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import '../../../admin/catalog/catalog.css';
+import { takeFlash } from '../../../admin/flash';
+import { dateIST } from '../../../admin/format';
+import { S } from '../../../admin/catalog/strings';
+import { adminOf, bindings } from '../../../admin/catalog/page';
+import { listHarvests } from '../../../server/stock';
+
+adminOf(Astro);
+const flash = takeFlash(Astro);
+const rows = await listHarvests(bindings.DB, { limit: 200 });
+---
+<AdminLayout title={S.t('harv.title')} active="harvests" flash={flash}>
+  <a slot="actions" class="btn btn-primary" href="/admin/harvests/new/"><Icon name="plus" />{S.t('harv.add')}</a>
+  {rows.length === 0 ? (
+    <EmptyState icon="harvests" title={S.t('harv.empty')} text={S.t('harv.emptyText')}>
+      <a class="btn btn-primary" href="/admin/harvests/new/"><Icon name="plus" />{S.t('harv.add')}</a>
+    </EmptyState>
+  ) : (
+    <div class="table-wrap has-cards">
+      <table class="dtable">
+        <caption class="sr-only">{S.t('harv.title')}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{S.t('harv.honey')}</th>
+            <th scope="col">{S.t('harv.date')}</th>
+            <th scope="col" class="end">{S.t('harv.amount')}</th>
+            <th scope="col">{S.t('harv.batch')}</th>
+            <th scope="col" class="end">{S.t('harv.hives')}</th>
+            <th scope="col" class="end">{S.t('harv.moisture')}</th>
+            <th scope="col">{S.t('harv.note')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((h) => (
+            <tr>
+              <td class="is-primary" data-label={S.t('harv.honey')}><a class="row-link" href={`/admin/stock/${h.poolId}/`}>{h.productName}</a></td>
+              <td data-label={S.t('harv.date')}>{dateIST(h.harvestedOn)}</td>
+              <td class="end num" data-label={S.t('harv.amount')}><strong>{h.amountText}</strong></td>
+              <td data-label={S.t('harv.batch')}>
+                {h.batchId ? <><a class="cell-link" href={`/admin/batches/${h.batchId}/`}>{h.batchCode}</a> · <a class="cell-link" href={`/admin/labels/${h.batchId}/`}>{S.t("harv.labels")}</a></> : "—"}
+              </td>
+              <td class="end" data-label={S.t('harv.hives')}>{h.hives ?? '—'}</td>
+              <td class="end" data-label={S.t('harv.moisture')}>{h.moisturePctX10 === null ? '—' : `${(h.moisturePctX10 / 10).toFixed(1)} %`}</td>
+              <td data-label={S.t('harv.note')}>{h.note ?? '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</AdminLayout>

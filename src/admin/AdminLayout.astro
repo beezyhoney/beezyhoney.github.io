@@ -1,0 +1,185 @@
+---
+// The admin page frame (design §5): no GSAP, Lenis or preloader; self-hosted Mukta Malar (+ Bodoni Moda for titles);
+// side nav on desktop, bottom tab bar (Today · Orders · Stock · Products · More) on phones; website status chip;
+// flash message; "login expired" banner; shared confirm dialog; the tiny admin script.
+//
+//   <AdminLayout title="Orders" active="orders" flash={flash}>
+//     <a slot="actions" class="btn btn-primary" href="/admin/orders/new/">New order</a>
+//     …page…
+//   </AdminLayout>
+//
+// Props: title (h1 and <title>), active (nav key; guessed from the URL when left out), flash (from takeFlash();
+// when left out, ?flash=<key> is shown), back ({ href, label }), subtitle, wide (no max width, for big grids),
+// bare (login page: no menus, no status chip), hideTitle (the page draws its own heading).
+// Slots: default (page), "actions" (buttons beside the title), "head" (extra <head> tags).
+import '@fontsource/mukta-malar/400.css';
+import '@fontsource/mukta-malar/700.css';
+import '@fontsource/bodoni-moda/500.css';
+import './admin.css';
+import BrandMark from './components/BrandMark.astro';
+import ConfirmDialog from './components/ConfirmDialog.astro';
+import FlashMessage from './components/FlashMessage.astro';
+import Icon from './components/Icon.astro';
+import SiteChip from './components/SiteChip.astro';
+import { flashFromUrl, type Flash } from './flash';
+import { NAV_GROUPS, navFor, navKeyForPath, tabsFor, type AdminUser, type NavKey } from './nav';
+import { clientStrings, t } from './strings';
+
+interface Props {
+  title: string;
+  active?: NavKey;
+  flash?: Flash | null;
+  back?: { href: string; label?: string };
+  subtitle?: string;
+  wide?: boolean;
+  bare?: boolean;
+  hideTitle?: boolean;
+}
+const { title, flash, back, subtitle, wide, bare, hideTitle } = Astro.props;
+const admin = (Astro.locals as { admin?: AdminUser }).admin;
+const role = admin?.role;
+const active = Astro.props.active ?? navKeyForPath(Astro.url.pathname);
+const shownFlash = flash !== undefined ? flash : flashFromUrl(Astro.url);
+const items = navFor(role);
+const groups = NAV_GROUPS.map((g) => ({ ...g, items: items.filter((n) => n.group === g.group) })).filter((g) => g.items.length);
+const tabs = tabsFor(role);
+const moreActive = !!active && !tabs.some((tab) => tab.key === active);
+const loginUrl = `/admin/login/?next=${encodeURIComponent(Astro.url.pathname)}`;
+const strings = JSON.stringify(clientStrings()).replace(/</g, '\\u003c');
+---
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{`${title} · ${t('app.titleSuffix')}`}</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#FBF3E6" />
+    <meta name="color-scheme" content="light" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <script is:inline>document.documentElement.classList.replace('no-js', 'js');</script>
+    <slot name="head" />
+  </head>
+  <body
+    class="admin"
+    data-bare={bare ? '' : undefined}
+    data-role={role}
+    data-status-url="/admin/api/status.json"
+    data-login-url={loginUrl}
+  >
+    <a class="skip" href="#main">{t('app.skip')}</a>
+
+    {bare ? (
+      <main class="bare-main" id="main" tabindex="-1">
+        <div class="bare-card">
+          <span class="brand"><BrandMark /><span class="brand-name">{t('app.name')}</span></span>
+          {shownFlash && <FlashMessage flash={shownFlash} id="page-flash" />}
+          {!hideTitle && <h1 class="page-title">{title}</h1>}
+          {subtitle && <p class="page-sub">{subtitle}</p>}
+          <slot />
+        </div>
+      </main>
+    ) : (
+      <div class="shell">
+        <aside class="sidenav" aria-label={t('nav.label')}>
+          <a class="brand" href="/admin/">
+            <BrandMark />
+            <span><span class="brand-name">{t('app.brand')}</span><span class="brand-sub">{t('app.admin')}</span></span>
+          </a>
+          <nav aria-label={t('nav.label')}>
+            {groups.map((g) => (
+              <div class="nav-group">
+                {g.label && <h2 class="nav-heading">{t(g.label)}</h2>}
+                <ul class="nav-list">
+                  {g.items.map((n) => (
+                    <li>
+                      <a class="nav-link" href={n.href} aria-current={n.key === active ? 'page' : undefined}>
+                        <Icon name={n.icon} />{t(n.label)}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </nav>
+          <div class="side-foot">
+            {admin && <p class="side-user">{t('nav.signedInAs', { email: admin.email })} · {t(`role.${admin.role}`)}</p>}
+            <form class="logout-form" method="post" action="/admin/logout/">
+              <button type="submit" class="logout-btn"><Icon name="logout" />{t('nav.logout')}</button>
+            </form>
+          </div>
+        </aside>
+
+        <div class="frame">
+          <div class="session-banner" id="session-banner" role="alert" hidden data-session-banner>
+            <a href={loginUrl} target="_blank" rel="noopener" data-session-link>
+              <Icon name="refresh" /><span data-session-text>{t('session.expired')}</span>
+            </a>
+            <p data-session-hint>{t('session.expiredHint')}</p>
+          </div>
+          <header class="topbar">
+            <a class="brand" href="/admin/"><BrandMark /><span class="brand-name">{t('app.name')}</span></a>
+            <SiteChip />
+          </header>
+          <main class:list={['main', { 'is-wide': wide }]} id="main" tabindex="-1">
+            {(!hideTitle || back || Astro.slots.has('actions')) && (
+              <div class="page-head">
+                <div class="page-head-text">
+                  {back && <a class="back-link" href={back.href}><Icon name="back" />{back.label ?? t('nav.back')}</a>}
+                  {!hideTitle && <h1 class="page-title">{title}</h1>}
+                  {subtitle && <p class="page-sub">{subtitle}</p>}
+                </div>
+                {Astro.slots.has('actions') && <div class="page-actions"><slot name="actions" /></div>}
+              </div>
+            )}
+            {shownFlash && <FlashMessage flash={shownFlash} id="page-flash" />}
+            <slot />
+          </main>
+        </div>
+      </div>
+
+      <nav class="tabbar" aria-label={t('nav.tabsLabel')}>
+        {tabs.map((tab) => (
+          <a class="tabbar-item" href={tab.href} aria-current={tab.key === active ? 'page' : undefined}>
+            <span class="tabbar-icon"><Icon name={tab.icon} /></span>{t(tab.label)}
+          </a>
+        ))}
+        <button type="button" class:list={['tabbar-item', { 'is-active': moreActive }]} popovertarget="admin-more" aria-controls="admin-more" data-more-toggle>
+          <span class="tabbar-icon"><Icon name="more" /></span>{t('nav.more')}
+        </button>
+      </nav>
+
+      <div class="more-sheet" id="admin-more" popover role="dialog" aria-label={t('nav.moreTitle')}>
+        <div class="more-head">
+          <h2 class="more-title">{t('nav.moreTitle')}</h2>
+          <button type="button" class="btn btn-icon btn-quiet" popovertarget="admin-more" popovertargetaction="hide" data-more-close aria-label={t('nav.close')}>
+            <Icon name="close" />
+          </button>
+        </div>
+        {groups.map((g) => (
+          <section class="more-group">
+            {g.label && <h3>{t(g.label)}</h3>}
+            <ul class="more-grid">
+              {g.items.map((n) => (
+                <li><a class="more-link" href={n.href} aria-current={n.key === active ? 'page' : undefined}><Icon name={n.icon} />{t(n.label)}</a></li>
+              ))}
+            </ul>
+          </section>
+        ))}
+        <div class="more-foot">
+          {admin && <p class="side-user">{t('nav.signedInAs', { email: admin.email })}</p>}
+          <form class="logout-form" method="post" action="/admin/logout/">
+            <button type="submit" class="logout-btn"><Icon name="logout" />{t('nav.logout')}</button>
+          </form>
+        </div>
+      </div>
+      <ConfirmDialog />
+    )}
+
+    <script type="application/json" id="admin-strings" set:html={strings}></script>
+    <script>
+      import './client/admin';
+    </script>
+  </body>
+</html>

@@ -1,0 +1,127 @@
+---
+// Orders list (design §5 screen 2): tabs New · Confirmed · To pack or send · Unpaid · Delivered · Cancelled ·
+// Requests · Not real · All, the find box (code, name or phone), product and date filters, keyset paging.
+// A find-box search that matches exactly one order goes straight to it. Owner and helper.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import DateRange from '../../../admin/components/DateRange.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import Select from '../../../admin/components/Select.astro';
+import Tabs from '../../../admin/components/Tabs.astro';
+import { takeFlash } from '../../../admin/flash';
+import { isDay } from '../../../admin/format';
+import OrderRows from '../../../admin/ops/OrderRows.astro';
+import { productChoices, tabCounts } from '../../../admin/ops/data';
+import { S } from '../../../admin/ops/strings';
+import { normaliseRefQuery } from '../../../lib/orderRef';
+import { listOrders, searchOrders, type OrderListRow, type OrderTab } from '../../../server/orders';
+
+const db = env.DB;
+const flash = takeFlash(Astro);
+const params = Astro.url.searchParams;
+const TABS = ['new', 'confirmed', 'to_send', 'unpaid', 'delivered', 'cancelled', 'requests', 'spam', 'all'] as const;
+type Tab = (typeof TABS)[number];
+const tabParam = params.get('f');
+const tab: Tab = (TABS as readonly string[]).includes(tabParam ?? '') ? (tabParam as Tab) : 'new';
+const q = (params.get('q') ?? '').trim().slice(0, 80);
+const productId = Number.parseInt(params.get('product') ?? '', 10) || null;
+const from = isDay(params.get('from') ?? '') ? params.get('from') : null;
+const to = isDay(params.get('to') ?? '') ? params.get('to') : null;
+const rangeError = from && to && to < from ? S.t('sales.badRange') : null;
+const before = params.get('before') ?? '';
+
+let results: OrderListRow[] | null = null;
+let list: { rows: OrderListRow[]; next: string | null } = { rows: [], next: null };
+if (q) {
+  results = q.replace(/[^A-Za-z0-9]/g, '').length >= 3 ? await searchOrders(db, q, { limit: 30 }) : [];
+  // one match for an order code: open it straight away (the find box on Today lands here)
+  if (results.length === 1 && normaliseRefQuery(q)) return Astro.redirect(`/admin/orders/${results[0].id}/`, 302);
+} else {
+  list = await listOrders(db, {
+    tab: tab as OrderTab, productId: productId ?? undefined, from: from ?? undefined, to: rangeError ? undefined : to ?? undefined,
+    before: before || undefined, limit: 50,
+  });
+}
+const [counts, products] = await Promise.all([tabCounts(db), productChoices(db)]);
+
+const keep = (extra: Record<string, string | null>) => {
+  const u = new URL('/admin/orders/', 'http://x');
+  const base: Record<string, string | null> = { f: tab, product: productId ? String(productId) : null, from, to };
+  for (const [k, v] of Object.entries({ ...base, ...extra })) if (v) u.searchParams.set(k, v);
+  return `${u.pathname}${u.search}`;
+};
+const COUNT: Partial<Record<Tab, number>> = { new: counts.new, to_send: counts.to_send, unpaid: counts.unpaid, requests: counts.requests };
+const tabs = TABS.map((k) => ({ href: keep({ f: k, before: null }), label: S.t(`orders.tab.${k}`), count: COUNT[k] ?? null, current: !q && tab === k }));
+const filtered = !!(productId || from || to);
+const sameCode = results && results.length > 1 && normaliseRefQuery(q)?.length === 5;
+---
+<AdminLayout title={S.t('orders.title')} active="orders" flash={flash}>
+  <a slot="actions" class="btn btn-primary" href="/admin/orders/new/"><Icon name="plus" />{S.t('orders.newOrder')}</a>
+  <a slot="actions" class="btn" href="/admin/orders/new/#paste"><Icon name="paste" />{S.t('orders.paste')}</a>
+
+  <form class="card find" method="get" action="/admin/orders/" role="search">
+    <label class="field-label" for="orders-q">{S.t('orders.searchLabel')}</label>
+    <p class="field-hint" id="orders-q-hint">{S.t('orders.searchHint')}</p>
+    <div class="row find-row">
+      <input class="input" id="orders-q" name="q" type="search" value={q} autocapitalize="characters" autocomplete="off"
+        spellcheck="false" enterkeyhint="search" placeholder="BZ-7K3QD" maxlength="80" aria-describedby="orders-q-hint" />
+      <button type="submit" class="btn btn-primary"><Icon name="search" />{S.t('search.go')}</button>
+    </div>
+  </form>
+
+  {results ? (
+    <section class="section" aria-labelledby="orders-results">
+      <div class="section-head">
+        <h2 class="section-title" id="orders-results">{S.t('orders.results', { q })}</h2>
+        <a class="section-link" href={keep({})}>{S.t('common.clear')}</a>
+      </div>
+      {sameCode && <p class="notice notice-info"><Icon name="info" /><span>{S.t('orders.manyMatches', { count: results.length })}</span></p>}
+      <OrderRows rows={results} showDate empty={q.replace(/[^A-Za-z0-9]/g, '').length >= 3 ? S.t('orders.noResults', { q }) : S.t('orders.tooShort')} />
+    </section>
+  ) : (
+    <>
+      <Tabs label={S.t('orders.tabsLabel')} items={tabs} />
+
+      <details class="card filters" open={filtered}>
+        <summary class="filters-summary">{S.t('orders.filters')}{filtered && <span class="tab-count">•</span>}</summary>
+        <div class="stack filters-body">
+          <form method="get" action="/admin/orders/" class="filter-product">
+            <input type="hidden" name="f" value={tab} />
+            {from && <input type="hidden" name="from" value={from} />}
+            {to && <input type="hidden" name="to" value={to} />}
+            <Select name="product" label={S.t('orders.product')} value={productId ?? ''} placeholder={S.t('orders.anyProduct')}
+              options={products.map((p) => ({ value: p.id, label: p.name }))} autosubmit />
+          </form>
+          <DateRange url={Astro.url} from={from} to={to} presets={['today', 'last7', 'thisMonth', 'lastMonth']} error={rangeError} />
+          {filtered && <a class="btn btn-quiet" href={`/admin/orders/?f=${tab}`}>{S.t('orders.clearFilters')}</a>}
+        </div>
+      </details>
+
+      {tab === 'requests' && (
+        <p class="notice notice-info"><Icon name="requests" /><span><a href="/admin/requests/">{S.t('requests.title')}</a> — {S.t('requests.sub')}</span></p>
+      )}
+
+      <section class="section" aria-label={S.t(`orders.tab.${tab}`)}>
+        <OrderRows rows={list.rows} empty={tab === 'new' && !filtered ? S.t('orders.emptyNew') : S.t('orders.empty')} label={S.t(`orders.tab.${tab}`)} />
+        {(list.next || before) && (
+          <nav class="pager" aria-label={S.t('pager.label')}>
+            {before ? <a class="btn" href={keep({})}><Icon name="back" />{S.t('orders.newest')}</a> : <span></span>}
+            {list.next && <a class="btn" href={keep({ before: list.next })} rel="next">{S.t('orders.older')}<Icon name="next" /></a>}
+          </nav>
+        )}
+      </section>
+    </>
+  )}
+</AdminLayout>
+
+<style>
+  .find { margin-bottom: 20px; }
+  .find-row { margin-top: 8px; flex-wrap: nowrap; }
+  .find-row .input { flex: 1 1 auto; width: auto; min-width: 0; }
+  .filters { margin: 4px 0 20px; padding-top: 0; padding-bottom: 0; }
+  .filters-summary { display: flex; align-items: center; gap: 8px; min-height: 48px; font-weight: 700; cursor: pointer; }
+  .filters-body { padding-bottom: 16px; }
+  .notice { margin-bottom: 16px; }
+</style>

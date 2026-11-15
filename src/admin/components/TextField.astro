@@ -1,0 +1,107 @@
+---
+// Text input or textarea with label, hint, error and an optional live character counter.
+//   <TextField name="tagline" label="Tagline" value={p.tagline} max={140} counter error={errors.tagline} />
+//   <TextField name="about" label="About" multiline rows={6} value={p.about} />
+import Field from './Field.astro';
+import { describedBy, fieldId } from './ids';
+
+interface Props {
+  name: string;
+  label: string;
+  value?: string | number | null;
+  id?: string;
+  type?: 'text' | 'email' | 'tel' | 'search' | 'url' | 'password';
+  multiline?: boolean;
+  rows?: number;
+  required?: boolean;
+  /** max characters (sets maxlength; the server must check again with forms.ts) */
+  max?: number;
+  min?: number;
+  /** show "12 / 140" under the field (needs `max`) */
+  counter?: boolean;
+  placeholder?: string;
+  hint?: string | null;
+  error?: string | null;
+  optional?: boolean;
+  labelHidden?: boolean;
+  autocomplete?: string;
+  inputmode?: 'text' | 'numeric' | 'decimal' | 'tel' | 'email' | 'search' | 'url' | 'none';
+  enterkeyhint?: 'enter' | 'done' | 'go' | 'next' | 'previous' | 'search' | 'send';
+  disabled?: boolean;
+  readonly?: boolean;
+  /** HTML pattern (browser hint only) */
+  pattern?: string;
+  /** id of a <datalist> */
+  list?: string;
+  spellcheck?: boolean;
+  autocapitalize?: 'off' | 'none' | 'on' | 'sentences' | 'words' | 'characters';
+  /** leave this field out of the browser draft (e.g. secrets) */
+  noDraft?: boolean;
+  class?: string;
+}
+const {
+  name, label, value, type = 'text', multiline, rows = 5, required, max, min, counter, placeholder, hint, error,
+  optional, labelHidden, autocomplete, inputmode, enterkeyhint, disabled, readonly, pattern, list, spellcheck,
+  autocapitalize, noDraft, class: cls,
+} = Astro.props;
+const id = fieldId(name, Astro.props.id);
+const showCounter = counter && max !== undefined;
+const text = value === null || value === undefined ? '' : String(value);
+const count = [...text].length;
+const counterId = `${id}-count`;
+const aria = describedBy(id, hint, error, showCounter ? counterId : undefined);
+---
+<Field id={id} label={label} hint={hint} error={error} optional={optional} labelHidden={labelHidden} class={cls}>
+  {multiline ? (
+    <textarea
+      class="input"
+      id={id}
+      name={name}
+      rows={rows}
+      required={required}
+      maxlength={max}
+      minlength={min}
+      placeholder={placeholder}
+      autocomplete={autocomplete ?? 'off'}
+      enterkeyhint={enterkeyhint}
+      disabled={disabled}
+      readonly={readonly}
+      spellcheck={spellcheck === undefined ? undefined : String(spellcheck)}
+      autocapitalize={autocapitalize ?? 'sentences'}
+      aria-invalid={error ? 'true' : undefined}
+      aria-describedby={aria}
+      data-counter={showCounter ? counterId : undefined}
+      data-no-draft={noDraft ? '' : undefined}
+    >{text}</textarea>
+  ) : (
+    <input
+      class="input"
+      id={id}
+      name={name}
+      type={type}
+      value={text}
+      required={required}
+      maxlength={max}
+      minlength={min}
+      placeholder={placeholder}
+      autocomplete={autocomplete ?? 'off'}
+      inputmode={inputmode}
+      enterkeyhint={enterkeyhint}
+      disabled={disabled}
+      readonly={readonly}
+      pattern={pattern}
+      list={list}
+      spellcheck={spellcheck === undefined ? undefined : String(spellcheck)}
+      autocapitalize={autocapitalize}
+      aria-invalid={error ? 'true' : undefined}
+      aria-describedby={aria}
+      data-counter={showCounter ? counterId : undefined}
+      data-no-draft={noDraft || type === 'password' ? '' : undefined}
+    />
+  )}
+  {showCounter && (
+    <span slot="foot" class:list={['counter', { 'is-over': count > (max ?? Infinity) }]} id={counterId} data-max={max}>
+      {count} / {max}
+    </span>
+  )}
+</Field>

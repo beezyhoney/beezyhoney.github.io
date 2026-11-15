@@ -1,0 +1,45 @@
+---
+// One day (or month) with the phone's own date picker (native <input type="date|month">). The value is an IST day
+// 'YYYY-MM-DD' (or 'YYYY-MM'); read it back with form.date(name) / form.month(name).
+//   <DateInput name="harvested_on" label="Harvest date" value={dayIST()} max={dayIST()} required />
+//   <DateInput name="best_before" label="Best before" value={addDays(day, 730)} hint="Printed on the label." />
+//   <DateInput name="month" label="Month" type="month" value="2026-11" />
+import Field from './Field.astro';
+import { describedBy, fieldId } from './ids';
+
+interface Props {
+  name: string;
+  label: string;
+  /** 'YYYY-MM-DD' (or 'YYYY-MM' for type="month"); null/undefined = empty */
+  value?: string | null;
+  type?: 'date' | 'month';
+  /** earliest / latest allowed (same format as the value); the server must check again */
+  min?: string;
+  max?: string;
+  id?: string;
+  required?: boolean;
+  hint?: string | null;
+  error?: string | null;
+  optional?: boolean;
+  labelHidden?: boolean;
+  disabled?: boolean;
+  class?: string;
+}
+const { name, label, value, type = 'date', min, max, required, hint, error, optional, labelHidden, disabled, class: cls } = Astro.props;
+const id = fieldId(name, Astro.props.id);
+---
+<Field id={id} label={label} hint={hint} error={error} optional={optional} labelHidden={labelHidden} class={cls}>
+  <input
+    class="input"
+    id={id}
+    name={name}
+    type={type}
+    value={value ?? ''}
+    min={min}
+    max={max}
+    required={required}
+    disabled={disabled}
+    aria-invalid={error ? 'true' : undefined}
+    aria-describedby={describedBy(id, hint, error)}
+  />
+</Field>

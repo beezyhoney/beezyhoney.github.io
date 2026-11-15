@@ -1,0 +1,69 @@
+---
+// Batches (amendment A3/A5; owner and helper): best-before colour, estimated amount left, Know Your Jar state,
+// links to edit and print labels. Tabs: Active, Finished, Recalled, All.
+export const prerender = false;
+
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Badge from '../../../admin/components/Badge.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import Tabs from '../../../admin/components/Tabs.astro';
+import '../../../admin/catalog/catalog.css';
+import { takeFlash } from '../../../admin/flash';
+import { dateIST, monthLabel } from '../../../admin/format';
+import { S } from '../../../admin/catalog/strings';
+import { adminOf, bindings } from '../../../admin/catalog/page';
+import { formatKg } from '../../../lib/availability';
+import { listBatches, type BatchStatus } from '../../../server/stock';
+
+adminOf(Astro);
+const flash = takeFlash(Astro);
+const TABS = ['active', 'finished', 'recalled', 'all'] as const;
+const tab = (TABS as readonly string[]).includes(Astro.url.searchParams.get('s') ?? '') ? (Astro.url.searchParams.get('s') as (typeof TABS)[number]) : 'active';
+const all = await listBatches(bindings.DB);
+const rows = tab === 'all' ? all : all.filter((b) => b.status === (tab as BatchStatus));
+const bbTone = { ok: 'ok', soon: 'warn', passed: 'bad' } as const;
+---
+<AdminLayout title={S.t('bat.title')} active="batches" flash={flash}>
+  <Fragment slot="actions">
+    <a class="btn btn-primary" href="/admin/harvests/new/"><Icon name="harvests" />{S.t('harv.add')}</a>
+    <a class="btn" href="/admin/batches/new/"><Icon name="plus" />{S.t('bat.add')}</a>
+  </Fragment>
+  <Tabs label={S.t('bat.title')} items={TABS.map((k) => ({ href: k === 'active' ? '/admin/batches/' : `/admin/batches/?s=${k}`, label: S.t(`bat.tab.${k}`), count: k === 'all' ? all.length : all.filter((b) => b.status === k).length, current: tab === k }))} />
+  {rows.length === 0 ? (
+    <EmptyState icon="batches" title={S.t('bat.empty')} text={S.t('bat.emptyText')} />
+  ) : (
+    <>
+      <div class="table-wrap has-cards">
+        <table class="dtable">
+          <caption class="sr-only">{S.t('bat.title')}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{S.t('bat.code')}</th>
+              <th scope="col">{S.t('bat.product')}</th>
+              <th scope="col">{S.t('bat.packed')}</th>
+              <th scope="col">{S.t('bat.bestBefore')}</th>
+              <th scope="col" class="end">{S.t('bat.left')}</th>
+              <th scope="col">{S.t('bat.kyj')}</th>
+              <th scope="col"><span class="sr-only">{S.t('harv.labels')}</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((b) => (
+              <tr class:list={{ 'tone-row-muted': b.status === 'finished', 'tone-row-bad': b.status === 'recalled' }}>
+                <td class="is-primary" data-label={S.t('bat.code')}><a class="row-link" href={`/admin/batches/${b.id}/`}>{b.code}</a>{b.status !== 'active' && <> <Badge kind="batch" value={b.status} /></>}</td>
+                <td data-label={S.t('bat.product')}>{b.productName}</td>
+                <td data-label={S.t('bat.packed')}>{dateIST(b.packedOn)}</td>
+                <td data-label={S.t('bat.bestBefore')}><Badge tone={bbTone[b.bestBeforeState]} text={`${monthLabel(b.bestBefore)} · ${S.t(`bat.bb.${b.bestBeforeState}`)}`} /></td>
+                <td class="end num" data-label={S.t('bat.left')}>{b.estimatedLeft === null ? '—' : formatKg(b.estimatedLeft)}</td>
+                <td data-label={S.t('bat.kyj')}>{b.isPublic && b.status !== 'recalled' ? S.t('bat.shown') : S.t('bat.hidden')}</td>
+                <td data-label="">{b.status !== 'recalled' && <a class="btn" href={`/admin/labels/${b.id}/`}><Icon name="labels" />{S.t('harv.labels')}</a>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="field-hint" style="margin-top:8px">{S.t('bat.leftHint')}</p>
+    </>
+  )}
+</AdminLayout>

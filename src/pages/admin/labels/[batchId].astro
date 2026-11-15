@@ -1,0 +1,211 @@
+---
+// Label sheet for one batch (owner and helper; design §5 v2 "Labels", amendment A5). Settings travel in the URL
+// (GET form, so a reprint link remembers them): pack, sheet preset, stickers already used, how many, MRP, QR on/off.
+// Each sticker: product + pack, batch no., packed on, best before, MRP (incl. of all taxes), unit price per 100 g,
+// FSSAI licence no. (business settings) and an optional QR code to https://beezyhoney.in/know-your-jar/?batch=<code>
+// drawn by the self-written encoder in src/admin/catalog/qr.ts (no CDN, no library).
+// The default sheet is the owner's A4 65-up (38.1 × 21.2 mm); stickers that small use a compact layout with the QR off
+// by default. "Save this MRP for the batch" (POST) stores the shown MRP per batch and pack (batch_items), so reprints
+// print the same MRP after the catalog price changes.
+// On screen: the settings, one sticker enlarged and a map of the sheet. On paper (print CSS): only the stickers,
+// placed in millimetres for the chosen sheet.
+export const prerender = false;
+
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import MoneyInput from '../../../admin/components/MoneyInput.astro';
+import Select from '../../../admin/components/Select.astro';
+import TextField from '../../../admin/components/TextField.astro';
+import Toggle from '../../../admin/components/Toggle.astro';
+import '../../../admin/catalog/catalog.css';
+import { failureFlash, redirectWithFlash, takeFlash } from '../../../admin/flash';
+import { formReader, readForm } from '../../../admin/forms';
+import { inr, inrInput } from '../../../admin/format';
+import { S } from '../../../admin/catalog/strings';
+import { encodeQr, qrPath } from '../../../admin/catalog/qr';
+import { adminOf, bindings } from '../../../admin/catalog/page';
+import { toId } from '../../../server/db';
+import { SHEET_PRESETS, isCompact, labelBatch, layoutSheet, presetById, saveLabelMrp, stickerText } from '../../../server/labels';
+
+const admin = adminOf(Astro);
+const id = toId(Astro.params.batchId);
+const batch = id ? await labelBatch(bindings.DB, id) : null;
+if (!batch) return redirectWithFlash(Astro, '/admin/labels/', { key: 'flash.notFound' });
+
+if (Astro.request.method === 'POST') {
+  // "Save this MRP for the batch": the shown MRP for the shown pack; back to the same sheet settings
+  const form = await readForm(Astro.request);
+  const back = new URLSearchParams();
+  for (const k of ['pack', 'sheet', 'skip', 'count', 'mrp', 'qr']) for (const v of form?.rawAll(k) ?? []) back.append(k, v);
+  const query = back.toString();
+  const self = `/admin/labels/${batch.id}/${query ? `?${query}` : ''}`;
+  if (!form || form.action(['save_mrp'] as const) !== 'save_mrp') return redirectWithFlash(Astro, self, { key: 'form.unknownAction' });
+  const variantId = toId(form.raw('pack'));
+  const mrpPaise = form.paise('mrp', { required: true, min: 100 });
+  const packLabel = batch.packs.find((p) => p.variantId === variantId)?.label ?? '';
+  if (!variantId || mrpPaise === null) return redirectWithFlash(Astro, self, { tone: 'error', text: S.t('lab.mrpSaveNeedsMrp') });
+  const r = await saveLabelMrp(bindings.DB, admin, { batchId: batch.id, variantId, mrpPaise });
+  if (!r.ok) return redirectWithFlash(Astro, self, failureFlash(r));
+  return redirectWithFlash(Astro, self, { tone: 'ok', text: S.t('lab.mrpSaved', { price: inr(mrpPaise), code: batch.code, pack: packLabel }) });
+}
+const flash = takeFlash(Astro);
+
+const q = formReader(Astro.url.searchParams);
+const submitted = Astro.url.searchParams.has('sheet');
+const preset = presetById(q.raw('sheet'));
+const perPage = preset.cols * preset.rows;
+const packs = batch.packs.filter((p) => p.active).length ? batch.packs.filter((p) => p.active) : batch.packs;
+const pack = packs.find((p) => String(p.variantId) === q.raw('pack')) ?? packs[0] ?? null;
+const skip = Math.max(0, Math.min(perPage - 1, q.int('skip', { min: 0, max: perPage - 1 }) ?? 0));
+const count = Math.max(1, Math.min(perPage * 20, q.int('count', { min: 1, max: perPage * 20 }) ?? perPage - skip));
+const mrpRaw = q.raw('mrp').trim();
+const mrp = submitted ? (mrpRaw ? q.paise('mrp', { min: 100 }) : null) : pack?.defaultMrpPaise ?? null;
+const qrAllowed = batch.isPublic && batch.status !== 'recalled';
+const compact = isCompact(preset);
+const qrOn = qrAllowed && (submitted && q.has('qr') ? q.bool('qr') : !compact);
+const mrpSaved = pack !== null && mrp !== null && mrp === pack.savedMrpPaise;
+const errors = q.messages();
+const text = pack ? stickerText(batch, pack, { mrpPaise: mrp, qr: qrOn }) : null;
+const qr = text?.qr ? encodeQr(text.qr, { ecc: 'M' }) : null;
+const qrDim = qr ? qr.size + 8 : 0;
+const sheet = layoutSheet(preset, count, skip);
+const labelsCount = sheet.cells.filter((c) => c.kind === 'label').length;
+
+// sizes in mm / pt that follow the sticker size (small stickers: less padding, tighter lines, 6 pt text)
+const scale = Math.min(preset.labelH / 38.1, preset.labelW / 63.5);
+const fontPt = Math.max(6, Math.round(7 * scale * 10) / 10);
+const padMm = compact ? 1.2 : 2;
+const qrMm = qr ? Math.round(Math.min(preset.labelH - 2 * padMm, preset.labelW * 0.38) * 10) / 10 : 0;
+const pageCss = `@page { size: ${preset.pageW}mm ${preset.pageH}mm; margin: 0; }`;
+const pages = Array.from({ length: sheet.pages }, (_, i) => sheet.cells.filter((c) => c.page === i));
+
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/** One sticker's inside (the same markup on screen and on paper) */
+function stickerHtml(): string {
+  if (!text) return '';
+  const rows = [
+    `<p class="st-title">${esc(text.title)} · ${esc(text.pack)}</p>`,
+    `<p><span class="st-k">${esc(S.t('lab.batchNo'))}</span> <b>${esc(text.batch)}</b></p>`,
+    `<p><span class="st-k">${esc(S.t('lab.packedOn'))}</span> ${esc(text.packedOn)}</p>`,
+    `<p><span class="st-k">${esc(S.t('lab.bestBefore'))}</span> ${esc(text.bestBefore)}</p>`,
+    text.mrp !== null
+      ? `<p class="st-mrp"><b>${esc(S.t('lab.mrpLine', { price: inr(text.mrp) }))}</b> <span class="st-small">${esc(S.t('lab.mrpTaxes'))}</span></p>`
+      : `<p class="st-mrp"><b>${esc(S.t('lab.mrpBlank'))}</b> ________ <span class="st-small">${esc(S.t('lab.mrpTaxes'))}</span></p>`,
+    text.per100 !== null ? `<p>${esc(S.t('lab.per100', { price: inr(text.per100) }))}</p>` : '',
+    text.fssai ? `<p class="st-small">${esc(S.t('lab.fssai', { no: text.fssai }))}</p>` : '',
+  ].join('');
+  const code = qr ? `<svg class="st-qr" viewBox="0 0 ${qrDim} ${qrDim}" style="width:${qrMm}mm;height:${qrMm}mm" shape-rendering="crispEdges" aria-hidden="true"><rect width="${qrDim}" height="${qrDim}" fill="#fff"/><path fill="#000" d="${qrPath(qr)}"/></svg>` : '';
+  return `<div class="st-text">${rows}</div>${code}`;
+}
+---
+<AdminLayout title={S.t('lab.sheetTitle', { code: batch.code })} active="labels" flash={flash} back={{ href: `/admin/batches/${batch.id}/`, label: S.t('bat.detail', { code: batch.code }) }} subtitle={`${batch.productName}`}>
+  <style is:inline set:html={pageCss}></style>
+  {batch.status === 'recalled' && <p class="notice notice-bad section"><Icon name="alert" /><span>{S.t('lab.recalled')}</span></p>}
+  {!pack ? <EmptyState title={S.t('lab.noPacks')} /> : (
+    <div class="label-screen">
+      <form method="get" class="card section" novalidate>
+        <div class="grid-2">
+          <Select name="pack" label={S.t('lab.pack')} value={pack.variantId} options={packs.map((p) => ({ value: p.variantId, label: `${p.label}${p.defaultMrpPaise ? ` · ${inr(p.defaultMrpPaise)}` : ''}` }))} />
+          <Select name="sheet" label={S.t('lab.sheet')} value={preset.id} options={SHEET_PRESETS.map((p) => ({ value: p.id, label: p.name }))} />
+          <TextField name="skip" label={S.t('lab.skip')} hint={S.t('lab.skipHint')} value={String(skip)} inputmode="numeric" max={3} error={errors.skip} />
+          <TextField name="count" label={S.t('lab.count')} value={String(count)} inputmode="numeric" max={4} error={errors.count} />
+        </div>
+        <MoneyInput name="mrp" label={S.t('lab.mrp')} hint={pack.savedMrpPaise !== null ? S.t('lab.mrpHintSaved', { price: inr(pack.savedMrpPaise) }) : S.t('lab.mrpHint')} raw={submitted ? mrpRaw : inrInput(pack.defaultMrpPaise)} allowEmpty error={errors.mrp} />
+        {qrAllowed
+          ? <Toggle name="qr" label={S.t('lab.qr')} hint={compact ? S.t('lab.qrHintSmall') : S.t('lab.qrHint')} checked={qrOn} />
+          : <p class="field-hint">{S.t('lab.qrHidden')}</p>}
+        <div class="form-actions">
+          <button class="btn" type="submit"><Icon name="refresh" />{S.t('lab.show')}</button>
+          <button class="btn btn-primary" type="button" data-print hidden><Icon name="print" />{S.t('lab.print')}</button>
+        </div>
+        <p class="field-hint" style="margin-top:10px">{S.t('lab.printHint')}</p>
+      </form>
+
+      {mrp !== null && (
+        <div class="card section row row-between" data-label-mrp>
+          {mrpSaved
+            ? <p class="muted"><Icon name="check" /> {S.t('lab.mrpIsSaved', { price: inr(mrp), pack: pack.label })}</p>
+            : <p>{S.t('lab.mrpNotSaved', { price: inr(mrp), pack: pack.label })}</p>}
+          {!mrpSaved && (
+            <form method="post">
+              <input type="hidden" name="pack" value={pack.variantId} />
+              <input type="hidden" name="mrp" value={inrInput(mrp)} />
+              <input type="hidden" name="sheet" value={preset.id} />
+              <input type="hidden" name="skip" value={String(skip)} />
+              <input type="hidden" name="count" value={String(count)} />
+              <input type="hidden" name="qr" value={qrOn ? '1' : '0'} />
+              <button class="btn" name="_action" value="save_mrp"><Icon name="check" />{S.t('lab.mrpSave')}</button>
+            </form>
+          )}
+        </div>
+      )}
+
+      <section class="section" aria-labelledby="lab-preview">
+        <h2 class="section-title" id="lab-preview" style="margin-bottom:8px">{S.t('lab.preview')}</h2>
+        <div class="sticker-zoom">
+          <div class:list={['sticker', 'sticker-preview', { compact }]} style={`width:${preset.labelW}mm;height:${preset.labelH}mm;font-size:${fontPt}pt`}>
+            <Fragment set:html={stickerHtml()} />
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="lab-map">
+        <h2 class="section-title" id="lab-map" style="margin-bottom:4px">{S.t('lab.map')}</h2>
+        <p class="muted" style="margin-bottom:8px">{S.t('lab.summary', { labels: labelsCount, pages: sheet.pages, start: skip + 1 })}</p>
+        <div class="sheet-map" style={`grid-template-columns:repeat(${preset.cols}, minmax(0, 1fr))`} aria-hidden="true">
+          {pages[0].map((c) => <span class:list={['map-cell', `map-${c.kind}`]}>{c.index + 1}</span>)}
+        </div>
+      </section>
+    </div>
+  )}
+
+  {pack && (
+    <div class="print-sheet" aria-hidden="true">
+      {pages.map((cells) => (
+        <div class="print-page" style={`width:${preset.pageW}mm;height:${preset.pageH}mm`}>
+          {cells.filter((c) => c.kind === 'label').map((c) => (
+            <div class:list={['sticker', { compact }]} style={`left:${c.x}mm;top:${c.y}mm;width:${preset.labelW}mm;height:${preset.labelH}mm;font-size:${fontPt}pt`}>
+              <Fragment set:html={stickerHtml()} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )}
+  <script>
+    document.querySelector<HTMLButtonElement>('[data-print]')?.removeAttribute('hidden');
+    document.addEventListener('click', (e) => {
+      if ((e.target as Element).closest('[data-print]')) window.print();
+    });
+  </script>
+</AdminLayout>
+
+<style>
+  .sticker { position: relative; box-sizing: border-box; display: flex; gap: 2mm; padding: 2mm 2.2mm; overflow: hidden; background: #fff; color: #000; line-height: 1.22; font-family: var(--f-body); }
+  .sticker.compact { gap: 1.2mm; padding: 1.2mm 1.3mm; line-height: 1.12; }
+  .sticker-zoom { overflow-x: auto; padding: 8px 0; }
+  .sticker-preview { zoom: 1.6; border: 1px dashed #8A7562; border-radius: 2mm; }
+  @media (max-width: 480px) { .sticker-preview { zoom: 1.35; } }
+  .sheet-map { display: grid; gap: 4px; max-width: 420px; }
+  .map-cell { display: grid; place-items: center; min-height: 36px; border-radius: 6px; border: 2px solid var(--line-strong); font-weight: 700; font-size: 1rem; }
+  .map-used { background: var(--muted-bg); color: var(--ink-2); border-style: dashed; }
+  .map-label { background: var(--honey-soft); color: var(--choc); }
+  .map-empty { background: var(--white); color: var(--ink-2); }
+  .print-sheet { display: none; }
+  .sticker :global(.st-text) { flex: 1 1 auto; min-width: 0; display: grid; align-content: start; gap: .25mm; }
+  .sticker :global(p) { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sticker :global(.st-title) { font-weight: 700; font-size: 1.08em; }
+  .sticker :global(.st-k) { text-transform: uppercase; letter-spacing: .02em; font-size: .86em; }
+  .sticker :global(.st-small) { font-size: .86em; }
+  .sticker :global(.st-qr) { flex: none; align-self: center; }
+  @media print {
+    /* .main, .frame and .shell belong to AdminLayout: global, or the scoped selectors would never match on paper */
+    :global(.main > *:not(.print-sheet)) { display: none !important; }
+    :global(.main), :global(.frame), :global(.shell) { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+    .print-sheet { display: block; }
+    .print-page { position: relative; overflow: hidden; break-after: page; page-break-after: always; }
+    .print-page:last-child { break-after: auto; page-break-after: auto; }
+    .print-sheet .sticker { position: absolute; }
+  }
+</style>

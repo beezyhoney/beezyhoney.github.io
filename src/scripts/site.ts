@@ -1,5 +1,7 @@
 import { gsap, initReveals, lenis, reducedMotion, refreshSoon, startSmoothScroll } from './motion';
-import { cart, orderLink } from './cart';
+import { cart, forgetRef, loadOrderTools, orderToolsReady, prepareOrder, productRef, resolveItem, sendOrder, sentRef, type PreparedOrder } from './cart';
+import { activeOffer, onLiveChange, refreshIfStale, setHidden, setText, showPrices, startLive } from './live';
+import { formatINR } from '../lib/money';
 
 const html = document.documentElement;
 const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector<T>(sel);
@@ -171,30 +173,87 @@ function cartDrawer() {
   const foot = $('[data-cart-foot]', drawer)!;
   const send = $<HTMLAnchorElement>('[data-cart-send]', drawer)!;
   const counts = $$('[data-cart-count]');
-  // product photo (small WebP made at build time) and page for every product slug
-  const thumbs: Record<string, { src: string; href: string }> = JSON.parse($('#cart-thumbs')?.textContent || '{}');
+  const totalRow = $('[data-cart-total]', drawer);
+  const totalLabel = $('[data-cart-total-label]', drawer);
+  const totalAmount = $('[data-cart-total-amount]', drawer);
+  const refLine = $('[data-cart-ref]', drawer);
+  const sentBox = $('[data-cart-sent]', drawer);
+  const sentCode = $('[data-cart-sent-ref]', drawer);
+  const blocked = $('[data-cart-blocked]', drawer);
   drawer.inert = true;
+  let order: PreparedOrder | null = null;
+  let lastHtml = '';
+  let toolsAsked = false;
 
+  const flag = (text: string, cls = '') => `<span class="flag${cls}">${escapeHtml(text)}</span>`;
   const render = () => {
     const items = cart.items();
     const n = cart.count();
-    counts.forEach((c) => { c.textContent = String(n); c.dataset.empty = String(n === 0); });
-    empty.hidden = items.length > 0;
-    foot.hidden = items.length === 0;
-    list.innerHTML = items.map((it, i) => `
-      <li>
-        ${thumbs[it.slug] ? `<a class="th" href="${thumbs[it.slug].href}" tabindex="-1" aria-hidden="true"><img src="${thumbs[it.slug].src}" alt="" width="64" height="64"></a>` : '<span class="th"></span>'}
-        <span class="nm">${escapeHtml(it.name)}</span>
-        <span class="meta"><span class="pk">${escapeHtml(it.pack)}</span><button type="button" class="rm" data-act="remove" data-i="${i}">Remove</button></span>
-        <span class="qty" role="group" aria-label="Quantity for ${escapeHtml(it.name)}, ${escapeHtml(it.pack)}">
+    counts.forEach((c) => { setText(c, String(n)); if (c.dataset.empty !== String(n === 0)) c.dataset.empty = String(n === 0); });
+    setHidden(empty, items.length > 0);
+    setHidden(foot, items.length === 0);
+    const show = showPrices();
+    const lines = items.map(resolveItem);
+    order = prepareOrder('cart', items);
+    const html = lines.map((l, i) => {
+      const it = l.item;
+      const th = productRef(l.slug);
+      const thumb = th ? (th.href ? `<a class="th" href="${escapeHtml(th.href)}" tabindex="-1" aria-hidden="true"><img src="${escapeHtml(th.src)}" alt="" width="64" height="64"></a>` : `<span class="th"><img src="${escapeHtml(th.src)}" alt="" width="64" height="64"></span>`) : '<span class="th"></span>';
+      const flags = l.state === 'gone' ? flag('No longer available', ' off')
+        : l.state === 'paused' ? flag('Not available right now', ' off')
+          : l.avail === 'out' ? flag('Sold out', ' out') : l.avail === 'low' ? flag('Only a few left') : '';
+      const price = show && l.state === 'ok'
+        ? `<span class="pr">${l.unitPaise === null ? 'Price on WhatsApp' : `${formatINR(l.unitPaise)} × ${it.qty} = <b>${formatINR(l.linePaise as number)}</b>`}</span>`
+        : '';
+      return `
+      <li${l.state !== 'ok' ? ' class="is-off"' : ''}>
+        ${thumb}
+        <span class="nm">${escapeHtml(l.name)}</span>
+        <span class="meta"><span class="pk">${escapeHtml(l.pack)}</span>${flags}<button type="button" class="rm" data-act="remove" data-i="${i}">Remove</button></span>
+        <span class="qty" role="group" aria-label="Quantity for ${escapeHtml(l.name)}, ${escapeHtml(l.pack)}">
           <button type="button" data-act="dec" data-i="${i}" aria-label="One less">−</button>
           <output>${it.qty}</output>
           <button type="button" data-act="inc" data-i="${i}" aria-label="One more">+</button>
-        </span>
-      </li>`).join('');
-    send.href = orderLink(items);
-    send.setAttribute('aria-disabled', String(items.length === 0));
+        </span>${price}
+      </li>`;
+    }).join('');
+    if (html !== lastHtml) { list.innerHTML = html; lastHtml = html; }
+
+    const orderable = order.lines.length > 0;
+    if (totalRow && totalLabel && totalAmount) {
+      const t = order.totalPaise;
+      if (t !== null) {
+        setText(totalLabel, order.complete ? 'Total' : 'Total so far');
+        setText(totalAmount, formatINR(t));
+      }
+      setHidden(totalRow, !show || t === null);
+    }
+    const sent = orderable ? sentRef('cart', order.hash) : null;
+    if (refLine) { if (order.ref) setText(refLine, `Order ${order.ref}`); setHidden(refLine, !orderable || sent !== null || !order.ref); }
+    if (sentBox && sentCode) { if (sent) setText(sentCode, sent); setHidden(sentBox, sent === null); }
+    if (blocked) setHidden(blocked, orderable || items.length === 0);
+    if (send.getAttribute('href') !== order.href) send.href = order.href;
+    send.setAttribute('aria-disabled', String(!orderable));
+    // the order code and message helpers load once there is something to order; the drawer then renders again
+    if (items.length && !orderToolsReady() && !toolsAsked) {
+      toolsAsked = true;
+      void loadOrderTools().then((ok) => { toolsAsked = false; if (ok) render(); });
+    }
   };
+
+  // The tap opens WhatsApp straight away (the link is always ready); the order record goes out at the same time.
+  send.addEventListener('click', (e) => {
+    if (send.getAttribute('aria-disabled') === 'true') { e.preventDefault(); return; }
+    const now = prepareOrder('cart', cart.items());
+    if (send.getAttribute('href') !== now.href) send.href = now.href;
+    sendOrder(now);
+    setTimeout(render, 0);
+  });
+  $('[data-cart-new]', drawer)?.addEventListener('click', () => {
+    forgetRef('cart');
+    cart.clear();
+    $<HTMLElement>('[data-cart-close]', drawer)?.focus({ preventScroll: true });
+  });
 
   list.addEventListener('click', (e) => {
     const b = (e.target as Element).closest<HTMLButtonElement>('button[data-act]');
@@ -217,6 +276,7 @@ function cartDrawer() {
       lenis?.stop();
       lastFocus = document.activeElement as HTMLElement;
       $<HTMLElement>('[data-cart-close]', drawer)?.focus({ preventScroll: true });
+      void refreshIfStale();
     } else {
       lenis?.start();
       lastFocus?.focus({ preventScroll: true });
@@ -230,6 +290,7 @@ function cartDrawer() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && html.classList.contains('is-cart-open')) setOpen(false); });
   window.addEventListener('cart:open', () => setOpen(true));
   window.addEventListener('cart:change', render);
+  onLiveChange(render);
   render();
 }
 
@@ -251,6 +312,29 @@ function sliders() {
   });
 }
 
+/* ---------- offer pill (v2): above the WhatsApp button, from #price-data / live.json, hidden for the session ---------- */
+function offerPill() {
+  const pill = $<HTMLElement>('[data-offer]');
+  const text = pill && $<HTMLAnchorElement>('[data-offer-text]', pill);
+  if (!pill || !text) return;
+  const KEY = 'beezy-offer-hidden';
+  const dismissed = () => { try { return sessionStorage.getItem(KEY); } catch { return null; } };
+  const draw = () => {
+    const o = activeOffer();
+    if (o) {
+      setText(text, o.text);
+      if (o.link) text.href = o.link; else text.removeAttribute('href');
+    }
+    setHidden(pill, !o || dismissed() === o.text);
+  };
+  $('[data-offer-close]', pill)?.addEventListener('click', () => {
+    try { sessionStorage.setItem(KEY, activeOffer()?.text ?? ''); } catch { /* storage blocked: hide for this page only */ }
+    pill.hidden = true;
+  });
+  onLiveChange(draw);
+  draw();
+}
+
 /* ---------- boot ---------- */
 /* ---------- "In bloom now" tags: shown when the visitor's month is in the honey's flowering months ---------- */
 function bloomTags() {
@@ -265,6 +349,8 @@ startSmoothScroll();
 headerState();
 menu();
 cartDrawer();
+startLive(() => cart.count() > 0);
+offerPill();
 sliders();
 interceptLinks();
 intro().then(() => {

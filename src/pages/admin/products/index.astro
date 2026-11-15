@@ -1,0 +1,114 @@
+---
+// Products (design §5 screen 5, owner only): cards with photo, status, price range and stock; up/down arrows set the
+// shop order (_action=move); New product and Copy from an existing product.
+export const prerender = false;
+
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Badge from '../../../admin/components/Badge.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import '../../../admin/catalog/catalog.css';
+import { failureFlash, redirectWithFlash, takeFlash } from '../../../admin/flash';
+import { readForm } from '../../../admin/forms';
+import { canOpen } from '../../../admin/nav';
+import { inr } from '../../../admin/format';
+import { S } from '../../../admin/catalog/strings';
+import { thumbFor } from '../../../admin/catalog/library';
+import { adminOf, bindings, photoLibrary, publishAfter } from '../../../admin/catalog/page';
+import { listImages, listProductsAdmin, moveProduct, type ProductStatus } from '../../../server/products-admin';
+import { toId } from '../../../server/db';
+
+const admin = adminOf(Astro);
+const SELF = '/admin/products/';
+if (!canOpen(admin.role, 'products')) return redirectWithFlash(Astro, '/admin/', { key: 'flash.forbidden' });
+
+if (Astro.request.method === 'POST') {
+  const form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  const back = `${SELF}${Astro.url.search}`;
+  if (form.action(['move'] as const) !== 'move') return redirectWithFlash(Astro, back, { key: 'form.unknownAction' });
+  const id = toId(form.raw('id'));
+  const direction = form.choice('direction', ['up', 'down'] as const);
+  if (!id || !direction) return redirectWithFlash(Astro, back, { key: 'form.unknownAction' });
+  const r = await moveProduct(bindings.DB, admin, { id, direction });
+  if (!r.ok) return redirectWithFlash(Astro, back, failureFlash(r));
+  await publishAfter(Astro, r.value.effects, 'Shop order changed');
+  return redirectWithFlash(Astro, `${back}#p-${id}`, { tone: 'ok', text: S.t(r.value.effects.publish ? 'products.moved' : 'products.movedDraft') });
+}
+
+const flash = takeFlash(Astro);
+const FILTERS = ['all', 'live', 'draft', 'paused', 'retired'] as const;
+const f = (FILTERS as readonly string[]).includes(Astro.url.searchParams.get('f') ?? '') ? (Astro.url.searchParams.get('f') as (typeof FILTERS)[number]) : 'all';
+const [all, images, library] = await Promise.all([listProductsAdmin(bindings.DB), listImages(bindings.DB), photoLibrary(Astro)]);
+const imgMap = new Map(images.map((i) => [i.path, i]));
+const libMap = new Map(library.map((p) => [p.path, p]));
+const shown = f === 'all' ? all : all.filter((p) => p.status === (f as ProductStatus));
+const live = all.filter((p) => p.status === 'live').length;
+const count = (s: string) => (s === 'all' ? all.length : all.filter((p) => p.status === s).length);
+const priceText = (p: (typeof all)[number]) => {
+  if (!p.activePacks) return S.t('products.noPacks');
+  if (p.priceMin === null) return S.t('products.noPrice');
+  return p.priceMin === p.priceMax ? inr(p.priceMin) : S.t('products.priceRange', { from: inr(p.priceMin), to: inr(p.priceMax) });
+};
+---
+<AdminLayout title={S.t('products.title')} active="products" flash={flash} subtitle={S.t('products.sub', { n: all.length, live })}>
+  <Fragment slot="actions">
+    <a class="btn btn-primary" href="/admin/products/new/"><Icon name="plus" />{S.t('products.new')}</a>
+    <a class="btn" href="/admin/products/new/?copy=1"><Icon name="paste" />{S.t('products.copy')}</a>
+  </Fragment>
+
+  <nav class="chips" aria-label={S.t('products.filter')} style="margin-bottom:16px">
+    {FILTERS.map((k) => (
+      <a class="chip" href={k === 'all' ? SELF : `${SELF}?f=${k}`} aria-current={f === k ? 'true' : undefined}>
+        {S.t(`products.filter.${k}`)} ({count(k)})
+      </a>
+    ))}
+  </nav>
+  <p class="muted" style="margin-bottom:12px">{S.t('products.orderHint')}</p>
+
+  {shown.length === 0 ? (
+    <EmptyState icon="products" title={S.t('products.empty')}>
+      <a class="btn btn-primary" href="/admin/products/new/"><Icon name="plus" />{S.t('products.new')}</a>
+    </EmptyState>
+  ) : (
+    <ul class="pc-grid">
+      {shown.map((p) => {
+        const thumb = thumbFor(p.card ?? p.photo, imgMap, libMap);
+        const index = all.findIndex((x) => x.id === p.id);
+        return (
+          <li class="card pc-card" id={`p-${p.id}`}>
+            <div class="pc-photo">
+              {thumb ? <img src={thumb.src} alt="" width={96} height={96} loading="lazy" decoding="async" /> : <span>{S.t('products.noPhoto')}</span>}
+            </div>
+            <div>
+              <p class="pc-name"><a href={`/admin/products/${p.id}/`}>{p.name}</a></p>
+              <div class="pc-meta">
+                <span><Badge kind="product" value={p.status} /></span>
+                <span class="num">{priceText(p)}{p.unpriced > 0 && p.priceMin !== null && <span class="muted"> · {S.t('products.unpriced', { n: p.unpriced })}</span>}</span>
+                {p.stock.length > 0 && (
+                  <ul class="pc-stock">
+                    {p.stock.map((s) => (
+                      <li>
+                        <a href={`/admin/stock/${s.poolId}/`}>{p.stock.length > 1 ? `${s.name}: ` : ''}{s.amountText}</a>
+                        {' '}{s.level === 'untracked' ? <Badge kind="stock" value="untracked" /> : s.level === 'ok' ? null : <Badge kind="stock" value={s.level === 'empty' ? 'out' : s.level} />}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+            <div class="pc-actions">
+              <a class="btn" href={`/admin/products/${p.id}/`} aria-label={S.t('products.edit', { name: p.name })}><Icon name="edit" />{S.t('common.edit')}</a>
+              <form method="post">
+                <input type="hidden" name="id" value={p.id} />
+                <input type="hidden" name="_action" value="move" />
+                <button class="btn btn-icon" name="direction" value="up" disabled={index === 0} aria-label={S.t('products.up', { name: p.name })}><Icon name="up" /></button>
+                <button class="btn btn-icon" name="direction" value="down" disabled={index === all.length - 1} aria-label={S.t('products.down', { name: p.name })}><Icon name="down" /></button>
+              </form>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  )}
+</AdminLayout>

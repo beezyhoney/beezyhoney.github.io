@@ -1,0 +1,213 @@
+---
+// Sales (design §5 screen 9): Month / Calendar year / Financial year (April–March) / Custom; totals with ▲▼ against
+// the previous period; inline SVG bars per day or month; by product with packs and shop-section subtotals; asked vs
+// confirmed; CSV downloads (customer details only when ticked). A sale is a confirmed / packed / sent / delivered
+// order that is not a test order, counted on its confirmed date (IST). Owner; helpers see the totals only.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import BarChart from '../../../admin/components/BarChart.astro';
+import DataTable from '../../../admin/components/DataTable.astro';
+import DateRange from '../../../admin/components/DateRange.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import StatTile from '../../../admin/components/StatTile.astro';
+import { takeFlash } from '../../../admin/flash';
+import { dateIST, inr, int, isDay, kg, pct } from '../../../admin/format';
+import { S } from '../../../admin/ops/strings';
+import { EXPORTS, periodNav, periodQuery } from '../../../server/sales';
+import { askedVsConfirmed, currentFinancialYear, currentMonth, currentYear, periodFromParams, previousPeriod, salesByProduct, salesSeries, salesTotals } from '../../../server/sales-queries';
+import { addDays, istDate, nowIso } from '../../../server/time';
+
+const db = env.DB;
+const admin = Astro.locals.admin!;
+const owner = admin.role === 'owner';
+const flash = takeFlash(Astro);
+const q = Astro.url.searchParams;
+const at = nowIso();
+const kindParam = q.get('period');
+const badRange = kindParam === 'custom' && isDay(q.get('from') ?? '') && isDay(q.get('to') ?? '') && (q.get('to') ?? '') < (q.get('from') ?? '');
+const period = periodFromParams({ period: kindParam, month: q.get('month'), year: q.get('year'), fy: q.get('fy'), from: q.get('from'), to: q.get('to') }, at);
+const prevPeriod = previousPeriod(period);
+const nav = periodNav(period, at);
+const [totals, previous, series, byProduct, asked] = await Promise.all([
+  salesTotals(db, period),
+  salesTotals(db, prevPeriod),
+  salesSeries(db, period),
+  owner ? salesByProduct(db, period) : Promise.resolve(null),
+  owner ? askedVsConfirmed(db, period) : Promise.resolve(null),
+]);
+const today = istDate(at);
+const lastDay = addDays(period.endDay, -1);
+const vs = prevPeriod.label;
+const kinds = [
+  { kind: 'month', href: `/admin/sales/?${periodQuery(currentMonth(at))}` },
+  { kind: 'year', href: `/admin/sales/?${periodQuery(currentYear(at))}` },
+  { kind: 'fy', href: `/admin/sales/?${periodQuery(currentFinancialYear(at))}` },
+  { kind: 'custom', href: `/admin/sales/?period=custom&from=${today.slice(0, 8)}01&to=${today}` },
+] as const;
+const highlight = series.findIndex((s) => s.key === (period.kind === 'month' || period.kind === 'custom' ? today : today.slice(0, 7)));
+const chartData = series.map((s) => ({ label: s.label, title: period.kind === 'month' || period.kind === 'custom' ? dateIST(s.key) : s.label, value: s.netPaise }));
+const exportFrom = period.firstDay;
+const exportTo = lastDay > today ? today : lastDay;
+---
+<AdminLayout title={S.t('sales.title')} active="sales" flash={flash} wide={false}>
+  <nav class="tabs" aria-label={S.t('sales.kindLabel')}>
+    {kinds.map((k) => <a href={k.href} aria-current={period.kind === k.kind ? 'page' : undefined}>{S.t(`sales.kind.${k.kind}`)}</a>)}
+  </nav>
+
+  <div class="card periodbar">
+    <a class="btn btn-icon" href={`/admin/sales/?${periodQuery(nav.prev)}`} aria-label={`${S.t('sales.prev')}: ${nav.prev.label}`}><Icon name="back" /></a>
+    <h2 class="period-label">{period.label}</h2>
+    {nav.next
+      ? <a class="btn btn-icon" href={`/admin/sales/?${periodQuery(nav.next)}`} aria-label={`${S.t('sales.next')}: ${nav.next.label}`}><Icon name="next" /></a>
+      : <span class="btn btn-icon" aria-disabled="true"><Icon name="next" /></span>}
+  </div>
+  {period.kind === 'month' && (
+    <form method="get" action="/admin/sales/" class="row monthpick">
+      <input type="hidden" name="period" value="month" />
+      <label class="field-label" for="sales-month">{S.t('sales.pickMonth')}</label>
+      <input class="input" type="month" id="sales-month" name="month" value={period.key} max={today.slice(0, 7)} />
+      <button class="btn" type="submit">{S.t('sales.show')}</button>
+    </form>
+  )}
+  {period.kind === 'custom' && (
+    <div class="customrange">
+      <DateRange url={new URL(`/admin/sales/?period=custom`, Astro.url)} from={period.firstDay} to={lastDay} max={today}
+        presets={['last7', 'thisMonth', 'lastMonth', 'thisFy', 'lastFy']} error={badRange ? S.t('sales.badRange') : null} />
+    </div>
+  )}
+
+  <section class="section" aria-label={period.label}>
+    <div class="tiles">
+      <StatTile label={S.t('sales.net')} paise={totals.netPaise} prev={previous.netPaise} period={vs} />
+      <StatTile label={S.t('sales.orders')} value={totals.orders} prev={previous.orders} period={vs} />
+      <StatTile label={S.t('sales.kg')} grams={totals.grams} prev={previous.grams} period={vs} />
+      <StatTile label={S.t('sales.units')} value={totals.units} prev={previous.units} period={vs} />
+      <StatTile label={S.t('sales.items')} paise={totals.itemsPaise} prev={previous.itemsPaise} period={vs} />
+      <StatTile label={S.t('sales.delivery')} paise={totals.deliveryPaise} prev={previous.deliveryPaise} period={vs} better="none" />
+      <StatTile label={S.t('sales.discounts')} paise={totals.discountPaise} prev={previous.discountPaise} period={vs} better="down" />
+      <StatTile label={S.t('sales.avg')} paise={totals.averageOrderPaise} prev={previous.averageOrderPaise} period={vs} />
+      <StatTile label={S.t('sales.collected')} paise={totals.collectedPaise} prev={previous.collectedPaise} period={vs} />
+      <StatTile label={S.t('sales.outstanding')} paise={totals.outstandingPaise} prev={previous.outstandingPaise} period={vs} better="down" alert={totals.outstandingPaise > 0} href={totals.outstandingPaise > 0 ? '/admin/orders/?f=unpaid' : undefined} />
+    </div>
+  </section>
+
+  <section class="section card">
+    <BarChart caption={period.kind === 'month' || period.kind === 'custom' ? S.t('sales.chartDays') : S.t('sales.chartMonths')} format="money"
+      data={chartData} highlight={highlight >= 0 ? highlight : undefined} emptyText={S.t('sales.noSales')} />
+  </section>
+
+  {!owner && <p class="notice notice-info"><Icon name="info" /><span>{S.t('sales.helperNote')}</span></p>}
+
+  {owner && byProduct && (
+    <>
+      <section class="section" aria-labelledby="sales-products">
+        <div class="section-head"><h2 class="section-title" id="sales-products">{S.t('sales.byProduct')}</h2></div>
+        <p class="field-hint hint-gap">{S.t('sales.byProductHint')}</p>
+        {byProduct.products.length === 0 ? <EmptyState compact icon="sales" title={S.t('sales.noSales')} /> : (
+          <div class="prods card">
+            <div class="prod-head" aria-hidden="true">
+              <span>{S.t('sales.product')}</span><span class="r">{S.t('sales.orders')}</span><span class="r">{S.t('sales.units')}</span><span class="r">{S.t('sales.amount')}</span><span class="r">{S.t('sales.share')}</span>
+            </div>
+            {byProduct.products.map((p) => (
+              <details class="prod">
+                <summary class="prod-row">
+                  <span class="prod-name">{p.name}</span>
+                  <span class="r" data-label={S.t('sales.orders')}>{int(p.orders)}</span>
+                  <span class="r" data-label={S.t('sales.units')}>{int(p.units)}{p.grams > 0 && <span class="muted"> · {kg(p.grams)}</span>}</span>
+                  <span class="r strong" data-label={S.t('sales.amount')}>{inr(p.paise)}</span>
+                  <span class="r" data-label={S.t('sales.share')}><span class="share" style={`--w:${Math.min(100, p.sharePct)}%`}>{pct(p.sharePct / 100)}</span></span>
+                </summary>
+                {p.packs.length > 0 && (
+                  <ul class="packs">
+                    {p.packs.map((k) => <li><span>{k.label}</span><span class="r">{int(k.units)} {S.t('sales.packs').toLowerCase()}</span><span class="r">{inr(k.paise)}</span></li>)}
+                  </ul>
+                )}
+              </details>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {byProduct.categories.length > 0 && (
+        <section class="section" aria-labelledby="sales-cats">
+          <div class="section-head"><h2 class="section-title" id="sales-cats">{S.t('sales.byCategory')}</h2></div>
+          <DataTable caption={S.t('sales.byCategory')} captionHidden
+            columns={[
+              { key: 'name', label: S.t('sales.product'), primary: true },
+              { key: 'orders', label: S.t('sales.orders'), type: 'int' },
+              { key: 'units', label: S.t('sales.units'), type: 'int' },
+              { key: 'grams', label: S.t('sales.kg'), type: 'grams' },
+              { key: 'paise', label: S.t('sales.amount'), type: 'money' },
+              { key: 'share', label: S.t('sales.share'), type: 'pct' },
+            ]}
+            rows={byProduct.categories.map((c) => ({ name: c.name, orders: c.orders, units: c.units, grams: c.grams || null, paise: c.paise, share: c.sharePct / 100 }))} />
+        </section>
+      )}
+
+      <section class="section" aria-labelledby="sales-asked">
+        <div class="section-head"><h2 class="section-title" id="sales-asked">{S.t('sales.asked')}</h2></div>
+        <p class="field-hint hint-gap">{S.t('sales.askedHint')}</p>
+        <DataTable caption={S.t('sales.asked')} captionHidden empty={S.t('sales.noSales')}
+          columns={[
+            { key: 'name', label: S.t('sales.product'), primary: true },
+            { key: 'ao', label: S.t('sales.askedOrders'), type: 'int' },
+            { key: 'au', label: S.t('sales.askedUnits'), type: 'int' },
+            { key: 'so', label: S.t('sales.soldOrders'), type: 'int' },
+            { key: 'su', label: S.t('sales.soldUnits'), type: 'int' },
+          ]}
+          rows={(asked ?? []).map((a) => ({ name: a.name, ao: a.askedOrders, au: a.askedUnits, so: a.soldOrders, su: a.soldUnits }))} />
+      </section>
+
+      <section class="section" aria-labelledby="sales-csv">
+        <div class="section-head"><h2 class="section-title" id="sales-csv">{S.t('sales.exports')}</h2></div>
+        <form method="get" class="card stack" action="/admin/api/export/orders.csv" data-no-once>
+          <p class="field-hint">{S.t('sales.exportsHint')} ({dateIST(exportFrom)} – {dateIST(exportTo)})</p>
+          <input type="hidden" name="from" value={exportFrom} />
+          <input type="hidden" name="to" value={exportTo} />
+          <label class="check"><input type="checkbox" name="personal" value="1" />{S.t('sales.personal')}</label>
+          <p class="field-hint">{S.t('sales.personalHint')}</p>
+          <div class="row">
+            {EXPORTS.map((name) => <button class="btn" type="submit" formaction={`/admin/api/export/${name}.csv`}><Icon name="backup" />{S.t(`sales.export.${name}`)}</button>)}
+          </div>
+        </form>
+      </section>
+    </>
+  )}
+</AdminLayout>
+
+<style>
+  .tabs { margin-bottom: 16px; }
+  .periodbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px; margin-bottom: 12px; }
+  .period-label { font-family: var(--f-display); font-weight: 500; font-size: 1.375rem; text-align: center; flex: 1 1 auto; }
+  .monthpick { margin-bottom: 20px; }
+  .monthpick .input { width: auto; flex: 1 1 160px; max-width: 220px; }
+  .monthpick .field-label { margin: 0; }
+  .customrange { margin-bottom: 20px; }
+  .hint-gap { margin: -6px 0 12px; }
+  .prods { padding: 6px 0; }
+  .prod-head, .prod-row { display: grid; grid-template-columns: minmax(0, 2.2fr) repeat(4, minmax(0, 1fr)); gap: 8px; align-items: center; padding: 10px 16px; }
+  .prod-head { font-weight: 700; color: var(--ink-2); border-bottom: 1px solid var(--line); }
+  .prod + .prod, .prod-head + .prod { border-top: 1px solid var(--line); }
+  .prod-row { cursor: pointer; min-height: 48px; list-style: none; }
+  .prod-row::-webkit-details-marker { display: none; }
+  .prod-name { font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .prod-name::before { content: ""; width: 8px; height: 8px; border-right: 2.5px solid var(--ink-2); border-bottom: 2.5px solid var(--ink-2); transform: rotate(-45deg); transition: transform .15s; flex: none; }
+  .prod[open] .prod-name::before { transform: rotate(45deg); }
+  .r { text-align: right; font-variant-numeric: tabular-nums; }
+  .strong { font-weight: 700; }
+  .share { display: inline-block; min-width: 4.5ch; padding: 0 4px; background: linear-gradient(90deg, var(--honey-soft) var(--w), transparent var(--w)); border-radius: 4px; }
+  .packs { list-style: none; margin: 0 16px 10px 32px; padding: 0; display: grid; gap: 4px; }
+  .packs li { display: grid; grid-template-columns: minmax(0, 2fr) 1fr 1fr; gap: 8px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+  .check { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
+  .check input { width: 22px; height: 22px; accent-color: var(--choc); }
+  @media (max-width: 699px) {
+    .prod-head { display: none; }
+    .prod-row { grid-template-columns: 1fr 1fr; }
+    .prod-name { grid-column: 1 / -1; }
+    .prod-row > .r { text-align: left; }
+    .prod-row > .r::before { content: attr(data-label) ": "; color: var(--ink-2); font-weight: 400; }
+  }
+</style>

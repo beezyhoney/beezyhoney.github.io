@@ -1,0 +1,100 @@
+// Cloudflare Worker for beezyhoney.in: static public pages (assets) + on-demand /api/*, /media/* and /admin/*.
+// Local only for now (Miniflare/workerd): no account, no deploys. All ids below are placeholders; the real ids are
+// filled in when the production resources are created (design §10 Phase 7). See docs/DEV-NOTES.md.
+// Secrets are NOT set here (ADMIN_EMAILS, LOGIN_SECRET, IP_HASH_KEY, DEPLOY_HOOK_URL): production uses
+// `wrangler secret put`, local runs read the gitignored .dev.vars (copy .dev.vars.example).
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "beezyhoney",
+  // Custom entry: Astro's fetch handler plus scheduled() for the cron below.
+  "main": "./src/worker.ts",
+  "compatibility_date": "2026-11-01",
+
+  // Never serve the Worker on *.workers.dev or on per-version preview URLs: only the custom domains.
+  "workers_dev": false,
+  "preview_urls": false,
+
+  "assets": {
+    // Astro writes the static output here (the Cloudflare Vite plugin rewrites the path in dist/server/wrangler.json).
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    // trailingSlash 'always' + build.format 'directory': every page is <path>/index.html, so /shop → 307 /shop/.
+    "html_handling": "force-trailing-slash",
+    // Unknown paths get the prerendered 404.html with status 404 (same page GitHub Pages shows today).
+    "not_found_handling": "404-page",
+    // The on-demand routes go to the Worker first. Without this, a browser NAVIGATION (Sec-Fetch-Mode: navigate) to
+    // /admin/… gets the static 404 page and the Worker never runs: with not_found_handling set and a compatibility
+    // date after 2025-04-01 (assets_navigation_prefers_asset_serving), unmatched navigations are answered by the
+    // assets. Only these paths count as Worker requests; every public page stays a free static asset.
+    // "/admin" (no slash) is listed so the Worker can answer its 301 to "/admin/".
+    "run_worker_first": ["/admin", "/admin/*", "/api/*", "/media/*"]
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "beezy",
+      "database_id": "ad91d926-08ad-4f5c-88eb-949a3afcbe65",
+      "migrations_dir": "db/migrations"
+    }
+  ],
+
+  // Workers KV instead of R2 (amendment A2): uploaded photos and daily backups.
+  "kv_namespaces": [
+    { "binding": "MEDIA", "id": "8809122b5b5548c0b62e6dc8beda5471" },
+    { "binding": "BACKUPS", "id": "e1d46672e1594f12845262e306122638" }
+  ],
+
+  // Login codes (amendment A1). Deliberately WITHOUT destination/sender restrictions so no email address is
+  // committed; Cloudflare only delivers to verified destination addresses of the account.
+  "send_email": [{ "name": "LOGIN_MAIL" }],
+  // Custom domains: Cloudflare creates the DNS records and certificates. beezyhoney.in is added at the cutover.
+  "routes": [
+    { "pattern": "next.beezyhoney.in", "custom_domain": true },
+    { "pattern": "admin.beezyhoney.in", "custom_domain": true }
+  ],
+
+  // Every 15 minutes: publish-if-due, backup chunks, cleanup (src/server/jobs.ts).
+  "triggers": { "crons": ["*/15 * * * *"] },
+
+  "vars": {
+    // Hosts that may serve /api/* and /media/*. The deployed Worker knows only the real names: localhost and
+    // 127.0.0.1 (public AND admin host, for local runs) are added by PUBLIC_HOSTS in .dev.vars (local dev, preview,
+    // e2e copies) and by the worker-test vars in vitest.config.mjs, never here (security review 16 Nov 2026).
+    "PUBLIC_HOSTS": "beezyhoney.in,next.beezyhoney.in",
+    "ADMIN_HOST": "admin.beezyhoney.in",
+    "PUBLIC_ORIGIN": "https://beezyhoney.in"
+  },
+
+  "observability": { "enabled": true },
+
+  // Optional, for the future only (amendment A4: there is no staging today). Nothing depends on it.
+  // Select with CLOUDFLARE_ENV=staging at build time. Bindings and vars are not inherited, so they are repeated.
+  "env": {
+    "staging": {
+      "name": "beezyhoney-staging",
+      "workers_dev": false,
+      "preview_urls": false,
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "beezy-staging",
+          "database_id": "00000000-0000-4000-8000-000000000001",
+          "migrations_dir": "db/migrations"
+        }
+      ],
+      "kv_namespaces": [
+        { "binding": "MEDIA", "id": "00000000000000000000000000000011" },
+        { "binding": "BACKUPS", "id": "00000000000000000000000000000012" }
+      ],
+      "send_email": [{ "name": "LOGIN_MAIL" }],
+      "triggers": { "crons": ["*/15 * * * *"] },
+      "vars": {
+        "PUBLIC_HOSTS": "staging.beezyhoney.in",
+        "ADMIN_HOST": "staging-admin.beezyhoney.in",
+        "PUBLIC_ORIGIN": "https://staging.beezyhoney.in"
+      },
+      "observability": { "enabled": true }
+    }
+  }
+}

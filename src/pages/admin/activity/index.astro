@@ -1,0 +1,76 @@
+---
+// Activity (design §5 screen 12, §7 Audit), owner only: every admin change in plain sentences, newest first, with
+// filters by area and "Older" paging. Orders link to their page.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import { redirectWithFlash, takeFlash } from '../../../admin/flash';
+import { dateIST, timeIST } from '../../../admin/format';
+import { canOpen } from '../../../admin/nav';
+import { S } from '../../../admin/ops/strings';
+import { listActivity } from '../../../server/audit';
+
+const db = env.DB;
+const admin = Astro.locals.admin!;
+if (!canOpen(admin.role, 'activity')) return redirectWithFlash(Astro, '/admin/', { key: 'flash.forbidden' });
+const flash = takeFlash(Astro);
+const FILTERS = { all: null, order: 'order', stock: 'stock.', batch: 'batch.', settings: 'settings.', product: 'product', price: 'price', people: 'people.' } as const;
+type Filter = keyof typeof FILTERS;
+const fParam = Astro.url.searchParams.get('f') ?? 'all';
+const filter: Filter = fParam in FILTERS ? (fParam as Filter) : 'all';
+const before = Number.parseInt(Astro.url.searchParams.get('before') ?? '', 10);
+const PAGE = 50;
+const rows = await listActivity(db, { limit: PAGE + 1, beforeId: Number.isSafeInteger(before) && before > 0 ? before : undefined, actionPrefix: FILTERS[filter] ?? undefined });
+const page = rows.slice(0, PAGE);
+const more = rows.length > PAGE;
+const href = (f: Filter, b?: number) => `/admin/activity/?f=${f}${b ? `&before=${b}` : ''}`;
+const actorWord = (a: string) => (a === 'system' ? S.t('activity.by.system') : a === 'public' ? S.t('activity.by.public') : a);
+const linkOf = (entity: string, id: string) => (entity === 'order' && /^\d+$/.test(id) ? `/admin/orders/${id}/` : null);
+// group by IST day
+const days: { day: string; items: typeof page }[] = [];
+for (const r of page) {
+  const d = dateIST(r.at);
+  const last = days[days.length - 1];
+  if (last && last.day === d) last.items.push(r); else days.push({ day: d, items: [r] });
+}
+---
+<AdminLayout title={S.t('activity.title')} subtitle={S.t('activity.sub')} active="activity" flash={flash}>
+  <nav class="chips" aria-label={S.t('activity.filtersLabel')}>
+    {(Object.keys(FILTERS) as Filter[]).map((f) => <a class="chip" href={href(f)} aria-current={f === filter ? 'true' : undefined}>{S.t(`activity.filter.${f}`)}</a>)}
+  </nav>
+
+  {page.length === 0 ? <EmptyState icon="activity" title={S.t('activity.empty')} /> : days.map((d) => (
+    <section class="section" aria-label={d.day}>
+      <h2 class="day">{d.day}</h2>
+      <ul class="linklist">
+        {d.items.map((r) => {
+          const link = linkOf(r.entity, r.entityId);
+          const body = (
+            <span class="act">
+              <span class="act-text">{r.summary}</span>
+              <span class="muted act-meta">{timeIST(r.at)} · {actorWord(r.actor)}</span>
+            </span>
+          );
+          return <li>{link ? <a href={link}>{body}</a> : <span class="linklist-row">{body}</span>}</li>;
+        })}
+      </ul>
+    </section>
+  ))}
+
+  {(more || before > 0) && (
+    <nav class="pager" aria-label={S.t('pager.label')}>
+      {before > 0 ? <a class="btn" href={href(filter)}><Icon name="back" />{S.t('activity.newest')}</a> : <span></span>}
+      {more && <a class="btn" href={href(filter, page[page.length - 1].id)} rel="next">{S.t('activity.more')}<Icon name="next" /></a>}
+    </nav>
+  )}
+</AdminLayout>
+
+<style>
+  .chips { margin-bottom: 16px; }
+  .day { font-size: 1.0625rem; font-weight: 700; color: var(--ink-2); margin: 0 0 8px; }
+  .act { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }
+  .act-meta { overflow-wrap: anywhere; }
+</style>

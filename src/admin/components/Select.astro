@@ -1,0 +1,61 @@
+---
+// Native select (the phone's own picker), with optional groups and an "autosubmit" mode for filters.
+//   <Select name="variant" label="Pack" value={line.variantId} placeholder="Pick a pack"
+//           groups={products.map((p) => ({ label: p.name, options: p.packs.map((v) => ({ value: v.id, label: v.label })) }))} />
+// With autosubmit, the form is sent as soon as the choice changes (JS); a "Show" button is shown when JS is off.
+import Field from './Field.astro';
+import { describedBy, fieldId } from './ids';
+import { t } from '../strings';
+
+export interface SelectOption {
+  value: string | number;
+  label: string;
+  disabled?: boolean;
+}
+
+interface Props {
+  name: string;
+  label: string;
+  value?: string | number | null;
+  options?: SelectOption[];
+  groups?: { label: string; options: SelectOption[] }[];
+  /** first, empty choice, e.g. "Pick a pack" */
+  placeholder?: string;
+  id?: string;
+  required?: boolean;
+  hint?: string | null;
+  error?: string | null;
+  optional?: boolean;
+  labelHidden?: boolean;
+  disabled?: boolean;
+  autosubmit?: boolean;
+  class?: string;
+}
+const { name, label, value, options = [], groups = [], placeholder, required, hint, error, optional, labelHidden, disabled, autosubmit, class: cls } = Astro.props;
+const id = fieldId(name, Astro.props.id);
+const current = value === null || value === undefined ? '' : String(value);
+const sel = (v: string | number) => String(v) === current;
+---
+<Field id={id} label={label} hint={hint} error={error} optional={optional} labelHidden={labelHidden} class={cls}>
+  <div class="select">
+    <select
+      class="input"
+      id={id}
+      name={name}
+      required={required}
+      disabled={disabled}
+      aria-invalid={error ? 'true' : undefined}
+      aria-describedby={describedBy(id, hint, error)}
+      data-autosubmit={autosubmit ? '' : undefined}
+    >
+      {placeholder !== undefined && <option value="" selected={current === ''}>{placeholder}</option>}
+      {options.map((o) => <option value={String(o.value)} selected={sel(o.value)} disabled={o.disabled}>{o.label}</option>)}
+      {groups.map((g) => (
+        <optgroup label={g.label}>
+          {g.options.map((o) => <option value={String(o.value)} selected={sel(o.value)} disabled={o.disabled}>{o.label}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  </div>
+  {autosubmit && <noscript><button type="submit" class="btn">{t('common.show')}</button></noscript>}
+</Field>

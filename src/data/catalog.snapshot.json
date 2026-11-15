@@ -1,0 +1,2188 @@
+{
+  "format": 1,
+  "siteVersion": 1,
+  "liveVersion": 1,
+  "categories": [
+    {
+      "id": "comb-honey",
+      "name": "Comb Honey",
+      "title": "Comb Honey",
+      "intro": "Single-flower and seasonal honeys, packed with a piece of real honeycomb in every box. Each one tastes of the flowers the bees visited: drumstick blossoms, sunflower fields, mustard in winter bloom, coriander, or a whole season of wildflowers.",
+      "image": "cat-comb.jpg",
+      "isHoney": true,
+      "sort": 1
+    },
+    {
+      "id": "blossom-honey",
+      "name": "Blossom Honey",
+      "title": "Blossom Honey",
+      "intro": "Single-flower honeys, each from one kind of bloom: coffee flowers in the shade of forest trees, the lilac karanji tree, litchi orchards in spring and fields of flowering tulasi. Every jar tastes of its flower.",
+      "image": "cat-blossom.jpg",
+      "isHoney": true,
+      "sort": 2
+    },
+    {
+      "id": "wild-rare",
+      "name": "Wild & Rare",
+      "title": "Wild & Rare",
+      "intro": "Honey from bees nobody keeps and flowers nobody plants: the stingless dammar bee that stores honey in tiny resin pots, the dwarf honey bee that hangs a single comb from a wild branch, and the Neela Kurinji hills of the Western Ghats. Harvests are small and seasonal.",
+      "image": "cat-wild.jpg",
+      "isHoney": true,
+      "sort": 3
+    },
+    {
+      "id": "from-the-hive",
+      "name": "From the Hive",
+      "title": "From the Hive",
+      "intro": "Pure beeswax candles that burn clean with a soft honey scent, and 10 g honey sticks for tea, tiffin boxes, travel and return gifts.",
+      "image": "honey-sticks-box.jpg",
+      "isHoney": false,
+      "sort": 4
+    }
+  ],
+  "products": [
+    {
+      "slug": "murungai-honey",
+      "shortCode": "MUR",
+      "status": "live",
+      "sort": 1,
+      "name": "Murungai Honey",
+      "category": "comb-honey",
+      "kind": "Monofloral",
+      "badge": "With honeycomb",
+      "withComb": true,
+      "tagline": "Gathered from the blossoms of the drumstick tree.",
+      "tone": "#EEF0D6",
+      "photo": "murungai-main.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "murungai-box.jpg",
+          "caption": "Beezy moringa honey comb, as packed"
+        },
+        {
+          "src": "moringa-hex-shelf.jpg",
+          "caption": "Moringa honey comb on our hexagon shelf"
+        },
+        {
+          "src": "murungai-honey-bowl.jpg",
+          "caption": "Golden moringa honey, fresh comb and drumstick blossoms"
+        },
+        {
+          "src": "moringa-box-dark.jpg",
+          "caption": "Moringa comb sealed in a clear box"
+        },
+        {
+          "src": "murungai-pods.jpg",
+          "caption": "Drumstick pods, seeds and flowers"
+        }
+      ],
+      "specs": [
+        [
+          "Source",
+          "Drumstick tree flowers"
+        ],
+        [
+          "Colour",
+          "Amber"
+        ],
+        [
+          "Taste",
+          "Mild, lightly herbal"
+        ],
+        [
+          "Texture",
+          "Thick and smooth"
+        ]
+      ],
+      "colour": [
+        4,
+        5
+      ],
+      "about": "Murungai honey is gathered by bees from the small cream-white flowers of the drumstick tree, found in almost every Tamil home garden. It is amber in colour, with a mild sweetness and a light herbal note. Moringa blooms only in certain seasons, so this single-flower honey comes in limited batches, with a piece of raw honeycomb in every box.",
+      "love": [
+        "Single-flower honey from moringa blossoms",
+        "Mild taste the whole family enjoys",
+        "A natural source of quick energy",
+        "Real honeycomb in the box: raw and edible"
+      ],
+      "useHead": null,
+      "use": "Stir a spoonful into warm water in the morning, drizzle over dosa or chapati, or add to herbal kashayam once it has cooled a little.",
+      "store": "Store at room temperature with the lid closed. Always use a dry spoon.",
+      "finder": {
+        "taste": [
+          "mild",
+          "herbal"
+        ],
+        "uses": [
+          "daily",
+          "remedy"
+        ]
+      },
+      "bloom": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "bloomNote": null,
+      "inGiftBox": true
+    },
+    {
+      "slug": "multifloral-honey",
+      "shortCode": "MUL",
+      "status": "live",
+      "sort": 2,
+      "name": "Multifloral Honey",
+      "category": "comb-honey",
+      "kind": "Multifloral",
+      "badge": "With honeycomb",
+      "withComb": true,
+      "tagline": "A taste of every flower in the season.",
+      "tone": "#F7E3E6",
+      "photo": "multifloral-main.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "multifloral-jar-hands.jpg",
+          "caption": "A big jar of Beezy multifloral honey"
+        },
+        {
+          "src": "bulk-jars.jpg",
+          "caption": "Multifloral honey jars, fresh from the farm"
+        },
+        {
+          "src": "cover-jar.jpg",
+          "caption": "Raw, real and unpasteurised"
+        },
+        {
+          "src": "multifloral-field.jpg",
+          "caption": "A season of wildflowers"
+        }
+      ],
+      "specs": [
+        [
+          "Source",
+          "Wildflowers, fruit trees, crops"
+        ],
+        [
+          "Colour",
+          "Light amber to amber"
+        ],
+        [
+          "Taste",
+          "Balanced and floral"
+        ],
+        [
+          "Texture",
+          "Smooth and flowing"
+        ]
+      ],
+      "colour": [
+        4,
+        5
+      ],
+      "about": "Multifloral honey is made when bees visit many kinds of flowers in the same season: wildflowers, fruit trees and field crops. No two harvests taste exactly alike, and that is part of its charm. It has a balanced sweetness and a pleasant floral aroma, which makes it the everyday honey for the whole family.",
+      "love": [
+        "Nectar from many flowers in one box",
+        "Everyday honey for the whole family",
+        "Use it in place of sugar in drinks and sweets",
+        "Real honeycomb in the box: raw and edible"
+      ],
+      "useHead": null,
+      "use": "Add to tea, lemon juice and milkshakes, spread on bread, or pour over a bowl of fruit.",
+      "store": "Store at room temperature with the lid closed. Always use a dry spoon.",
+      "finder": {
+        "taste": [
+          "floral",
+          "mild"
+        ],
+        "uses": [
+          "daily",
+          "kids"
+        ]
+      },
+      "bloom": "all",
+      "bloomNote": null,
+      "inGiftBox": true
+    },
+    {
+      "slug": "forest-honey",
+      "shortCode": "FOR",
+      "status": "live",
+      "sort": 3,
+      "name": "Forest Honey",
+      "category": "comb-honey",
+      "kind": "Wild harvest",
+      "badge": "With honeycomb",
+      "withComb": true,
+      "tagline": "Wild honey from deep forest hives.",
+      "tone": "#DCE7E0",
+      "photo": "forest-main.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "forest-comb.jpg",
+          "caption": "Our forest honey comb, packed as it comes from the hive"
+        },
+        {
+          "src": "gen-forest-wild-comb.jpg",
+          "caption": "A wild rock bee comb high in the forest canopy"
+        },
+        {
+          "src": "gen-forest-comb-drip.jpg",
+          "caption": "Dark forest honey dripping from wild comb"
+        },
+        {
+          "src": "forest-canopy.jpg",
+          "caption": "Deep forest, home of the wild rock bee"
+        }
+      ],
+      "specs": [
+        [
+          "Source",
+          "Wild forest trees and flowers"
+        ],
+        [
+          "Colour",
+          "Amber to dark amber"
+        ],
+        [
+          "Taste",
+          "Bold, rich, slightly woody"
+        ],
+        [
+          "Texture",
+          "Thick"
+        ]
+      ],
+      "colour": [
+        5,
+        6
+      ],
+      "about": "Forest honey comes from wild hives that bees build high in trees and on rock faces deep inside the forest, most often by the giant rock bee. The nectar comes from countless wild trees and flowers that no farm can grow. The result is a dark, thick honey with a bold, rich flavour and a slightly woody finish, harvested by hand in small batches.",
+      "love": [
+        "Nectar from wild, uncultivated forest",
+        "Strong, full-bodied taste for honey lovers",
+        "Hand-harvested in small batches",
+        "Wild honeycomb in every box"
+      ],
+      "useHead": null,
+      "use": "Best straight from the spoon, or stirred into warm water with ginger and pepper on cold days.",
+      "store": "Store at room temperature with the lid closed. Always use a dry spoon.",
+      "finder": {
+        "taste": [
+          "rich"
+        ],
+        "uses": [
+          "daily",
+          "remedy"
+        ]
+      },
+      "bloom": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "bloomNote": null,
+      "inGiftBox": true
+    },
+    {
+      "slug": "sunflower-honey",
+      "shortCode": "SUN",
+      "status": "live",
+      "sort": 4,
+      "name": "Sunflower Honey",
+      "category": "comb-honey",
+      "kind": "Monofloral",
+      "badge": "With honeycomb",
+      "withComb": true,
+      "tagline": "Bright gold, from fields of sunflowers.",
+      "tone": "#D3E5EF",
+      "photo": "sunflower-main.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "sunflower-box.jpg",
+          "caption": "Beezy sunflower honey comb, as packed"
+        },
+        {
+          "src": "gen-sunflower-bee.jpg",
+          "caption": "A honey bee gathering sunflower pollen"
+        },
+        {
+          "src": "gen-sunflower-creamed.jpg",
+          "caption": "Sunflower honey sets soft and creamy"
+        },
+        {
+          "src": "sunflower-field.jpg",
+          "caption": "Sunflower fields in bloom"
+        }
+      ],
+      "specs": [
+        [
+          "Source",
+          "Sunflower fields"
+        ],
+        [
+          "Colour",
+          "Bright golden yellow"
+        ],
+        [
+          "Taste",
+          "Mild, fruity, lightly tangy"
+        ],
+        [
+          "Texture",
+          "Sets soft and creamy"
+        ]
+      ],
+      "colour": [
+        3,
+        4
+      ],
+      "about": "Sunflower honey is made from the nectar of sunflower fields in full bloom. It has a sunny golden colour, a mild fruity sweetness and a light tang. It crystallises quickly and naturally, often within a few weeks, turning soft and creamy. That is a sign of real, unprocessed honey, not spoilage.",
+      "love": [
+        "Sunny colour and a light, fruity taste",
+        "Sets naturally into a spreadable cream",
+        "Kids love it on bread and chapati",
+        "Real honeycomb in the box: raw and edible"
+      ],
+      "useHead": null,
+      "use": "Spread on toast or chapati. To make it runny again, stand the closed box in warm water for 10 to 15 minutes.",
+      "store": "Store at room temperature with the lid closed. Always use a dry spoon.",
+      "finder": {
+        "taste": [
+          "mild",
+          "floral"
+        ],
+        "uses": [
+          "kids",
+          "daily"
+        ]
+      },
+      "bloom": [
+        1,
+        2,
+        3
+      ],
+      "bloomNote": null,
+      "inGiftBox": true
+    },
+    {
+      "slug": "mustard-honey",
+      "shortCode": "MUS",
+      "status": "live",
+      "sort": 5,
+      "name": "Mustard Honey",
+      "category": "comb-honey",
+      "kind": "Monofloral",
+      "badge": "With honeycomb",
+      "withComb": true,
+      "tagline": "Creamy white honey from yellow mustard fields.",
+      "tone": "#E6E5F0",
+      "photo": "mustard-honey-jar.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "mustard-field.jpg",
+          "caption": "Mustard fields in winter bloom"
+        },
+        {
+          "src": "gen-mustard-spread.jpg",
+          "caption": "Creamy set mustard honey on toast"
+        },
+        {
+          "src": "gen-mustard-bee.jpg",
+          "caption": "A honey bee on mustard flowers"
+        },
+        {
+          "src": "mustard-flower.jpg",
+          "caption": "Mustard flowers"
+        }
+      ],
+      "specs": [
+        [
+          "Source",
+          "Mustard fields"
+        ],
+        [
+          "Colour",
+          "Pale gold, sets creamy white"
+        ],
+        [
+          "Taste",
+          "Mild, with a gentle sharp finish"
+        ],
+        [
+          "Texture",
+          "Thick and creamy"
+        ]
+      ],
+      "colour": [
+        1,
+        2
+      ],
+      "about": "Mustard honey comes from the bright yellow mustard fields that bloom across North India in winter. Fresh from the hive it is pale gold, but within days it sets into a thick, creamy, almost white honey that spreads like butter. The taste is mild and smooth, with a faint sharpness at the end from the mustard plant.",
+      "love": [
+        "Sets into a smooth, spreadable cream",
+        "Mild taste with a gentle sharp finish",
+        "No drips: easy for lunch boxes",
+        "Real honeycomb in the box: raw and edible"
+      ],
+      "useHead": null,
+      "use": "Spread on bread, dosa or chapati, or stir into warm milk. Setting solid is natural and does not mean the honey has gone bad.",
+      "store": "Store at room temperature with the lid closed. Always use a dry spoon.",
+      "finder": {
+        "taste": [
+          "mild"
+        ],
+        "uses": [
+          "kids",
+          "daily"
+        ]
+      },
+      "bloom": [
+        12,
+        1,
+        2
+      ],
+      "bloomNote": null,
+      "inGiftBox": true
+    },
+    {
+      "slug": "coriander-honey",
+      "shortCode": "COR",
+      "status": "live",
+      "sort": 6,
+      "name": "Coriander Honey",
+      "category": "comb-honey",
+      "kind": "Monofloral",
+      "badge": "With honeycomb",
+      "withComb": true,
+      "tagline": "Aromatic honey with a gentle spice note.",
+      "tone": "#DCEBE6",
+      "photo": "coriander.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "coriander.jpg",
+          "caption": "Coriander honey with coriander flowers"
+        },
+        {
+          "src": "gen-coriander-bee.jpg",
+          "caption": "A honey bee on coriander blossoms"
+        },
+        {
+          "src": "gen-coriander-seeds-honey.jpg",
+          "caption": "Golden honey with coriander seeds"
+        },
+        {
+          "src": "coriander-leaves.jpg",
+          "caption": "Fresh coriander leaves"
+        }
+      ],
+      "specs": [
+        [
+          "Source",
+          "Coriander flowers"
+        ],
+        [
+          "Colour",
+          "Golden amber"
+        ],
+        [
+          "Taste",
+          "Aromatic, hints of citrus and spice"
+        ],
+        [
+          "Texture",
+          "Smooth, may set creamy"
+        ]
+      ],
+      "colour": [
+        4,
+        5
+      ],
+      "about": "Coriander honey is made from the tiny white and pale pink flowers of the coriander plant, grown for its seeds in Rajasthan and Madhya Pradesh. It is golden amber, with a warm, aromatic flavour and light notes of citrus and spice. Over time it may set into a soft cream, which is natural for raw honey.",
+      "love": [
+        "Unique aroma from coriander blossoms",
+        "Warm, slightly spicy finish",
+        "Pairs well with herbal tea and lemon",
+        "Real honeycomb in the box: raw and edible"
+      ],
+      "useHead": null,
+      "use": "Stir into herbal or green tea once it cools a little, or drizzle over curd and fruit.",
+      "store": "Store at room temperature with the lid closed. Always use a dry spoon.",
+      "finder": {
+        "taste": [
+          "herbal",
+          "floral"
+        ],
+        "uses": [
+          "daily",
+          "remedy"
+        ]
+      },
+      "bloom": [
+        1,
+        2,
+        3
+      ],
+      "bloomNote": null,
+      "inGiftBox": true
+    },
+    {
+      "slug": "native-honey",
+      "shortCode": "NAT",
+      "status": "live",
+      "sort": 7,
+      "name": "Native Honey",
+      "category": "comb-honey",
+      "kind": "Burrow · Native bee",
+      "badge": "With honeycomb",
+      "withComb": true,
+      "tagline": "From India’s own native honey bee.",
+      "tone": "#DDE6EF",
+      "photo": "native-honey-jar.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "native-honey-jar.jpg",
+          "caption": "Native honey with fresh comb"
+        },
+        {
+          "src": "gen-native-tree-hollow.jpg",
+          "caption": "Indian honey bees at a hollow in an old tree"
+        },
+        {
+          "src": "gen-native-frame.jpg",
+          "caption": "Lifting a frame of comb from a native bee box"
+        }
+      ],
+      "specs": [
+        [
+          "Bee",
+          "Indian honey bee"
+        ],
+        [
+          "Colour",
+          "Light amber to amber"
+        ],
+        [
+          "Taste",
+          "Fresh, sweet, gentle tang"
+        ],
+        [
+          "Texture",
+          "Light and flowing"
+        ]
+      ],
+      "colour": [
+        4,
+        5
+      ],
+      "about": "Native honey comes from the Indian honey bee, which has lived alongside our farms and villages for generations and nests in hollows and burrows. Native bees forage on local flowers close to the hive, so the honey carries the true taste of the land around it. It is usually lighter in body, with a fresh sweetness and a gentle tang.",
+      "love": [
+        "From the indigenous Indian honey bee",
+        "Local flowers, the true taste of the land",
+        "Supports native bee-keeping",
+        "Native honeycomb in every box"
+      ],
+      "useHead": null,
+      "use": "An everyday honey: take a spoon in warm water, or use it in place of sugar in drinks and home remedies.",
+      "store": "Store at room temperature with the lid closed. Always use a dry spoon.",
+      "finder": {
+        "taste": [
+          "mild"
+        ],
+        "uses": [
+          "remedy",
+          "daily"
+        ]
+      },
+      "bloom": "all",
+      "bloomNote": null,
+      "inGiftBox": true
+    },
+    {
+      "slug": "forest-coffee-honey",
+      "shortCode": "FCO",
+      "status": "live",
+      "sort": 8,
+      "name": "Forest Coffee Honey",
+      "category": "blossom-honey",
+      "kind": "Monofloral",
+      "badge": "Single-flower honey",
+      "withComb": false,
+      "tagline": "From coffee flowers in the shade of forest trees.",
+      "tone": "#EADFD3",
+      "photo": "coffee-jar.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "coffee-jar.jpg",
+          "caption": "Forest coffee honey with coffee cherries and blossoms"
+        },
+        {
+          "src": "coffee-bees.jpg",
+          "caption": "Honey bees on white coffee flowers"
+        },
+        {
+          "src": "coffee-grove.jpg",
+          "caption": "Bee boxes in a shaded coffee grove"
+        },
+        {
+          "src": "coffee-forest.jpg",
+          "caption": "Bee boxes under tall shade trees, with ripe coffee cherries"
+        },
+        {
+          "src": "cat-blossom.jpg",
+          "caption": "Coffee flowers and cherries beside the bee boxes"
+        },
+        {
+          "src": "coffee-frame.jpg",
+          "caption": "Lifting a frame of honeycomb among the coffee plants"
+        },
+        {
+          "src": "coffee-comb.jpg",
+          "caption": "A frame of honeycomb, fresh from the hive"
+        },
+        {
+          "src": "coffee-straining.jpg",
+          "caption": "Fresh honey strained into a jar"
+        }
+      ],
+      "specs": [
+        [
+          "Source",
+          "Coffee flowers under forest shade"
+        ],
+        [
+          "Colour",
+          "Light amber to amber"
+        ],
+        [
+          "Taste",
+          "Caramel with soft fruity notes"
+        ],
+        [
+          "Texture",
+          "Smooth, velvety body"
+        ]
+      ],
+      "colour": [
+        4,
+        5
+      ],
+      "about": "Forest coffee honey comes from the white blossoms of coffee plants growing in the shade of tall forest trees. The coffee bushes flower for only a few days after the first rains, filling the grove with a jasmine-like scent, and the bees work the flowers while they last. The honey is light amber to amber, with caramel and soft fruity notes. It does not taste of coffee; it tastes of the flowers.",
+      "love": [
+        "Honey from coffee blossoms in shaded forest groves",
+        "Caramel sweetness with a soft, fruity finish",
+        "A short flowering season makes every batch special",
+        "Lovely in black tea and over warm toast"
+      ],
+      "useHead": null,
+      "use": "Stir into black tea or a cold coffee, drizzle over pancakes and toast, or enjoy a spoonful on its own.",
+      "store": "Store at room temperature with the lid closed. Always use a dry spoon.",
+      "finder": {
+        "taste": [
+          "rich",
+          "floral"
+        ],
+        "uses": [
+          "daily",
+          "kids"
+        ]
+      },
+      "bloom": [
+        2,
+        3,
+        4
+      ],
+      "bloomNote": null,
+      "inGiftBox": true
+    },
+    {
+      "slug": "karanji-honey",
+      "shortCode": "KAR",
+      "status": "live",
+      "sort": 9,
+      "name": "Karanji Honey",
+      "category": "blossom-honey",
+      "kind": "Monofloral",
+      "badge": "Single-flower honey",
+      "withComb": false,
+      "tagline": "From the lilac blossoms of the karanji tree.",
+      "tone": "#ECDDEF",
+      "photo": "karanji-trees.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "karanji-trees.jpg",
+          "caption": "Bee boxes under karanji trees in bloom"
+        },
+        {
+          "src": "karanji-bee.jpg",
+          "caption": "A honey bee on karanji flowers"
+        },
+        {
+          "src": "karanji-jars.jpg",
+          "caption": "Karanji honey in glass jars, with fresh blossoms"
+        },
+        {
+          "src": "karanji-branch.jpg",
+          "caption": "A flowering karanji branch above the bee boxes"
+        },
+        {
+          "src": "karanji-grove.jpg",
+          "caption": "An apiary in a flowering karanji grove"
+        },
+        {
+          "src": "karanji-pods.jpg",
+          "caption": "Karanji flowers and its flat seed pods"
+        },
+        {
+          "src": "karanji-jar.jpg",
+          "caption": "Golden karanji honey with honeycomb and karanji flowers"
+        },
+        {
+          "src": "karanji-bee-hives.jpg",
+          "caption": "A honey bee heading for karanji blossoms near the hives"
+        },
+        {
+          "src": "karanji-comb-jar.jpg",
+          "caption": "Karanji honey, fresh comb and blossoms"
+        },
+        {
+          "src": "karanji-frame.jpg",
+          "caption": "Checking a frame of honeycomb"
+        }
+      ],
+      "specs": [
+        [
+          "Source",
+          "Karanji (pungai) tree flowers"
+        ],
+        [
+          "Colour",
+          "Amber to dark amber"
+        ],
+        [
+          "Taste",
+          "Rich, with a gentle sharp finish"
+        ],
+        [
+          "Texture",
+          "Thick and smooth"
+        ]
+      ],
+      "colour": [
+        5,
+        6
+      ],
+      "about": "Karanji honey is gathered from the flowers of the karanji tree, known in Tamil as pungai, a hardy shade tree that grows along roads, farm edges and village tanks. When it blooms, the tree is covered in clusters of lilac and white flowers that bees visit from morning to evening. The honey is amber to dark amber, with a rich, full taste and a gentle sharp finish.",
+      "love": [
+        "Single-flower honey from karanji blossoms",
+        "Rich, full taste with a gentle bite",
+        "From a hardy tree of Indian villages",
+        "Lovely with ginger and lemon in warm water"
+      ],
+      "useHead": null,
+      "use": "Mix with ginger and lemon in warm water, or stir into herbal kashayam once it has cooled a little.",
+      "store": "Store at room temperature with the lid closed. Always use a dry spoon.",
+      "finder": {
+        "taste": [
+          "rich",
+          "herbal"
+        ],
+        "uses": [
+          "remedy",
+          "daily"
+        ]
+      },
+      "bloom": [
+        3,
+        4,
+        5
+      ],
+      "bloomNote": null,
+      "inGiftBox": true
+    },
+    {
+      "slug": "litchi-honey",
+      "shortCode": "LIT",
+      "status": "live",
+      "sort": 10,
+      "name": "Litchi Honey",
+      "category": "blossom-honey",
+      "kind": "Monofloral",
+      "badge": "Single-flower honey",
+      "withComb": false,
+      "tagline": "Floral honey from litchi orchards in bloom.",
+      "tone": "#F5DEDA",
+      "photo": "litchi-orchard.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "litchi-orchard.jpg",
+          "caption": "Bee boxes in a litchi orchard, with ripening fruit"
+        },
+        {
+          "src": "litchi-flowers.jpg",
+          "caption": "Litchi blossoms above the hives"
+        },
+        {
+          "src": "litchi-frame.jpg",
+          "caption": "A frame of honeycomb, full of bees"
+        },
+        {
+          "src": "litchi-jar.jpg",
+          "caption": "Fresh honey flowing from the comb into a jar"
+        }
+      ],
+      "specs": [
+        [
+          "Source",
+          "Litchi flowers"
+        ],
+        [
+          "Colour",
+          "Extra light amber to light amber"
+        ],
+        [
+          "Taste",
+          "Floral and gently fruity"
+        ],
+        [
+          "Texture",
+          "Smooth, may set creamy"
+        ]
+      ],
+      "colour": [
+        3,
+        4
+      ],
+      "about": "Litchi honey is made when bees visit the small, creamy flowers of litchi trees, a few months before the fruit ripens. The orchards bloom for a short season, so the harvest is quick and seasonal. It is light amber, with a floral, gently fruity taste and an aroma that recalls the litchi blossom itself. Like many light honeys, it can set into a soft cream over time, which is natural.",
+      "love": [
+        "Single-flower honey from litchi orchards",
+        "Light, floral and gently fruity",
+        "Mild enough for the whole family",
+        "Turns plain curd and fruit into a dessert"
+      ],
+      "useHead": null,
+      "use": "Drizzle over curd, fruit salad or pancakes, or stir into lemon juice and iced tea.",
+      "store": "Store at room temperature with the lid closed. Always use a dry spoon.",
+      "finder": {
+        "taste": [
+          "floral",
+          "mild"
+        ],
+        "uses": [
+          "kids",
+          "daily"
+        ]
+      },
+      "bloom": [
+        2,
+        3
+      ],
+      "bloomNote": null,
+      "inGiftBox": true
+    },
+    {
+      "slug": "tulasi-honey",
+      "shortCode": "TUL",
+      "status": "live",
+      "sort": 11,
+      "name": "Tulasi Honey",
+      "category": "blossom-honey",
+      "kind": "Monofloral",
+      "badge": "Single-flower honey",
+      "withComb": false,
+      "tagline": "Honey from the blossoms of holy basil.",
+      "tone": "#E1E9D6",
+      "photo": "tulasi-bees.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "tulasi-bees.jpg",
+          "caption": "Honey bees on tulasi flowers"
+        },
+        {
+          "src": "tulasi-hives.jpg",
+          "caption": "Bee boxes in a field of flowering tulasi"
+        },
+        {
+          "src": "tulasi-closeup.jpg",
+          "caption": "A honey bee on a tulasi flower spike"
+        },
+        {
+          "src": "tulasi-jar.jpg",
+          "caption": "Tulasi honey with fresh tulasi leaves"
+        },
+        {
+          "src": "tulasi-field.jpg",
+          "caption": "Tulasi in bloom, with a bee on its way"
+        },
+        {
+          "src": "tulasi-frame.jpg",
+          "caption": "A frame of honeycomb lifted among the tulasi plants"
+        },
+        {
+          "src": "tulasi-frame-tall.jpg",
+          "caption": "Lifting a frame of honeycomb from the hive"
+        },
+        {
+          "src": "tulasi-straining.jpg",
+          "caption": "Fresh honey dripping through a strainer into a jar"
+        }
+      ],
+      "specs": [
+        [
+          "Source",
+          "Tulasi (holy basil) flowers"
+        ],
+        [
+          "Colour",
+          "Amber to dark amber"
+        ],
+        [
+          "Taste",
+          "Sweet, with a soft herbal note"
+        ],
+        [
+          "Texture",
+          "Thick and smooth"
+        ]
+      ],
+      "colour": [
+        5,
+        6
+      ],
+      "about": "Tulasi honey comes from bees that forage on the small purple-white flower spikes of tulasi, the holy basil grown in courtyards and fields across India. Tulasi flowers through a long part of the year, and the bees visit it steadily. The honey is amber to dark amber, sweet with a soft herbal, slightly peppery note that carries a hint of the plant itself.",
+      "love": [
+        "Single-flower honey from tulasi blossoms",
+        "Sweet, with a soft herbal note",
+        "Made for warm drinks on cool mornings",
+        "A thoughtful gift for the family"
+      ],
+      "useHead": null,
+      "use": "Stir into warm water with a few tulasi leaves and a slice of ginger, or add to herbal tea once it has cooled a little.",
+      "store": "Store at room temperature with the lid closed. Always use a dry spoon.",
+      "finder": {
+        "taste": [
+          "herbal"
+        ],
+        "uses": [
+          "remedy",
+          "daily"
+        ]
+      },
+      "bloom": "all",
+      "bloomNote": null,
+      "inGiftBox": true
+    },
+    {
+      "slug": "dammar-honey",
+      "shortCode": "DAM",
+      "status": "live",
+      "sort": 12,
+      "name": "Dammar Honey",
+      "category": "wild-rare",
+      "kind": "Stingless bee",
+      "badge": "Rare · Small harvests",
+      "withComb": false,
+      "tagline": "Tiny bees, rare honey, a tangy taste.",
+      "tone": "#EEDCC7",
+      "photo": "dammar-main.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "dammar-pots.jpg",
+          "caption": "Resin honey pots of the stingless bee"
+        },
+        {
+          "src": "stingless-apiary.jpg",
+          "caption": "Stingless bee boxes among the coconut palms"
+        },
+        {
+          "src": "dammar-entrance.jpg",
+          "caption": "Stingless bees at their resin entrance tube"
+        }
+      ],
+      "specs": [
+        [
+          "Bee",
+          "Stingless dammar bee"
+        ],
+        [
+          "Colour",
+          "Amber to dark brown"
+        ],
+        [
+          "Taste",
+          "Sweet-sour and tangy"
+        ],
+        [
+          "Texture",
+          "Thin and runny"
+        ]
+      ],
+      "colour": [
+        4,
+        6
+      ],
+      "about": "Dammar honey is made by tiny stingless bees that store their honey in small pots of wax and plant resin instead of combs. A single colony gives only a few hundred grams a year, which makes it one of the rarest honeys in India. It is thin and runny, with a distinct sweet-sour taste and a resin aroma that comes from the hive itself.",
+      "love": [
+        "From stingless dammar bees",
+        "Very small harvests: a truly rare honey",
+        "Distinct sweet-sour taste and resin aroma",
+        "Prized in traditional home remedies"
+      ],
+      "useHead": null,
+      "use": "Take half to one teaspoon at a time, on its own or in lukewarm water.",
+      "store": "Close tightly and keep in a cool place. Refrigerate after opening to keep it fresh longer.",
+      "finder": {
+        "taste": [
+          "herbal"
+        ],
+        "uses": [
+          "remedy"
+        ],
+        "rare": true
+      },
+      "bloom": "all",
+      "bloomNote": null,
+      "inGiftBox": true
+    },
+    {
+      "slug": "kombu-honey",
+      "shortCode": "KOM",
+      "status": "live",
+      "sort": 13,
+      "name": "Kombu Honey",
+      "category": "wild-rare",
+      "kind": "Wild · Dwarf honey bee",
+      "badge": "Wild harvest",
+      "withComb": false,
+      "tagline": "From single combs hanging on wild branches.",
+      "tone": "#E8E0D0",
+      "photo": "kombu-main.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "kombu-comb.jpg",
+          "caption": "A dwarf honey bee comb on its branch"
+        },
+        {
+          "src": "gen-kombu-bush.jpg",
+          "caption": "A dwarf honey bee comb hanging in dry scrubland"
+        },
+        {
+          "src": "gen-kombu-closeup.jpg",
+          "caption": "Tiny dwarf bees on their single comb"
+        },
+        {
+          "src": "kombu-detail.jpg",
+          "caption": "Close-up of the wild comb"
+        }
+      ],
+      "specs": [
+        [
+          "Bee",
+          "Dwarf honey bee"
+        ],
+        [
+          "Colour",
+          "Light amber to amber"
+        ],
+        [
+          "Taste",
+          "Rich wildflower taste"
+        ],
+        [
+          "Harvest",
+          "Small, seasonal, wild"
+        ]
+      ],
+      "colour": [
+        4,
+        5
+      ],
+      "about": "Kombu honey is a wild honey made by the dwarf honey bee, the smallest honey bee in India. These bees build a single palm-sized comb that hangs from a thin branch (kombu) in bushes and small trees. Each comb holds only a little honey, so it is collected from the wild in very small quantities. It has a rich, distinct wildflower taste.",
+      "love": [
+        "From the wild dwarf honey bee",
+        "Collected from single combs in the wild",
+        "Small, seasonal harvests",
+        "A traditional favourite in Tamil homes"
+      ],
+      "useHead": null,
+      "use": "Take a spoonful on its own, or mix with warm water in the morning.",
+      "store": "Store at room temperature with the lid closed. Always use a dry spoon.",
+      "finder": {
+        "taste": [
+          "rich"
+        ],
+        "uses": [
+          "remedy",
+          "daily"
+        ],
+        "rare": true
+      },
+      "bloom": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "bloomNote": null,
+      "inGiftBox": true
+    },
+    {
+      "slug": "neela-kurinji-honey",
+      "shortCode": "NEE",
+      "status": "live",
+      "sort": 14,
+      "name": "Neela Kurinji Honey",
+      "category": "wild-rare",
+      "kind": "Rare hill bloom",
+      "badge": "Rare · Small batches",
+      "withComb": false,
+      "tagline": "Honey from the blue hills of the Western Ghats.",
+      "tone": "#E3E5F2",
+      "photo": "kurinji-main.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "kurinji-flower.jpg",
+          "caption": "A honey bee visiting kurinji flowers"
+        },
+        {
+          "src": "gen-kurinji-hills.jpg",
+          "caption": "Western Ghats hills in Neelakurinji bloom"
+        },
+        {
+          "src": "gen-kurinji-bee.jpg",
+          "caption": "A honey bee on Neelakurinji flowers"
+        },
+        {
+          "src": "kurinji-main.jpg",
+          "caption": "Beezy Neela Kurinji honey"
+        }
+      ],
+      "specs": [
+        [
+          "Source",
+          "Neelakurinji and hill flowers"
+        ],
+        [
+          "Region",
+          "Western Ghats hills"
+        ],
+        [
+          "Taste",
+          "Delicate and floral"
+        ],
+        [
+          "Harvest",
+          "Rare, very small batches"
+        ]
+      ],
+      "colour": null,
+      "about": "Neela Kurinji honey comes from the hills of the Western Ghats, where the Neelakurinji shrub turns whole slopes blue when it flowers. The shrub blooms together only about once every twelve years, so honey from these hills is rare and comes in very small batches. It has a delicate, floral taste that is best enjoyed simply.",
+      "love": [
+        "Honey from the Neelakurinji hills of the Western Ghats",
+        "A rare harvest that comes in very small batches",
+        "Delicate, floral taste",
+        "A special gift for honey lovers"
+      ],
+      "useHead": null,
+      "use": "Enjoy it straight from the spoon to taste it at its best, or drizzle a little over fruit or curd. Keep it away from heat so the delicate flavour stays.",
+      "store": "Store at room temperature with the lid closed. Always use a dry spoon.",
+      "finder": {
+        "taste": [
+          "floral"
+        ],
+        "uses": [
+          "gift",
+          "daily"
+        ],
+        "rare": true
+      },
+      "bloom": [
+        8,
+        9,
+        10
+      ],
+      "bloomNote": "Blooms together only about once every twelve years",
+      "inGiftBox": true
+    },
+    {
+      "slug": "beeswax-candles",
+      "shortCode": "BWC",
+      "status": "live",
+      "sort": 15,
+      "name": "Beeswax Candles",
+      "category": "from-the-hive",
+      "kind": "From the hive",
+      "badge": "Paraffin-free · Pollution-free",
+      "withComb": false,
+      "tagline": "Natural light, without the pollution.",
+      "tone": "#F3E4C6",
+      "photo": "candles-trio.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "candles-trio.jpg",
+          "caption": "Honeycomb beeswax candles with honey and fresh comb"
+        },
+        {
+          "src": "candles-tray.jpg",
+          "caption": "Pure beeswax candles on a wooden tray"
+        },
+        {
+          "src": "candles-group.jpg",
+          "caption": "Honeycomb pillars, a beehive candle and fresh comb"
+        },
+        {
+          "src": "candles-making.jpg",
+          "caption": "Rolling a sheet of beeswax into a candle by hand"
+        },
+        {
+          "src": "candles-bee-block.jpg",
+          "caption": "Honeycomb candles with a bee-stamped block of beeswax"
+        },
+        {
+          "src": "candles-tealight.jpg",
+          "caption": "Beeswax candles and a tealight, lit for the evening"
+        },
+        {
+          "src": "candles-gift.jpg",
+          "caption": "A beeswax candle tied with twine, ready to gift"
+        },
+        {
+          "src": "candles-shapes.jpg",
+          "caption": "Rose and pine-cone shaped beeswax candles"
+        },
+        {
+          "src": "beeswax-blocks.jpg",
+          "caption": "Blocks and pellets of pure beeswax"
+        },
+        {
+          "src": "gen-candles-lit.jpg",
+          "caption": "Beeswax candles glowing at dusk"
+        }
+      ],
+      "specs": [
+        [
+          "Material",
+          "Pure beeswax"
+        ],
+        [
+          "Burn",
+          "Clean, very little smoke"
+        ],
+        [
+          "Scent",
+          "Light natural honey"
+        ],
+        [
+          "Best for",
+          "Pooja, dining, gifting"
+        ]
+      ],
+      "colour": null,
+      "about": "Our candles are made from pure beeswax, the natural wax bees make to build their honeycomb. Unlike paraffin candles, which come from petroleum, they burn slowly and cleanly with very little smoke, giving a warm golden glow and a soft honey scent with no added fragrance.",
+      "love": [
+        "Made from pure beeswax",
+        "No paraffin, no chemicals",
+        "Burns longer than ordinary candles",
+        "Ideal for pooja, dining and gifting"
+      ],
+      "useHead": "Candle care",
+      "use": "Trim the wick to about 5 mm before lighting and keep away from breeze. A white bloom on the surface is natural; wipe it with a soft cloth.",
+      "store": "Never leave a burning candle unattended. Keep away from children and pets.",
+      "finder": null,
+      "bloom": null,
+      "bloomNote": null,
+      "inGiftBox": false
+    },
+    {
+      "slug": "honey-sticks",
+      "shortCode": "HST",
+      "status": "live",
+      "sort": 16,
+      "name": "Honey Sticks",
+      "category": "from-the-hive",
+      "kind": "Single-serve sachets",
+      "badge": "10 g per stick",
+      "withComb": false,
+      "tagline": "One stick, one serving, no mess.",
+      "tone": "#FBE6C0",
+      "photo": "sticks-cup.jpg",
+      "card": null,
+      "gallery": [
+        {
+          "src": "sticks-cup.jpg",
+          "caption": "Honey sticks in a kraft cup, ready to share"
+        },
+        {
+          "src": "honey-sticks-box.jpg",
+          "caption": "Beezy honey sticks: box of 10 × 10 g"
+        },
+        {
+          "src": "sticks-clover.jpg",
+          "caption": "Honey sticks with a honey dipper and clover flowers"
+        },
+        {
+          "src": "sticks-tea-glass.jpg",
+          "caption": "A honey stick in a glass of warm tea"
+        },
+        {
+          "src": "sticks-squeeze-tea.jpg",
+          "caption": "Squeeze a stick straight into your tea"
+        },
+        {
+          "src": "sticks-backpack.jpg",
+          "caption": "A few sticks in your bag for the day"
+        },
+        {
+          "src": "sticks-bowl.jpg",
+          "caption": "Honey sticks in a wooden bowl, with a jar of honey"
+        },
+        {
+          "src": "sticks-comb.jpg",
+          "caption": "Honey sticks with fresh honeycomb"
+        },
+        {
+          "src": "sticks-on-comb.jpg",
+          "caption": "Honey from a stick, drizzled over fresh comb"
+        },
+        {
+          "src": "honey-tea.jpg",
+          "caption": "One stick is just right for a cup of tea"
+        }
+      ],
+      "specs": [
+        [
+          "Net weight",
+          "10 g per stick"
+        ],
+        [
+          "Serving",
+          "About 1½ teaspoons"
+        ],
+        [
+          "Box",
+          "10 sticks (100 g)"
+        ],
+        [
+          "Inside",
+          "Natural honey"
+        ]
+      ],
+      "colour": null,
+      "about": "Honey sticks are single-serve sachets with exactly 10 g of honey, about one and a half teaspoons. No spoon, no sticky jar, no spills: tear the top and squeeze. Keep a few in your handbag, school bag, gym kit or travel pouch for a quick natural sweet whenever you need one. They also make a neat return gift for functions.",
+      "love": [
+        "Exactly 10 g per stick, no measuring",
+        "Tear, squeeze, enjoy: no spoon needed",
+        "Right amount for a cup of tea or coffee",
+        "Easy to carry anywhere"
+      ],
+      "useHead": null,
+      "use": "Squeeze into tea, coffee or lemon water, or take it straight after a workout.",
+      "store": "Store in a cool, dry place away from direct sunlight.",
+      "finder": null,
+      "bloom": null,
+      "bloomNote": null,
+      "inGiftBox": false
+    }
+  ],
+  "variants": [
+    {
+      "code": "murungai-honey:100g",
+      "productSlug": "murungai-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "murungai-honey",
+      "poolQty": 100,
+      "pricePaise": 14000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "murungai-honey:250g",
+      "productSlug": "murungai-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "murungai-honey",
+      "poolQty": 250,
+      "pricePaise": 31000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "murungai-honey:500g",
+      "productSlug": "murungai-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "murungai-honey",
+      "poolQty": 500,
+      "pricePaise": 65000,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "multifloral-honey:100g",
+      "productSlug": "multifloral-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "multifloral-honey",
+      "poolQty": 100,
+      "pricePaise": 12500,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "multifloral-honey:250g",
+      "productSlug": "multifloral-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "multifloral-honey",
+      "poolQty": 250,
+      "pricePaise": 29000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "multifloral-honey:500g",
+      "productSlug": "multifloral-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "multifloral-honey",
+      "poolQty": 500,
+      "pricePaise": 59900,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "forest-honey:100g",
+      "productSlug": "forest-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "forest-honey",
+      "poolQty": 100,
+      "pricePaise": 18000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "forest-honey:250g",
+      "productSlug": "forest-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "forest-honey",
+      "poolQty": 250,
+      "pricePaise": 39900,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "forest-honey:500g",
+      "productSlug": "forest-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "forest-honey",
+      "poolQty": 500,
+      "pricePaise": 69900,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "sunflower-honey:100g",
+      "productSlug": "sunflower-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "sunflower-honey",
+      "poolQty": 100,
+      "pricePaise": 15000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "sunflower-honey:250g",
+      "productSlug": "sunflower-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "sunflower-honey",
+      "poolQty": 250,
+      "pricePaise": 35000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "sunflower-honey:500g",
+      "productSlug": "sunflower-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "sunflower-honey",
+      "poolQty": 500,
+      "pricePaise": 65000,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "mustard-honey:100g",
+      "productSlug": "mustard-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "mustard-honey",
+      "poolQty": 100,
+      "pricePaise": 18000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "mustard-honey:250g",
+      "productSlug": "mustard-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "mustard-honey",
+      "poolQty": 250,
+      "pricePaise": 34000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "mustard-honey:500g",
+      "productSlug": "mustard-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "mustard-honey",
+      "poolQty": 500,
+      "pricePaise": 69900,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "coriander-honey:100g",
+      "productSlug": "coriander-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "coriander-honey",
+      "poolQty": 100,
+      "pricePaise": 15000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "coriander-honey:250g",
+      "productSlug": "coriander-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "coriander-honey",
+      "poolQty": 250,
+      "pricePaise": 35000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "coriander-honey:500g",
+      "productSlug": "coriander-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "coriander-honey",
+      "poolQty": 500,
+      "pricePaise": 65000,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "native-honey:100g",
+      "productSlug": "native-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "native-honey",
+      "poolQty": 100,
+      "pricePaise": 15000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "native-honey:250g",
+      "productSlug": "native-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "native-honey",
+      "poolQty": 250,
+      "pricePaise": 35000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "native-honey:500g",
+      "productSlug": "native-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "native-honey",
+      "poolQty": 500,
+      "pricePaise": 70000,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "forest-coffee-honey:100g",
+      "productSlug": "forest-coffee-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "forest-coffee-honey",
+      "poolQty": 100,
+      "pricePaise": null,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "forest-coffee-honey:250g",
+      "productSlug": "forest-coffee-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "forest-coffee-honey",
+      "poolQty": 250,
+      "pricePaise": null,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "forest-coffee-honey:500g",
+      "productSlug": "forest-coffee-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "forest-coffee-honey",
+      "poolQty": 500,
+      "pricePaise": null,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "karanji-honey:100g",
+      "productSlug": "karanji-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "karanji-honey",
+      "poolQty": 100,
+      "pricePaise": null,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "karanji-honey:250g",
+      "productSlug": "karanji-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "karanji-honey",
+      "poolQty": 250,
+      "pricePaise": null,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "karanji-honey:500g",
+      "productSlug": "karanji-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "karanji-honey",
+      "poolQty": 500,
+      "pricePaise": null,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "litchi-honey:100g",
+      "productSlug": "litchi-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "litchi-honey",
+      "poolQty": 100,
+      "pricePaise": null,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "litchi-honey:250g",
+      "productSlug": "litchi-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "litchi-honey",
+      "poolQty": 250,
+      "pricePaise": null,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "litchi-honey:500g",
+      "productSlug": "litchi-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "litchi-honey",
+      "poolQty": 500,
+      "pricePaise": null,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "tulasi-honey:100g",
+      "productSlug": "tulasi-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "tulasi-honey",
+      "poolQty": 100,
+      "pricePaise": null,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "tulasi-honey:250g",
+      "productSlug": "tulasi-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "tulasi-honey",
+      "poolQty": 250,
+      "pricePaise": null,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "tulasi-honey:500g",
+      "productSlug": "tulasi-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "tulasi-honey",
+      "poolQty": 500,
+      "pricePaise": null,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "dammar-honey:100g",
+      "productSlug": "dammar-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "dammar-honey",
+      "poolQty": 100,
+      "pricePaise": 40000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "dammar-honey:250g",
+      "productSlug": "dammar-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "dammar-honey",
+      "poolQty": 250,
+      "pricePaise": 90000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "dammar-honey:500g",
+      "productSlug": "dammar-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "dammar-honey",
+      "poolQty": 500,
+      "pricePaise": 180000,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "kombu-honey:100g",
+      "productSlug": "kombu-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "kombu-honey",
+      "poolQty": 100,
+      "pricePaise": 28000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "kombu-honey:250g",
+      "productSlug": "kombu-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "kombu-honey",
+      "poolQty": 250,
+      "pricePaise": 45000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "kombu-honey:500g",
+      "productSlug": "kombu-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "kombu-honey",
+      "poolQty": 500,
+      "pricePaise": 90000,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "neela-kurinji-honey:100g",
+      "productSlug": "neela-kurinji-honey",
+      "label": "100 g",
+      "sort": 1,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "neela-kurinji-honey",
+      "poolQty": 100,
+      "pricePaise": 31000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "neela-kurinji-honey:250g",
+      "productSlug": "neela-kurinji-honey",
+      "label": "250 g",
+      "sort": 2,
+      "active": true,
+      "netGrams": 250,
+      "poolCode": "neela-kurinji-honey",
+      "poolQty": 250,
+      "pricePaise": 60000,
+      "mrpPaise": null,
+      "giftOk": true,
+      "avail": "in"
+    },
+    {
+      "code": "neela-kurinji-honey:500g",
+      "productSlug": "neela-kurinji-honey",
+      "label": "500 g",
+      "sort": 3,
+      "active": true,
+      "netGrams": 500,
+      "poolCode": "neela-kurinji-honey",
+      "poolQty": 500,
+      "pricePaise": 110000,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "beeswax-candles:small",
+      "productSlug": "beeswax-candles",
+      "label": "Small",
+      "sort": 1,
+      "active": true,
+      "netGrams": null,
+      "poolCode": "beeswax-candles:small",
+      "poolQty": 1,
+      "pricePaise": 8000,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "beeswax-candles:medium",
+      "productSlug": "beeswax-candles",
+      "label": "Medium",
+      "sort": 2,
+      "active": true,
+      "netGrams": null,
+      "poolCode": "beeswax-candles:medium",
+      "poolQty": 1,
+      "pricePaise": 12000,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "beeswax-candles:large",
+      "productSlug": "beeswax-candles",
+      "label": "Large",
+      "sort": 3,
+      "active": true,
+      "netGrams": null,
+      "poolCode": "beeswax-candles:large",
+      "poolQty": 1,
+      "pricePaise": 18000,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "honey-sticks:1-stick",
+      "productSlug": "honey-sticks",
+      "label": "1 stick",
+      "sort": 1,
+      "active": true,
+      "netGrams": 10,
+      "poolCode": "honey-sticks",
+      "poolQty": 1,
+      "pricePaise": 700,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    },
+    {
+      "code": "honey-sticks:box-10",
+      "productSlug": "honey-sticks",
+      "label": "Box of 10 (100 g)",
+      "sort": 2,
+      "active": true,
+      "netGrams": 100,
+      "poolCode": "honey-sticks",
+      "poolQty": 10,
+      "pricePaise": 7000,
+      "mrpPaise": null,
+      "giftOk": false,
+      "avail": "in"
+    }
+  ],
+  "pools": [
+    {
+      "code": "murungai-honey",
+      "productSlug": "murungai-honey",
+      "name": "Murungai Honey",
+      "unit": "g"
+    },
+    {
+      "code": "multifloral-honey",
+      "productSlug": "multifloral-honey",
+      "name": "Multifloral Honey",
+      "unit": "g"
+    },
+    {
+      "code": "forest-honey",
+      "productSlug": "forest-honey",
+      "name": "Forest Honey",
+      "unit": "g"
+    },
+    {
+      "code": "sunflower-honey",
+      "productSlug": "sunflower-honey",
+      "name": "Sunflower Honey",
+      "unit": "g"
+    },
+    {
+      "code": "mustard-honey",
+      "productSlug": "mustard-honey",
+      "name": "Mustard Honey",
+      "unit": "g"
+    },
+    {
+      "code": "coriander-honey",
+      "productSlug": "coriander-honey",
+      "name": "Coriander Honey",
+      "unit": "g"
+    },
+    {
+      "code": "native-honey",
+      "productSlug": "native-honey",
+      "name": "Native Honey",
+      "unit": "g"
+    },
+    {
+      "code": "forest-coffee-honey",
+      "productSlug": "forest-coffee-honey",
+      "name": "Forest Coffee Honey",
+      "unit": "g"
+    },
+    {
+      "code": "karanji-honey",
+      "productSlug": "karanji-honey",
+      "name": "Karanji Honey",
+      "unit": "g"
+    },
+    {
+      "code": "litchi-honey",
+      "productSlug": "litchi-honey",
+      "name": "Litchi Honey",
+      "unit": "g"
+    },
+    {
+      "code": "tulasi-honey",
+      "productSlug": "tulasi-honey",
+      "name": "Tulasi Honey",
+      "unit": "g"
+    },
+    {
+      "code": "dammar-honey",
+      "productSlug": "dammar-honey",
+      "name": "Dammar Honey",
+      "unit": "g"
+    },
+    {
+      "code": "kombu-honey",
+      "productSlug": "kombu-honey",
+      "name": "Kombu Honey",
+      "unit": "g"
+    },
+    {
+      "code": "neela-kurinji-honey",
+      "productSlug": "neela-kurinji-honey",
+      "name": "Neela Kurinji Honey",
+      "unit": "g"
+    },
+    {
+      "code": "beeswax-candles:small",
+      "productSlug": "beeswax-candles",
+      "name": "Beeswax Candles, Small",
+      "unit": "piece"
+    },
+    {
+      "code": "beeswax-candles:medium",
+      "productSlug": "beeswax-candles",
+      "name": "Beeswax Candles, Medium",
+      "unit": "piece"
+    },
+    {
+      "code": "beeswax-candles:large",
+      "productSlug": "beeswax-candles",
+      "name": "Beeswax Candles, Large",
+      "unit": "piece"
+    },
+    {
+      "code": "honey-sticks",
+      "productSlug": "honey-sticks",
+      "name": "Honey sticks",
+      "unit": "piece"
+    }
+  ],
+  "settings": {
+    "showPrices": false,
+    "stockDisplay": "sold_out",
+    "deliveryNote": "Delivery charges are confirmed on WhatsApp.",
+    "offer": null,
+    "gift": {
+      "feePaise": 0,
+      "extras": {
+        "Beeswax candle": null,
+        "Honey sticks": null
+      },
+      "bulkFrom": 20
+    }
+  },
+  "batches": []
+}

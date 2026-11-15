@@ -1,0 +1,107 @@
+---
+// Gift and bulk requests inbox (design §5 v2 "Requests", amendment A5): orders with source 'gift' or the bulk mark,
+// sorted by the needed-by date, each with a "Replied" tick. Owner and helper.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Badge from '../../../admin/components/Badge.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import { failureFlash, redirectWithFlash, takeFlash } from '../../../admin/flash';
+import { dateIST, inr } from '../../../admin/format';
+import { readForm } from '../../../admin/forms';
+import { listRequests } from '../../../admin/ops/data';
+import { S } from '../../../admin/ops/strings';
+import { toId } from '../../../server/db';
+import { markReplied } from '../../../server/orders';
+
+const db = env.DB;
+const admin = Astro.locals.admin!;
+const SHOWS = ['open', 'unanswered', 'all'] as const;
+type Show = (typeof SHOWS)[number];
+const showParam = Astro.url.searchParams.get('show') ?? '';
+const show: Show = (SHOWS as readonly string[]).includes(showParam) ? (showParam as Show) : 'open';
+const SELF = `/admin/requests/${show === 'open' ? '' : `?show=${show}`}`;
+
+if (Astro.request.method === 'POST') {
+  const form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  const action = form.action(['replied', 'unreplied'] as const);
+  const id = toId(form.raw('id'));
+  if (!action || !id) return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  const r = await markReplied(db, admin, { id, replied: action === 'replied' });
+  if (!r.ok) return redirectWithFlash(Astro, SELF, failureFlash(r));
+  return redirectWithFlash(Astro, SELF, { text: S.t(action === 'replied' ? 'order.repliedDone' : 'order.repliedUndone'), tone: 'ok' });
+}
+
+const flash = takeFlash(Astro);
+const rows = await listRequests(db, { show });
+const when = (days: number | null) => days === null ? S.t('requests.noDate')
+  : days === 0 ? S.t('requests.today') : days === 1 ? S.t('requests.tomorrow')
+  : days > 1 ? S.t('requests.daysLeft', { days }) : S.t('requests.overdue', { days: -days });
+---
+<AdminLayout title={S.t('requests.title')} subtitle={S.t('requests.sub')} active="requests" flash={flash}>
+  <nav class="chips" aria-label={S.t('activity.filtersLabel')}>
+    {SHOWS.map((s) => <a class="chip" href={s === 'open' ? '/admin/requests/' : `/admin/requests/?show=${s}`} aria-current={s === show ? 'true' : undefined}>{S.t(`requests.show.${s}`)}</a>)}
+  </nav>
+
+  {rows.length === 0 ? (
+    <EmptyState icon="requests" title={S.t('requests.empty')} />
+  ) : (
+    <ul class="reqlist">
+      {rows.map((r) => {
+        const urgent = r.daysLeft !== null && r.daysLeft <= 3 && !r.repliedAt;
+        return (
+          <li class:list={['card', 'req', { 'is-urgent': urgent, 'is-done': !!r.repliedAt }]}>
+            <div class="row row-between req-head">
+              <a class="req-ref" href={`/admin/orders/${r.id}/`}>{r.ref}</a>
+              <span class="row req-badges">
+                <Badge kind="order" value={r.status} />
+                {r.isBulk && <Badge tone="honey" text={S.t('requests.bulk')} />}
+                {r.isTest && <Badge tone="muted" text={S.t('ops.test')} />}
+              </span>
+            </div>
+            <p class:list={['req-need', { neg: r.daysLeft !== null && r.daysLeft < 0 && !r.repliedAt }]}>
+              <Icon name="calendar" />
+              {r.neededBy ? <span><strong>{S.t('requests.neededBy', { date: dateIST(r.neededBy) })}</strong> · {when(r.daysLeft)}</span> : <span class="muted">{S.t('requests.noDate')}</span>}
+            </p>
+            <p class="req-what">
+              {r.gift?.boxes ? S.t('requests.boxes', { boxes: r.gift.boxes }) : null}
+              {r.gift?.size && r.gift.jar ? ` · ${S.t('order.giftSizeValue', { size: r.gift.size, jar: r.gift.jar })}` : null}
+              {r.gift?.occasion ? ` · ${r.gift.occasion}` : null}
+            </p>
+            {r.gift?.picks?.length ? <p class="muted">{r.gift.picks.join(', ')}</p> : r.items ? <p class="muted">{r.items}</p> : null}
+            <div class="row row-between req-foot">
+              <span class="num">{r.totalPaise > 0 ? inr(r.totalPaise) : r.shownTotalPaise ? S.t('requests.estimate', { amount: inr(r.shownTotalPaise) }) : ''}</span>
+              <form method="post" class="row">
+                <input type="hidden" name="id" value={r.id} />
+                {r.repliedAt ? (
+                  <>
+                    <Badge tone="ok" text={S.t('order.repliedOn', { when: dateIST(r.repliedAt) })} />
+                    <button class="btn btn-quiet" name="_action" value="unreplied">{S.t('order.unmarkReplied')}</button>
+                  </>
+                ) : (
+                  <button class="btn btn-honey" name="_action" value="replied"><Icon name="check" />{S.t('order.markReplied')}</button>
+                )}
+                <a class="btn" href={`/admin/orders/${r.id}/`}>{S.t('requests.open')}</a>
+              </form>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  )}
+</AdminLayout>
+
+<style>
+  .chips { margin-bottom: 16px; }
+  .reqlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .req { display: grid; gap: 8px; border-left: 5px solid var(--line); }
+  .req.is-urgent { border-left-color: var(--honey); }
+  .req.is-done { background: var(--cream); box-shadow: none; }
+  .req-ref { font-size: 1.1875rem; font-weight: 700; min-height: 48px; display: inline-flex; align-items: center; }
+  .req-badges { gap: 6px; }
+  .req-need { display: flex; align-items: center; gap: 8px; }
+  .req-foot { align-items: center; gap: 10px; }
+</style>

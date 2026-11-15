@@ -1,0 +1,51 @@
+// Inline SVG icons for the admin, drawn on a 24×24 grid with a 2 px round stroke (currentColor).
+// Hand-drawn simple shapes; no icon library. Use through components/Icon.astro.
+
+export const ICONS = {
+  // screens
+  today: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 9.8V20h13V9.8"/><path d="M10 20v-5.5h4V20"/>',
+  orders: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
+  requests: '<rect x="3.5" y="8" width="17" height="12.5" rx="1.5"/><path d="M3.5 12h17M12 8v12.5"/><path d="M12 8c-2.5 0-4.5-1-4.5-2.6S9.6 3 12 8zM12 8c2.5 0 4.5-1 4.5-2.6S14.4 3 12 8z"/>',
+  stock: '<path d="M3.5 8 12 4l8.5 4v8L12 20l-8.5-4z"/><path d="M3.5 8 12 12l8.5-4M12 12v8"/>',
+  harvests: '<path d="M12 3.5 19.4 7.75v8.5L12 20.5l-7.4-4.25v-8.5z"/><path d="M12 8.5 15 10.25v3.5L12 15.5l-3-1.75v-3.5z"/>',
+  batches: '<path d="M4 7.5 12 4l8 3.5-8 3.5z"/><path d="M4 12l8 3.5 8-3.5"/><path d="M4 16.5 12 20l8-3.5"/>',
+  labels: '<path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1 1 0 0 1 0 1.4l-7.3 7.3a1 1 0 0 1-1.4 0z"/><circle cx="8" cy="8" r="1.6"/>',
+  invoices: '<path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14 3v5h5"/><path d="M9 12.5h6M9 16h6"/>',
+  products: '<path d="M8 3.5h8M9 3.5v2.5M15 3.5v2.5"/><path d="M7 6h10a1.5 1.5 0 0 1 1.5 1.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V7.5A1.5 1.5 0 0 1 7 6z"/><path d="M5.5 11h13"/>',
+  prices: '<path d="M7 4.5h10M7 9h10"/><path d="M7 4.5h3.5a4.5 4.5 0 0 1 0 9H7l8 6.5"/>',
+  website: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.4 2.4 3.5 5.3 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.3-3.5-8.5S9.6 5.9 12 3.5z"/>',
+  sales: '<path d="M4 20.5h16"/><path d="M6.5 20.5v-6M11 20.5v-10M15.5 20.5v-7.5M20 20.5V5.5" />',
+  activity: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  people: '<circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M15.5 5.2a3.5 3.5 0 0 1 0 6.6M18 14.8c1.9.7 3.1 2.4 3.5 5.2"/>',
+  backup: '<path d="M7 18.5a4.5 4.5 0 0 1-.6-9 6 6 0 0 1 11.4 1.4 3.8 3.8 0 0 1-.3 7.6z"/><path d="M12 10.5v6M9.5 14l2.5 2.5 2.5-2.5"/>',
+  help: '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.7-.9 1.3v.9"/><path d="M12 16.6v.1"/>',
+  styleguide: '<circle cx="12" cy="12" r="8.5"/><circle cx="8.5" cy="10" r="1.2"/><circle cx="12" cy="7.8" r="1.2"/><circle cx="15.5" cy="10" r="1.2"/><path d="M12 20.5c-1.5 0-2-1-2-2.2 0-1.5 1-2.3 2.4-2.3h1.3"/>',
+  more: '<circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/>',
+  // actions and states
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  minus: '<path d="M5 12h14"/>',
+  check: '<path d="M4.5 12.5 9.5 17.5 19.5 6.5"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  back: '<path d="M15 5 8 12l7 7"/>',
+  next: '<path d="M9 5l7 7-7 7"/>',
+  up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/>',
+  alert: '<path d="M12 3.8 21 19.5H3z"/><path d="M12 10v4.5M12 17v.1"/>',
+  info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.1"/>',
+  ok: '<circle cx="12" cy="12" r="8.5"/><path d="M8 12.3l2.7 2.7L16.2 9.5"/>',
+  error: '<circle cx="12" cy="12" r="8.5"/><path d="M9 9l6 6M15 9l-6 6"/>',
+  upload: '<path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9"/><path d="M4.5 15v4.5h15V15"/>',
+  image: '<rect x="3.5" y="5" width="17" height="14" rx="1.5"/><circle cx="9" cy="10" r="1.7"/><path d="M20.5 16.5 15.5 11.5 6 19"/>',
+  calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="1.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  logout: '<path d="M14 4.5H5.5v15H14"/><path d="M10 12h10M16.5 8.5 20 12l-3.5 3.5"/>',
+  edit: '<path d="M4.5 19.5h4l10-10-4-4-10 10z"/><path d="M13 7l4 4"/>',
+  external: '<path d="M14 4.5h5.5V10M19.5 4.5 11 13"/><path d="M18 14v5.5H4.5V6H10"/>',
+  print: '<path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="8" rx="1.5"/><path d="M7 14h10v6.5H7z"/>',
+  refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4.5H15"/>',
+  paste: '<rect x="5.5" y="5" width="13" height="16" rx="1.5"/><path d="M9 3.5h6v3H9z"/><path d="M9 11h6M9 14.5h6"/>',
+  whatsapp: '<path d="M4.5 19.5l1.2-3.9a7.8 7.8 0 1 1 2.8 2.8z"/><path d="M9.3 8.8c.3 2.6 2.9 5.3 5.9 5.9l1-1.1-1.8-.9-.8.8c-1.2-.5-2.3-1.6-2.8-2.8l.8-.8-.9-1.8z"/>',
+  scale: '<path d="M5 20.5h14"/><path d="M12 4v16.5"/><path d="M4 8.5h16"/><path d="M7 8.5 4.5 14.5a2.6 2.6 0 0 0 5 0zM17 8.5l-2.5 6a2.6 2.6 0 0 0 5 0z"/>',
+} as const;
+
+export type IconName = keyof typeof ICONS;

@@ -1,0 +1,70 @@
+---
+// From/To dates (native date inputs, IST days) as a GET form, plus quick picks (This month, Last month, This FY…).
+// Other filters in the URL are kept as hidden inputs. Read the values with form helpers or URL params:
+//   const from = Astro.url.searchParams.get('from'), to = …   (check them with isDay() from format.ts)
+//   <DateRange url={Astro.url} from={from} to={to} presets={['thisMonth', 'lastMonth', 'thisFy', 'lastFy']} />
+import Field from './Field.astro';
+import Icon from './Icon.astro';
+import { rangeFor, type RangePreset } from '../format';
+import { t, type StringKey } from '../strings';
+
+interface Props {
+  /** the current URL (its other parameters are kept) */
+  url: URL;
+  from?: string | null;
+  to?: string | null;
+  nameFrom?: string;
+  nameTo?: string;
+  /** quick picks to offer (false for none) */
+  presets?: RangePreset[] | false;
+  /** earliest / latest allowed day */
+  min?: string;
+  max?: string;
+  error?: string | null;
+  legend?: string;
+  /** "now" for the quick picks (tests); default: the current time */
+  now?: number;
+  id?: string;
+}
+const {
+  url, from, to, nameFrom = 'from', nameTo = 'to', presets = ['today', 'last7', 'thisMonth', 'lastMonth', 'thisFy'],
+  min, max, error, legend = t('range.legend'), now = Date.now(),
+} = Astro.props;
+const id = Astro.props.id ?? `range-${nameFrom}`;
+const keep = [...url.searchParams.entries()].filter(([k]) => k !== nameFrom && k !== nameTo && k !== 'page' && k !== 'flash');
+const PRESET_LABEL: Record<RangePreset, StringKey> = {
+  today: 'range.today', last7: 'range.last7', thisMonth: 'range.thisMonth', lastMonth: 'range.lastMonth',
+  thisFy: 'range.thisFy', lastFy: 'range.lastFy', thisYear: 'range.thisYear',
+};
+const quick = (presets || []).map((p) => {
+  const r = rangeFor(p, now);
+  const u = new URL(url.pathname, 'http://x');
+  for (const [k, v] of keep) u.searchParams.append(k, v);
+  u.searchParams.set(nameFrom, r.from);
+  u.searchParams.set(nameTo, r.to);
+  return { key: p, label: t(PRESET_LABEL[p]), href: `${u.pathname}${u.search}`, current: r.from === from && r.to === to };
+});
+---
+<form class="daterange" method="get" action={url.pathname}>
+  <fieldset class="fieldset">
+    <legend class="sr-only">{legend}</legend>
+    {keep.map(([k, v]) => <input type="hidden" name={k} value={v} />)}
+    <div class="daterange-fields">
+      <Field id={`${id}-from`} label={t('range.from')}>
+        <input class="input" type="date" id={`${id}-from`} name={nameFrom} value={from ?? ''} min={min} max={max}
+          aria-invalid={error ? 'true' : undefined} aria-describedby={error ? `${id}-err` : undefined} data-no-draft />
+      </Field>
+      <Field id={`${id}-to`} label={t('range.to')}>
+        <input class="input" type="date" id={`${id}-to`} name={nameTo} value={to ?? ''} min={min} max={max}
+          aria-invalid={error ? 'true' : undefined} aria-describedby={error ? `${id}-err` : undefined} data-no-draft />
+      </Field>
+      <button type="submit" class="btn btn-primary"><Icon name="calendar" />{t('range.apply')}</button>
+    </div>
+    {error && <p class="field-error" id={`${id}-err`}><Icon name="alert" />{error}</p>}
+  </fieldset>
+  {quick.length > 0 && (
+    <nav class="chips" aria-label={t('range.presets')}>
+      {quick.map((q) => <a class="chip" href={q.href} aria-current={q.current ? 'true' : undefined}>{q.label}</a>)}
+    </nav>
+  )}
+</form>

@@ -1,0 +1,52 @@
+---
+// A submit button that asks "Are you sure?" first (progressive enhancement over a plain submit).
+// Without JavaScript it simply submits. With JavaScript the shared dialog (ConfirmDialog, in AdminLayout) opens,
+// and only "Yes" sends the form, with this button's name/value as the pressed button.
+//   <ConfirmButton value="retire" tone="danger" message="Retire Murungai Honey? It leaves the website." confirmLabel="Retire">
+//     Retire
+//   </ConfirmButton>
+import Icon from './Icon.astro';
+import type { IconName } from '../icons';
+
+interface Props {
+  /** the _action value (or the value for `name`) */
+  value: string;
+  /** button text when there is no slot content */
+  label?: string;
+  /** question in the dialog */
+  message: string;
+  /** dialog title (default "Are you sure?") */
+  title?: string;
+  /** text of the dialog's yes button (default "Yes, go ahead") */
+  confirmLabel?: string;
+  name?: string;
+  tone?: 'primary' | 'honey' | 'danger' | 'ghost' | 'quiet';
+  size?: 'md' | 'lg';
+  block?: boolean;
+  icon?: IconName;
+  /** send to another URL than the form's action */
+  formaction?: string;
+  /** id of a form elsewhere on the page */
+  form?: string;
+  disabled?: boolean;
+  class?: string;
+}
+const { value, label, message, title, confirmLabel, name = '_action', tone = 'ghost', size = 'md', block, icon, formaction, form, disabled, class: cls } = Astro.props;
+const toneClass = tone === 'ghost' ? '' : `btn-${tone}`;
+---
+<button
+  type="submit"
+  class:list={['btn', toneClass, { 'btn-lg': size === 'lg', 'btn-block': block }, cls]}
+  name={name}
+  value={value}
+  formaction={formaction}
+  form={form}
+  disabled={disabled}
+  data-confirm={message}
+  data-confirm-title={title}
+  data-confirm-ok={confirmLabel}
+  data-confirm-tone={tone === 'danger' ? 'danger' : undefined}
+>
+  {icon && <Icon name={icon} />}
+  {Astro.slots.has('default') ? <slot /> : label}
+</button>

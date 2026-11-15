@@ -1,0 +1,157 @@
+---
+// People (design §5 screen 11, amendment A1), owner only. Owners come from the ADMIN_EMAILS Worker secret (shown,
+// never stored in the repo). Helpers are rows in admin_users: add one, switch them on or off, change the name.
+// Nothing is deleted. Reminder: a helper's email must also be a verified destination in Cloudflare Email Routing,
+// or the login code never reaches them.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Badge from '../../../admin/components/Badge.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import TextField from '../../../admin/components/TextField.astro';
+import Toggle from '../../../admin/components/Toggle.astro';
+import { failureFlash, redirectWithFlash, takeFlash, type Flash } from '../../../admin/flash';
+import { dateIST, dateTimeIST } from '../../../admin/format';
+import { readForm, type FormReader } from '../../../admin/forms';
+import { canOpen } from '../../../admin/nav';
+import { listHelpers, ownerEmails } from '../../../admin/ops/data';
+import { addHelper, updateHelper } from '../../../admin/ops/people';
+import { S } from '../../../admin/ops/strings';
+import { aliasesFor, maskEmail, parseAdminAliases } from '../../../server/auth';
+
+const db = env.DB;
+const admin = Astro.locals.admin!;
+const SELF = '/admin/people/';
+if (!canOpen(admin.role, 'people')) return redirectWithFlash(Astro, '/admin/', { key: 'flash.forbidden' });
+const secrets = env as unknown as { ADMIN_EMAILS?: string; ADMIN_ALIASES?: string };
+const owners = ownerEmails(secrets.ADMIN_EMAILS);
+// An owner with a login alias (ADMIN_ALIASES) is shown as the alias; the Gmail behind it only masked.
+const aliases = parseAdminAliases(secrets.ADMIN_ALIASES, owners);
+const ownerRows = owners.map((email) => {
+  const own = aliasesFor(aliases, email);
+  return own.length ? { shown: own.join(', '), masked: maskEmail(email) } : { shown: email, masked: null };
+});
+
+let form: FormReader | null = null;
+let failed: 'add' | 'update' | null = null;
+let failedEmail = '';
+let errors: Record<string, string> = {};
+let flash: Flash | null = null;
+
+if (Astro.request.method === 'POST') {
+  form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  const action = form.action(['add', 'update'] as const);
+  if (!action) return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  if (action === 'add') {
+    const email = form.text('email', { required: true, max: 254 });
+    const name = form.optText('name', { max: 60 });
+    if (form.ok) {
+      const r = await addHelper(db, admin, { email, name, owners: [...owners, ...aliases.keys()] });
+      if (r.ok) return redirectWithFlash(Astro, SELF, { text: S.t('people.addedDone', { email: r.value.email }), tone: 'ok' });
+      if (!form.takeFailure(r, ['email', 'name'])) return redirectWithFlash(Astro, SELF, failureFlash(r));
+    }
+    failed = 'add';
+  } else {
+    failedEmail = form.raw('email');
+    const name = form.optText('name', { max: 60 });
+    if (form.ok) {
+      const r = await updateHelper(db, admin, { email: failedEmail, version: form.version() ?? 0, active: form.bool('active'), name });
+      if (r.ok) return redirectWithFlash(Astro, SELF, { text: S.t('people.updated'), tone: 'ok' });
+      if (!form.takeFailure(r, ['name'])) return redirectWithFlash(Astro, SELF, failureFlash(r));
+    }
+    failed = 'update';
+  }
+  errors = form.messages();
+  flash = { tone: 'error', text: S.t('form.fixErrors') };
+  Astro.response.status = 422;
+} else {
+  flash = takeFlash(Astro);
+}
+
+const helpers = await listHelpers(db);
+---
+<AdminLayout title={S.t('people.title')} active="people" flash={flash}>
+  <section class="section" aria-labelledby="p-owners">
+    <div class="section-head"><h2 class="section-title" id="p-owners">{S.t('people.owners')}</h2></div>
+    <div class="card stack">
+      <p class="field-hint">{S.t('people.ownersHint')}</p>
+      {owners.length === 0 ? <p class="notice notice-warn"><Icon name="alert" /><span>{S.t('people.ownersNone')}</span></p> : (
+        <ul class="linklist">
+          {ownerRows.map((o) => (
+            <li><span class="linklist-row prow">
+              <span class="owner-who">
+                <span class="email">{o.shown}</span>
+                {o.masked && <span class="muted owner-via email">{S.t('people.aliasTarget', { masked: o.masked })}</span>}
+              </span>
+              <Badge tone="honey" text={S.t('role.owner')} />
+            </span></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="p-helpers">
+    <div class="section-head"><h2 class="section-title" id="p-helpers">{S.t('people.helpers')}</h2></div>
+    <p class="field-hint hint-gap">{S.t('people.helpersHint')}</p>
+    {helpers.length === 0 ? <EmptyState compact icon="people" title={S.t('people.helpersNone')} /> : (
+      <div class="stack">
+        {helpers.map((h) => {
+          const mine = failed === 'update' && failedEmail === h.email;
+          return (
+            <form method="post" class:list={['card', 'stack', { 'is-off': !h.active }]}>
+              <input type="hidden" name="email" value={h.email} />
+              <input type="hidden" name="version" value={h.version} />
+              <div class="row row-between">
+                <strong class="email">{h.email}</strong>
+                <Badge tone={h.active ? 'ok' : 'muted'} text={h.active ? S.t('people.active') : S.t('common.off')} />
+              </div>
+              <p class="muted">{S.t('people.added', { date: dateIST(h.addedAt), by: h.addedBy })} · {h.lastSeenAt ? S.t('people.lastSeen', { when: dateTimeIST(h.lastSeenAt) }) : S.t('people.neverSeen')}</p>
+              <TextField name="name" label={S.t('people.name')} optional value={mine ? form!.raw('name') : h.name ?? ''} max={60} error={mine ? errors.name : null} />
+              <Toggle name="active" label={S.t('people.active')} checked={mine ? form!.bool('active') : h.active} />
+              <div class="form-actions">
+                <button class="btn" name="_action" value="update" data-confirm={h.active ? S.t('people.offQ', { email: h.email }) : undefined} data-off-confirm>{S.t('people.save')}</button>
+              </div>
+            </form>
+          );
+        })}
+      </div>
+    )}
+  </section>
+
+  <section class="section" aria-labelledby="p-add">
+    <div class="section-head"><h2 class="section-title" id="p-add">{S.t('people.add')}</h2></div>
+    <form method="post" class="card stack">
+      <p class="notice notice-info"><Icon name="info" /><span>{S.t('people.reminder')}</span></p>
+      <div class="grid-2">
+        <TextField name="email" label={S.t('people.email')} type="email" inputmode="email" autocomplete="off" value={failed === 'add' ? form!.raw('email') : ''} max={254} required error={failed === 'add' ? errors.email : null} />
+        <TextField name="name" label={S.t('people.name')} optional value={failed === 'add' ? form!.raw('name') : ''} max={60} error={failed === 'add' ? errors.name : null} />
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" name="_action" value="add"><Icon name="plus" />{S.t('people.addBtn')}</button></div>
+    </form>
+  </section>
+</AdminLayout>
+
+<style>
+  .hint-gap { margin: -6px 0 12px; }
+  .email { overflow-wrap: anywhere; }
+  .prow { justify-content: space-between; gap: 10px; }
+  .owner-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .owner-via { font-size: .875rem; }
+  .is-off { background: var(--cream); box-shadow: none; }
+</style>
+
+<script>
+  // Ask before switching a helper off; saving a name change while they stay on needs no question.
+  for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-off-confirm]')) {
+    const question = btn.dataset.confirm;
+    const toggle = btn.form?.querySelector<HTMLInputElement>('input[type="checkbox"][name="active"]');
+    if (!question || !toggle) continue;
+    const sync = () => { if (toggle.checked) delete btn.dataset.confirm; else btn.dataset.confirm = question; };
+    toggle.addEventListener('change', sync);
+    sync();
+  }
+</script>

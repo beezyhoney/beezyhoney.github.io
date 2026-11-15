@@ -1,0 +1,25 @@
+---
+// "Nothing here yet" with an icon, a short explanation and (slot) the next step.
+//   <EmptyState icon="orders" title="No new orders" text="Orders from the website show up here.">
+//     <a class="btn btn-primary" href="/admin/orders/new/">New order</a>
+//   </EmptyState>
+import Icon from './Icon.astro';
+import type { IconName } from '../icons';
+import { t } from '../strings';
+
+interface Props {
+  title?: string;
+  text?: string;
+  icon?: IconName;
+  /** smaller, left-aligned (inside cards) */
+  compact?: boolean;
+  class?: string;
+}
+const { title = t('empty.title'), text, icon = 'info', compact, class: cls } = Astro.props;
+---
+<div class:list={['empty', cls, { 'is-compact': compact }]}>
+  <span class="empty-icon" aria-hidden="true"><Icon name={icon} /></span>
+  <p class="empty-title">{title}</p>
+  {text && <p class="empty-text">{text}</p>}
+  {Astro.slots.has('default') && <div class="empty-actions"><slot /></div>}
+</div>

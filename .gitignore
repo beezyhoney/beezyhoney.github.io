@@ -2,3 +2,19 @@ node_modules/
 dist/
 .astro/
 .DS_Store
+# catalog written by scripts/sync-catalog.mjs before every build
+src/data/generated/
+# local secrets for wrangler / Miniflare (admin emails, keys): never commit
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+# wrangler / Miniflare local state (D1, KV, cache) and temp files; BEEZY_STATE_DIR folders (docs/DEV-NOTES.md)
+.wrangler/
+.beezy-state*/
+# uploaded photos downloaded by sync-catalog at build time (they live in KV, never in git)
+src/assets/img/uploads/
+
+# written by sync-catalog while a product is retired
+public/_redirects

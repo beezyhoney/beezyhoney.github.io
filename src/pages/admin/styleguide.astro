@@ -1,0 +1,483 @@
+---
+// Style guide: every admin component in every state, for building screens. Owner only; on-demand.
+// Demo words on this page are for developers and stay inline; real screens take their words from strings.
+export const prerender = false;
+
+import AdminLayout from '../../admin/AdminLayout.astro';
+import Badge from '../../admin/components/Badge.astro';
+import BarChart from '../../admin/components/BarChart.astro';
+import Combobox from '../../admin/components/Combobox.astro';
+import ConfirmButton from '../../admin/components/ConfirmButton.astro';
+import DataTable from '../../admin/components/DataTable.astro';
+import DateInput from '../../admin/components/DateInput.astro';
+import DateRange from '../../admin/components/DateRange.astro';
+import EmptyState from '../../admin/components/EmptyState.astro';
+import FlashMessage from '../../admin/components/FlashMessage.astro';
+import GramsInput from '../../admin/components/GramsInput.astro';
+import Icon from '../../admin/components/Icon.astro';
+import MoneyInput from '../../admin/components/MoneyInput.astro';
+import Pagination from '../../admin/components/Pagination.astro';
+import PhotoPicker from '../../admin/components/PhotoPicker.astro';
+import QtyStepper from '../../admin/components/QtyStepper.astro';
+import Select from '../../admin/components/Select.astro';
+import StatTile from '../../admin/components/StatTile.astro';
+import Tabs from '../../admin/components/Tabs.astro';
+import TextField from '../../admin/components/TextField.astro';
+import Toggle from '../../admin/components/Toggle.astro';
+import { redirectWithFlash, takeFlash, type Flash } from '../../admin/flash';
+import { addDays, dateIST, dayIST, inr, int, kg, rangeFor } from '../../admin/format';
+import { newFormKey, readForm } from '../../admin/forms';
+import { ICONS, type IconName } from '../../admin/icons';
+import type { AdminUser } from '../../admin/nav';
+import { STATUS_TONES, type BadgeKind } from '../../admin/status';
+import { t } from '../../admin/strings';
+
+const admin = (Astro.locals as { admin?: AdminUser }).admin;
+if (admin ? admin.role !== 'owner' : !import.meta.env.DEV) {
+  return new Response(admin ? 'Only the owner can open this page.' : 'Not found', {
+    status: admin ? 403 : 404,
+    headers: { 'content-type': 'text/plain; charset=utf-8' },
+  });
+}
+
+// ---- the form pattern, for real: POST → read with forms.ts → 422 with errors, or 303 with a flash ----
+const SELF = '/admin/styleguide/';
+let errors: Record<string, string> = {};
+let raw: Record<string, string> = {};
+let flash: Flash | null = null;
+if (Astro.request.method === 'POST') {
+  const form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  const action = form.action(['demo_save', 'demo_key', 'demo_danger'] as const);
+  if (action === 'demo_key') return redirectWithFlash(Astro, `${SELF}#form-pattern`, { key: 'flash.saved' });
+  if (action === 'demo_danger') return redirectWithFlash(Astro, `${SELF}#buttons`, { tone: 'warn', text: 'Confirmed: the danger button was sent after "Yes".' });
+  if (action !== 'demo_save') return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  const name = form.text('demo_name', { required: true, max: 60 });
+  const price = form.paise('demo_price', { required: true, min: 100 });
+  const stock = form.grams('demo_stock', { required: true });
+  const qty = form.int('demo_qty', { required: true, min: 1, max: 99 });
+  const day = form.date('demo_day', { required: true });
+  const on = form.bool('demo_on');
+  const key = form.key();
+  if (form.ok && price !== null && stock !== null) {
+    return redirectWithFlash(Astro, `${SELF}#form-pattern`, {
+      tone: 'ok',
+      text: `Saved "${name}": ${inr(price)} (${price} paise), ${kg(stock)} (${int(stock)} g), qty ${qty}, ${dateIST(day)}, switch ${on ? 'on' : 'off'}, key ${key ? 'ok' : 'missing'}.`,
+    });
+  }
+  errors = form.messages();
+  raw = Object.fromEntries(['demo_name', 'demo_price', 'demo_stock', 'demo_qty', 'demo_day'].map((n) => [n, form.raw(n)]));
+  raw.demo_on = form.bool('demo_on') ? '1' : '';
+  flash = { tone: 'error', text: t('form.fixErrors') };
+  Astro.response.status = 422;
+} else {
+  flash = takeFlash(Astro);
+}
+
+// ---- sample data ----
+const now = Date.now();
+const ago = (min: number) => new Date(now - min * 60_000).toISOString();
+const swatch = (fill: string, jar: string) =>
+  `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="${fill}"/><rect x="38" y="22" width="44" height="12" rx="3" fill="#2B1A10"/><rect x="30" y="34" width="60" height="70" rx="12" fill="${jar}"/><rect x="38" y="56" width="44" height="22" rx="4" fill="#FFFBF4"/></svg>`)}`;
+const photos = [
+  { path: 'murungai-main.jpg', src: swatch('#F4E4C8', '#E08A12'), alt: 'Murungai honey jar' },
+  { path: 'multiflora-main.jpg', src: swatch('#FBF3E6', '#A85C07'), alt: 'Multiflora honey jar' },
+  { path: 'forest-main.jpg', src: swatch('#EFE7DA', '#4A2814'), alt: 'Forest honey jar' },
+  { path: 'sunflower-main.jpg', src: swatch('#FCE7C2', '#F2B632'), alt: 'Sunflower honey jar' },
+  { path: 'uploads/01JD0000000000000000000000.jpg', src: swatch('#E3F4EA', '#0E6B3A'), alt: 'An uploaded photo' },
+];
+const months = ['Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
+const monthValues = [1840000, 2210000, 1985000, 2760000, 3120000, 2450000, 1980000, 2320000, 2875000, 3410000, 3980000, 2650000];
+const days = Array.from({ length: 30 }, (_, i) => ({ label: String(i + 1), title: `${i + 1} Nov`, value: [0, 2, 1, 3, 0, 4, 2, 1, 0, 5, 3, 2, 6, 1, 0, 2, 3, 1, 4, 2, 0, 1, 3, 2, 5, 1, 2, 0, 3, 2][i] }));
+const orderRows = [
+  { href: '#', ref: 'BZ-7K3QD', age: ago(35), items: 'Murungai 250 g × 2, Honey sticks × 1', total: 69000, status: { kind: 'order' as const, value: 'new' }, paid: { kind: 'payment' as const, value: 'unpaid' } },
+  { href: '#', ref: 'BZ-9TQ4M', age: ago(60 * 26), items: 'Forest honey 500 g × 1', total: 52000, status: { kind: 'order' as const, value: 'confirmed' }, paid: { kind: 'payment' as const, value: 'part' }, tone: 'warn' as const },
+  { href: '#', ref: 'BZ-3HAX7', age: ago(60 * 24 * 3), items: 'Beeswax candle (Small) × 4', total: 48000, status: { kind: 'order' as const, value: 'delivered' }, paid: { kind: 'payment' as const, value: 'paid' } },
+  { href: '#', ref: 'BZ-K7PRE', age: ago(60 * 24 * 9), items: 'Gift box × 12', total: null, status: { kind: 'order' as const, value: 'cancelled' }, paid: { kind: 'payment' as const, value: 'refunded' }, tone: 'muted' as const },
+];
+const stockRows = [
+  { pool: 'Murungai honey', onHand: 99500, low: 5000, level: { kind: 'stock' as const, value: 'in' } },
+  { pool: 'Forest honey', onHand: 3500, low: 5000, level: { kind: 'stock' as const, value: 'low' }, tone: 'warn' as const },
+  { pool: 'Sunflower honey', onHand: -2000, low: 5000, level: { kind: 'stock' as const, value: 'negative' }, tone: 'bad' as const },
+  { pool: 'Karanji honey', onHand: null, low: null, level: { kind: 'stock' as const, value: 'untracked' } },
+];
+const kinds = Object.keys(STATUS_TONES) as BadgeKind[];
+const thisMonth = rangeFor('thisMonth', now);
+const sgUrl = new URL(Astro.url.href);
+const sections = [
+  ['colours', 'Colours and type'], ['buttons', 'Buttons and confirm'], ['flash', 'Flash and notices'], ['badges', 'Status chips'],
+  ['fields', 'Text fields'], ['money', 'Money and weight'], ['choices', 'Steppers, selects, switches'], ['photos', 'Photo picker'],
+  ['dates', 'Dates'], ['tables', 'Data tables'], ['tiles', 'Stat tiles'], ['charts', 'Bar charts'], ['empty', 'Empty states'],
+  ['paging', 'Tabs and pages'], ['chip', 'Status chip and session'], ['form-pattern', 'Form pattern (live)'], ['draft', 'Draft saving'],
+  ['layout', 'Layout helpers'], ['icons', 'Icons'],
+] as const;
+const colours = [
+  ['--cream', '#FBF3E6', 'page'], ['--paper', '#FFFBF4', 'cards'], ['--cream-2', '#F4E4C8', 'hover, affix'], ['--honey', '#E08A12', 'brand, honey button'],
+  ['--honey-deep', '#A85C07', 'bars, icons'], ['--amber', '#F2B632', 'active tab'], ['--choc', '#2B1A10', 'text, primary'], ['--ink-2', '#5E4A3A', 'secondary text'],
+  ['--link', '#8A4A06', 'links'], ['--ok', '#0E6B3A', 'good'], ['--warn', '#7A4A00', 'check'], ['--bad', '#B42318', 'problem'], ['--info', '#1F5FA8', 'info, focus'],
+];
+const formKey = newFormKey();
+// ?bare=1 shows the layout's bare mode (what the login page uses): no menus, no status chip, no status requests
+const bareDemo = Astro.url.searchParams.has('bare');
+---
+{bareDemo && (
+  <AdminLayout title="Sign in" bare flash={flash} subtitle="Bare mode preview (the real login page belongs to the auth screen).">
+    <form class="card" method="get" action={SELF} style="margin-top:18px">
+      <TextField name="email" label="Your email" type="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck={false} placeholder="name@example.test" />
+      <button type="submit" class="btn btn-primary btn-block btn-lg">Send me a code</button>
+    </form>
+    <p style="margin-top:16px;text-align:center"><a href={SELF}>Back to the style guide</a></p>
+  </AdminLayout>
+)}
+{!bareDemo && (
+<AdminLayout title="Style guide" active="styleguide" flash={flash} subtitle="Every admin building block in every state. Copy from here; details in src/admin/README.md.">
+  <a slot="actions" class="btn" href={`${SELF}?bare=1`}>Bare mode (login)</a>
+
+  <nav class="card section" aria-label="On this page">
+    <ul class="chips" style="list-style:none;margin:0;padding:0">
+      {sections.map(([id, label]) => <li><a class="chip" href={`#${id}`}>{label}</a></li>)}
+    </ul>
+  </nav>
+
+  <section class="section" id="colours">
+    <div class="section-head"><h2 class="section-title">Colours and type</h2></div>
+    <div class="card stack">
+      <div class="grid-3">
+        {colours.map(([name, hex, use]) => (
+          <div class="row" style="flex-wrap:nowrap">
+            <span style={`flex:none;width:48px;height:48px;border-radius:12px;border:1px solid var(--line);background:${hex}`}></span>
+            <span><code>{name}</code><br /><span class="muted">{hex} · {use}</span></span>
+          </div>
+        ))}
+      </div>
+      <p class="page-title">Page title (Bodoni Moda)</p>
+      <p class="section-title">Section title (Mukta Malar bold)</p>
+      <p>Body text, 17 px. Nothing in the admin is smaller than 16 px. <span class="muted">Muted text for hints.</span> <a href="#colours">A link</a>.</p>
+      <p class="num">Numbers line up: {inr(10500000)} · {inr(105050)} · {kg(99500)} · <span class="neg">{kg(-2000)}</span></p>
+    </div>
+  </section>
+
+  <section class="section" id="buttons">
+    <div class="section-head"><h2 class="section-title">Buttons and confirm</h2><code>.btn .btn-primary|honey|danger|quiet .btn-lg .btn-block · ConfirmButton</code></div>
+    <div class="card stack">
+      <div class="row">
+        <button type="button" class="btn btn-primary"><Icon name="check" />Primary</button>
+        <button type="button" class="btn btn-honey">Honey</button>
+        <button type="button" class="btn">Default</button>
+        <button type="button" class="btn btn-danger">Danger</button>
+        <button type="button" class="btn btn-quiet">Quiet</button>
+        <button type="button" class="btn btn-icon" aria-label="Edit"><Icon name="edit" /></button>
+        <button type="button" class="btn" disabled>Disabled</button>
+      </div>
+      <button type="button" class="btn btn-primary btn-lg btn-block">Big primary (order detail: Confirm)</button>
+      <form method="post" action={SELF} class="row">
+        <ConfirmButton value="demo_danger" tone="danger" icon="close" message="Cancel order BZ-7K3QD? The stock goes back." confirmLabel="Yes, cancel it">Cancel order (asks first)</ConfirmButton>
+        <ConfirmButton value="demo_danger" tone="primary" title="Update the website?" message="It takes about 2–5 minutes." confirmLabel="Update now">Primary with confirm</ConfirmButton>
+      </form>
+      <p class="field-hint">Without JavaScript these submit at once; with it the shared dialog asks first. "Go back" has focus, so Enter never confirms by accident.</p>
+    </div>
+  </section>
+
+  <section class="section" id="flash">
+    <div class="section-head"><h2 class="section-title">Flash and notices</h2><code>redirectWithFlash() · takeFlash() · .notice-*</code></div>
+    <FlashMessage flash={{ tone: 'ok', text: t('flash.saved') }} />
+    <FlashMessage flash={{ tone: 'info', text: t('flash.publishQueued') }} />
+    <FlashMessage flash={{ tone: 'warn', text: 'Stock is now −2 for Murungai 250 g, recount soon.' }} />
+    <FlashMessage flash={{ tone: 'error', text: t('flash.conflict') }} />
+    <div class="stack">
+      <p class="notice notice-warn"><Icon name="alert" /><span>Customers can edit the WhatsApp text. Always go by this page.</span></p>
+      <p class="notice notice-info"><Icon name="info" /><span>Live on the website in about a minute.</span></p>
+      <p class="notice notice-bad"><Icon name="error" /><span>Update didn't finish. Your website is safe and shows the previous version.</span></p>
+      <p class="notice notice-ok"><Icon name="ok" /><span>Backup done today at 2:30 am.</span></p>
+    </div>
+  </section>
+
+  <section class="section" id="badges">
+    <div class="section-head"><h2 class="section-title">Status chips</h2><code>&lt;Badge kind="order" value="new" /&gt;</code></div>
+    <div class="card stack">
+      {kinds.map((k) => (
+        <div class="row"><strong style="min-width:5.5em">{k}</strong>{Object.keys(STATUS_TONES[k]).map((v) => <Badge kind={k} value={v} />)}</div>
+      ))}
+      <div class="row"><strong style="min-width:5.5em">custom</strong><Badge tone="warn" text="Customer saw a different price" /><Badge tone="info" text="Gift" /><Badge kind="order" value="unknown-status" /></div>
+    </div>
+  </section>
+
+  <section class="section" id="fields">
+    <div class="section-head"><h2 class="section-title">Text fields</h2><code>TextField · Combobox</code></div>
+    <div class="card grid-2">
+      <TextField name="sg_name" label="Product name" value="Murungai Honey" max={60} />
+      <TextField name="sg_tag" label="Tagline" value="Moringa blossom honey with real comb." max={140} counter hint="One line under the name on cards." />
+      <TextField name="sg_city" label="Customer city" optional placeholder="e.g. Madurai" />
+      <TextField name="sg_bad" label="Short code" value="MURU1" error="Please use 2–4 capital letters, like MUR." />
+      <TextField name="sg_ro" label="Slug (frozen after going live)" value="murungai-honey" readonly hint="Cannot change once the product was on the website." />
+      <TextField name="sg_dis" label="Disabled" value="Not editable" disabled />
+      <TextField name="sg_about" label="About" multiline rows={4} max={600} counter value="Raw, unheated honey from moringa blossom, with a piece of comb in every box." />
+      <Combobox name="sg_courier" label="Courier" options={['India Post', 'DTDC', 'ST Courier', 'Professional Couriers']} optional hint="Pick or type." />
+    </div>
+  </section>
+
+  <section class="section" id="money">
+    <div class="section-head"><h2 class="section-title">Money and weight</h2><code>MoneyInput (paise) · GramsInput (grams)</code></div>
+    <div class="card grid-2">
+      <MoneyInput name="sg_price" label="Price" paise={31000} hint="Type rupees; 1050 becomes 1,050 when you leave the box." />
+      <MoneyInput name="sg_price2" label="Price (none yet)" paise={null} allowEmpty hint={t('money.emptyMeansWhatsApp')} />
+      <MoneyInput name="sg_big" label="Delivery charge" paise={10505050} />
+      <MoneyInput name="sg_bad" label="MRP" raw="35O" error={t('form.notMoney')} />
+      <GramsInput name="sg_pool" label="Honey left (Murungai)" grams={99500} packs={[1000, 500, 250, 100]} hint="Type kg; 500 g also works." />
+      <GramsInput name="sg_adj" label="Change (− to remove)" grams={-1250} allowNegative packs={[250]} />
+      <GramsInput name="sg_empty" label="First count" grams={null} packs={[500, 250]} placeholder="e.g. 42.5" />
+      <GramsInput name="sg_gbad" label="Harvest" raw="lots" error={t('form.notWeight')} />
+    </div>
+    <div class="card" style="margin-top:16px">
+      <p class="section-title" style="margin-bottom:10px">In a grid (small, label hidden)</p>
+      <div class="table-wrap">
+        <table class="dtable">
+          <thead><tr><th scope="col">Pack</th><th scope="col">Price</th><th scope="col">MRP</th></tr></thead>
+          <tbody>
+            <tr><td>250 g</td><td><MoneyInput small labelHidden name="sg_p250" label="Price for 250 g" paise={31000} /></td><td><MoneyInput small labelHidden name="sg_m250" label="MRP for 250 g" paise={null} /></td></tr>
+            <tr><td>500 g</td><td><MoneyInput small labelHidden name="sg_p500" label="Price for 500 g" paise={59000} /></td><td><MoneyInput small labelHidden name="sg_m500" label="MRP for 500 g" paise={62000} /></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="choices">
+    <div class="section-head"><h2 class="section-title">Steppers, selects, switches</h2><code>QtyStepper · Select · Toggle</code></div>
+    <div class="card grid-2">
+      <QtyStepper name="sg_qty" label="Quantity" value={2} min={1} max={99} />
+      <QtyStepper name="sg_qmin" label="At the minimum" value={1} min={1} max={99} />
+      <QtyStepper name="sg_qmax" label="At the maximum" value={99} min={1} max={99} />
+      <QtyStepper name="sg_qbad" label="With an error" value={0} min={1} max={99} error={t('form.tooSmall', { min: 1 })} />
+      <Select name="sg_pack" label="Product and pack" placeholder="Pick a pack" value="mur-250"
+        groups={[{ label: 'Murungai Honey', options: [{ value: 'mur-100', label: '100 g' }, { value: 'mur-250', label: '250 g' }, { value: 'mur-500', label: '500 g' }] },
+                 { label: 'Honey Sticks', options: [{ value: 'hst-1', label: '1 stick' }, { value: 'hst-10', label: 'Box of 10 (100 g)' }, { value: 'hst-x', label: 'Box of 50 (retired)', disabled: true }] }]} />
+      <Select name="sg_avail" label="On the website" value="auto" options={[{ value: 'auto', label: t('status.avail.auto') }, { value: 'in', label: t('status.avail.in') }, { value: 'out', label: t('status.avail.out') }]} hint="Automatic follows the stock count." />
+      <Select name="sg_method" label="Paid by" placeholder="Choose" options={[{ value: 'upi', label: 'UPI' }, { value: 'cash', label: 'Cash' }]} error={t('form.required')} />
+      <div class="switch-list">
+        <Toggle name="sg_show" label="Show prices on the website" checked hint="Turn on after the legal questions are answered." />
+        <Toggle name="sg_track" label="Count stock for this honey" />
+        <Toggle name="sg_locked" label="Pause order recording" disabled hint="Disabled: sends nothing; the server keeps the old value." />
+        <Toggle name="sg_err" label="In the gift box" error="Add a 100 g or 250 g pack first." />
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="photos">
+    <div class="section-head"><h2 class="section-title">Photo picker</h2><code>PhotoPicker (radio or checkbox; upload through catalog/upload.ts)</code></div>
+    <div class="card stack">
+      <PhotoPicker name="sg_photo" label="Main photo" photos={photos} selected="murungai-main.jpg" hint="Tap a photo to choose it." />
+      <PhotoPicker name="sg_card" label="Shop card photo" photos={photos.slice(0, 3)} selected={null} noneLabel="Use main photo" uploadable={false} />
+      <PhotoPicker name="sg_gallery" label="Gallery" photos={photos} selected={['murungai-main.jpg', 'forest-main.jpg']} multiple error="Every gallery photo needs a caption before going live." />
+      <PhotoPicker name="sg_none" label="No photos yet" photos={[]} />
+    </div>
+  </section>
+
+  <section class="section" id="dates">
+    <div class="section-head"><h2 class="section-title">Dates</h2><code>DateInput · DateRange (GET form, IST days)</code></div>
+    <div class="card grid-2" style="margin-bottom:16px">
+      <DateInput name="sg_harvested" label="Harvest date" value={dayIST(now)} max={dayIST(now)} hint="Not after today." />
+      <DateInput name="sg_best" label="Best before" value={addDays(dayIST(now), 730)} hint="Prefilled: 24 months after the harvest." />
+      <DateInput name="sg_month" label="Month" type="month" value={dayIST(now).slice(0, 7)} optional />
+      <DateInput name="sg_packed" label="Packed on" value="" required error={t('form.required')} />
+    </div>
+    <div class="card stack">
+      <DateRange url={sgUrl} from={thisMonth.from} to={thisMonth.to} presets={['today', 'last7', 'thisMonth', 'lastMonth', 'thisFy', 'lastFy']} />
+      <DateRange url={sgUrl} id="range-err" nameFrom="f2" nameTo="t2" from={dayIST(now)} to="2026-01-01" presets={false} error={t('range.backwards')} />
+    </div>
+  </section>
+
+  <section class="section" id="tables">
+    <div class="section-head"><h2 class="section-title">Data tables</h2><code>DataTable (cards on phones) · .dtable by hand</code></div>
+    <div class="stack">
+      <DataTable caption="Orders" now={now} rows={orderRows} columns={[
+        { key: 'ref', label: 'Order', primary: true },
+        { key: 'age', label: 'Waiting', type: 'age' },
+        { key: 'items', label: 'Items' },
+        { key: 'total', label: 'Total', type: 'money' },
+        { key: 'status', label: 'Status', type: 'badge' },
+        { key: 'paid', label: 'Paid', type: 'badge' },
+      ]} />
+      <DataTable caption="Stock pools" rows={stockRows} columns={[
+        { key: 'pool', label: 'Honey', primary: true },
+        { key: 'onHand', label: 'On hand', type: 'grams' },
+        { key: 'low', label: 'Low at', type: 'grams' },
+        { key: 'level', label: 'Level', type: 'badge' },
+      ]} />
+      <DataTable caption="Nothing yet" rows={[]} columns={[{ key: 'a', label: 'A' }]} empty="No orders match these filters." />
+      <div class="table-wrap has-cards">
+        <table class="dtable">
+          <caption>By hand, with inputs in cells (Count all)</caption>
+          <thead><tr><th scope="col">Pool</th><th scope="col" class="end">Now</th><th scope="col">Counted</th></tr></thead>
+          <tbody>
+            <tr><td class="is-primary" data-label="Pool">Murungai honey</td><td class="end" data-label="Now">{kg(99500)}</td><td data-label="Counted"><GramsInput small labelHidden name="sg_c1" label="Counted Murungai honey" grams={null} placeholder="kg" /></td></tr>
+            <tr><td class="is-primary" data-label="Pool">Beeswax candles, Small</td><td class="end" data-label="Now">12 pieces</td><td data-label="Counted"><QtyStepper labelHidden name="sg_c2" label="Counted small candles" value={12} min={0} max={999} /></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="tiles">
+    <div class="section-head"><h2 class="section-title">Stat tiles</h2><code>StatTile (▲▼ change)</code></div>
+    <div class="tiles">
+      <StatTile label="Net sales" paise={3980000} prev={3410000} href="#tiles" />
+      <StatTile label="Orders" value={41} prev={48} />
+      <StatTile label="Honey sold" grams={46500} prev={46500} />
+      <StatTile label="Discounts" paise={120000} prev={80000} better="down" />
+      <StatTile label="Gift boxes" value={6} prev={0} />
+      <StatTile label="New orders" value={3} hint="Oldest waited 26 h" alert />
+      <StatTile label="To collect" paise={128000} hint="4 orders" />
+      <StatTile label="Average order" value="—" />
+    </div>
+  </section>
+
+  <section class="section" id="charts">
+    <div class="section-head"><h2 class="section-title">Bar charts</h2><code>BarChart (inline SVG)</code></div>
+    <div class="grid-2">
+      <div class="card"><BarChart caption="Net sales per month" format="money" highlight={11} data={months.map((m, i) => ({ label: m, title: `${m} ${i === 0 ? 2025 : 2026}`, value: monthValues[i] }))} /></div>
+      <div class="card"><BarChart caption="Orders per day, Nov 2026" format="int" highlight={14} data={days} /></div>
+      <div class="card"><BarChart caption="Kg sold per month" format="grams" data={months.slice(0, 6).map((m, i) => ({ label: m, value: [12000, 0, 8500, 15250, 0, 22000][i] }))} /></div>
+      <div class="card"><BarChart caption="No sales yet" data={months.slice(0, 4).map((m) => ({ label: m, value: 0 }))} /></div>
+    </div>
+  </section>
+
+  <section class="section" id="empty">
+    <div class="section-head"><h2 class="section-title">Empty states</h2><code>EmptyState</code></div>
+    <div class="grid-2">
+      <EmptyState icon="orders" title="No new orders" text="Orders from the website show up here a few seconds after the customer taps Send.">
+        <a class="btn btn-primary" href="#empty"><Icon name="plus" />New order</a>
+      </EmptyState>
+      <div class="stack">
+        <EmptyState compact icon="ok" title="No alerts" text="Everything looks fine." />
+        <EmptyState compact icon="harvests" title="No harvests yet">
+          <a class="btn" href="#empty">Add harvest</a>
+        </EmptyState>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="paging">
+    <div class="section-head"><h2 class="section-title">Tabs and pages</h2><code>Tabs · Pagination</code></div>
+    <div class="card stack">
+      <Tabs label="Order filters" items={[
+        { href: '#paging', label: 'New', count: 3, current: true },
+        { href: '#paging', label: 'Confirmed', count: 5 },
+        { href: '#paging', label: 'To pack/send', count: 2 },
+        { href: '#paging', label: 'Unpaid', count: 4 },
+        { href: '#paging', label: 'Delivered' },
+        { href: '#paging', label: 'Cancelled' },
+        { href: '#paging', label: 'All' },
+      ]} />
+      <Pagination url={new URL('/admin/styleguide/?f=new', Astro.url)} page={1} pages={9} />
+      <Pagination url={new URL('/admin/styleguide/?f=new&page=4', Astro.url)} page={4} pages={9} />
+      <Pagination url={new URL('/admin/styleguide/?page=9', Astro.url)} page={9} pages={9} />
+      <Pagination url={new URL('/admin/styleguide/?page=2', Astro.url)} page={2} hasNext />
+      <p class="field-hint">A single page draws nothing: <code>&lt;Pagination page=&#123;1&#125; pages=&#123;1&#125; /&gt;</code></p>
+    </div>
+  </section>
+
+  <section class="section" id="chip">
+    <div class="section-head"><h2 class="section-title">Status chip and session</h2><code>GET /admin/api/status.json → &#123; website: &#123; state, at &#125; &#125;</code></div>
+    <div class="card stack">
+      <div class="row">
+        <span class="site-chip" data-state="unknown"><span class="site-chip-dot"></span>Website</span>
+        <span class="site-chip" data-state="up_to_date"><span class="site-chip-dot"></span>Website up to date ✓ (10:42 am)</span>
+        <span class="site-chip" data-state="updating"><span class="site-chip-dot"></span>Updating… started 2 min ago</span>
+        <span class="site-chip" data-state="waiting"><span class="site-chip-dot"></span>Changes waiting, update at 11:05 am</span>
+        <span class="site-chip" data-state="failed"><span class="site-chip-dot"></span>Update didn't finish</span>
+        <span class="site-chip" data-state="off"><span class="site-chip-dot"></span>Publishing is off on this computer</span>
+      </div>
+      <div class="row">
+        <button type="button" class="btn" data-sg-session="expired">Show "Login expired" banner</button>
+        <button type="button" class="btn" data-sg-session="back">Show "signed in again"</button>
+        <button type="button" class="btn btn-quiet" data-sg-session="hide">Hide</button>
+      </div>
+      <p class="field-hint">The real banner appears when /admin/api/status.json answers 401/403 or redirects to the login page, and a POST form is held until the login is back.</p>
+    </div>
+  </section>
+
+  <section class="section" id="form-pattern">
+    <div class="section-head"><h2 class="section-title">Form pattern (live)</h2><code>readForm → 422 with errors, or 303 + flash</code></div>
+    <form class="card" method="post" action={SELF} data-draft="styleguide-pattern" novalidate>
+      <input type="hidden" name="_key" value={formKey} />
+      <div class="grid-2">
+        <TextField name="demo_name" label="Name" value={raw.demo_name ?? 'Murungai Honey'} required max={60} error={errors.demo_name} />
+        <MoneyInput name="demo_price" label="Price" raw={raw.demo_price} paise={31000} required error={errors.demo_price} hint="Try 35O or 0.50 to see errors." />
+        <GramsInput name="demo_stock" label="Stock" raw={raw.demo_stock} grams={99500} packs={[250, 100]} required error={errors.demo_stock} />
+        <QtyStepper name="demo_qty" label="Quantity" value={raw.demo_qty ?? 2} min={1} max={99} error={errors.demo_qty} />
+        <DateInput name="demo_day" label="Day" value={raw.demo_day ?? dayIST(now)} required error={errors.demo_day} />
+        <Toggle name="demo_on" label="A switch" checked={raw.demo_on !== undefined ? raw.demo_on === '1' : true} />
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" name="_action" value="demo_save"><Icon name="check" />Save (parse and redirect)</button>
+        <button type="submit" class="btn" name="_action" value="demo_key">Quick flash by URL key</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="section" id="draft">
+    <div class="section-head"><h2 class="section-title">Draft saving</h2><code>&lt;form data-draft="product-12"&gt;</code></div>
+    <form class="card" method="post" action={SELF} data-draft="styleguide-demo">
+      <input type="hidden" name="version" value="3" />
+      <p class="field-hint" style="margin-bottom:12px">Type here, then reload the page: a bar offers to bring the text back. Hidden and password fields are never stored.</p>
+      <div class="grid-2">
+        <TextField name="draft_note" label="Note" multiline rows={3} />
+        <div>
+          <MoneyInput name="draft_price" label="Price" paise={null} allowEmpty />
+          <Toggle name="draft_switch" label="A switch" />
+        </div>
+      </div>
+      <div class="actionbar">
+        <button type="submit" class="btn btn-primary" name="_action" value="demo_key">Save</button>
+        <a class="btn" href={SELF}>Cancel</a>
+      </div>
+    </form>
+  </section>
+
+  <section class="section" id="layout">
+    <div class="section-head"><h2 class="section-title">Layout helpers</h2><code>.card .section .grid-2 .grid-3 .tiles .row .stack .kv .linklist .actionbar</code></div>
+    <div class="grid-2">
+      <div class="card">
+        <dl class="kv">
+          <dt>Order</dt><dd>BZ-7K3QD</dd>
+          <dt>Placed</dt><dd>{dateIST(ago(35))}</dd>
+          <dt>Total</dt><dd class="num">{inr(69000)}</dd>
+          <dt>Source</dt><dd><Badge kind="source" value="cart" /></dd>
+        </dl>
+      </div>
+      <ul class="linklist">
+        <li><a href="#layout"><span>New orders waiting over 24 h</span><Badge tone="bad" text="2" /></a></li>
+        <li><a href="#layout"><span>Forest honey is low (3.5 kg)</span><Badge kind="stock" value="low" /></a></li>
+        <li><span class="linklist-row"><span>Last backup</span><span class="muted">Today, 2:30 am</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" id="icons">
+    <div class="section-head"><h2 class="section-title">Icons</h2><code>&lt;Icon name="orders" /&gt;</code></div>
+    <div class="card">
+      <ul class="grid-3" style="list-style:none;margin:0;padding:0;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
+        {(Object.keys(ICONS) as IconName[]).map((n) => <li class="row" style="flex-wrap:nowrap;min-height:40px"><Icon name={n} /><code>{n}</code></li>)}
+      </ul>
+    </div>
+  </section>
+
+  <script>
+    // style guide only: show the session banner states without a real expired login
+    document.addEventListener('click', (e) => {
+      const b = (e.target as Element | null)?.closest?.('[data-sg-session]') as HTMLElement | null;
+      const banner = document.querySelector<HTMLElement>('[data-session-banner]');
+      if (!b || !banner) return;
+      const mode = b.dataset.sgSession;
+      const text = banner.querySelector('[data-session-text]');
+      const hint = banner.querySelector<HTMLElement>('[data-session-hint]');
+      banner.hidden = mode === 'hide';
+      banner.classList.toggle('is-back', mode === 'back');
+      if (text) text.textContent = mode === 'back' ? 'You are signed in again. You can save now.' : 'Login expired — tap to sign in again';
+      if (hint) hint.hidden = mode === 'back';
+      if (mode !== 'hide') window.scrollTo({ top: 0 });
+    });
+  </script>
+</AdminLayout>
+)}

@@ -1,0 +1,75 @@
+---
+// Product editor → Sales tab (design §5 screen 6): 24 months of packs sold and ₹ (sales-queries productHistory),
+// and the latest orders with this product. Owner only (the Products area is owner only).
+export const prerender = false;
+
+import AdminLayout from '../../../../admin/AdminLayout.astro';
+import BarChart from '../../../../admin/components/BarChart.astro';
+import DataTable from '../../../../admin/components/DataTable.astro';
+import StatTile from '../../../../admin/components/StatTile.astro';
+import Tabs from '../../../../admin/components/Tabs.astro';
+import '../../../../admin/catalog/catalog.css';
+import { redirectWithFlash, takeFlash } from '../../../../admin/flash';
+import { monthLabel } from '../../../../admin/format';
+import { canOpen } from '../../../../admin/nav';
+import { S } from '../../../../admin/catalog/strings';
+import { adminOf, bindings } from '../../../../admin/catalog/page';
+import { toId, first } from '../../../../server/db';
+import { listOrders } from '../../../../server/orders';
+import { productHistory } from '../../../../server/sales-queries';
+
+const admin = adminOf(Astro);
+if (!canOpen(admin.role, 'products')) return redirectWithFlash(Astro, '/admin/', { key: 'flash.forbidden' });
+const id = toId(Astro.params.id);
+const product = id ? await first<{ id: number; name: string; slug: string }>(bindings.DB, 'SELECT id, name, slug FROM products WHERE id = ?', id) : null;
+if (!product) return redirectWithFlash(Astro, '/admin/products/', { key: 'flash.notFound' });
+const flash = takeFlash(Astro);
+const BASE = `/admin/products/${product.id}/`;
+const [months, orders] = await Promise.all([
+  productHistory(bindings.DB, product.id, 24),
+  listOrders(bindings.DB, { tab: 'all', productId: product.id, limit: 20 }),
+]);
+const units = months.reduce((n, m) => n + m.units, 0);
+const paise = months.reduce((n, m) => n + m.paise, 0);
+const now = months[months.length - 1];
+const prev = months[months.length - 2];
+---
+<AdminLayout title={S.t('ps.title', { name: product.name })} active="products" flash={flash} back={{ href: '/admin/products/', label: S.t('products.title') }}>
+  <Tabs label={S.t('pe.tabs')} items={[
+    { href: BASE, label: S.t('pe.tabEdit') },
+    { href: `${BASE}sales/`, label: S.t('pe.tabSales'), current: true },
+  ]} />
+  <div class="tiles section">
+    <StatTile label={S.t('ps.units24')} value={units} />
+    <StatTile label={S.t('ps.paise24')} paise={paise} />
+    <StatTile label={S.t('ps.thisMonth')} paise={now?.paise ?? 0} prev={prev?.paise ?? 0} />
+  </div>
+  <section class="section card">
+    <BarChart caption={S.t('ps.chartPaise')} format="money" highlight={months.length - 1}
+      data={months.map((m) => ({ label: monthLabel(m.month).slice(0, 3), title: monthLabel(m.month), value: m.paise }))} />
+  </section>
+  <section class="section card">
+    <BarChart caption={S.t('ps.chartUnits')} format="int" highlight={months.length - 1}
+      data={months.map((m) => ({ label: monthLabel(m.month).slice(0, 3), title: monthLabel(m.month), value: m.units }))} />
+  </section>
+  <p class="muted section">{S.t('ps.note')}</p>
+  <section class="section">
+    <div class="section-head"><h2 class="section-title">{S.t('ps.month')}</h2></div>
+    <DataTable caption={S.t('ps.month')} captionHidden
+      columns={[{ key: 'month', label: S.t('ps.month'), primary: true }, { key: 'units', label: S.t('ps.units'), type: 'int' }, { key: 'paise', label: S.t('ps.paise'), type: 'money' }]}
+      rows={[...months].reverse().filter((m) => m.units > 0).map((m) => ({ month: monthLabel(m.month), units: m.units, paise: m.paise }))}
+      empty={S.t('chart.noData')} />
+  </section>
+  <section class="section">
+    <div class="section-head"><h2 class="section-title">{S.t('ps.orders')}</h2></div>
+    <DataTable caption={S.t('ps.orders')} captionHidden
+      columns={[
+        { key: 'ref', label: S.t('ps.order'), primary: true },
+        { key: 'date', label: S.t('ps.date'), type: 'date' },
+        { key: 'status', label: S.t('ps.status'), type: 'badge' },
+        { key: 'total', label: S.t('ps.total'), type: 'money' },
+      ]}
+      rows={orders.rows.map((o) => ({ href: `/admin/orders/${o.id}/`, ref: o.ref, date: o.createdAt, status: { kind: 'order', value: o.status }, total: o.totalPaise, tone: o.status === 'cancelled' || o.status === 'spam' ? 'muted' : undefined }))}
+      empty={S.t('ps.noOrders')} />
+  </section>
+</AdminLayout>

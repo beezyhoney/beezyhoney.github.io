@@ -11,8 +11,9 @@ import '../styles/global.css';
 import { Image, getImage } from 'astro:assets';
 import Icon from '../components/Icon.astro';
 import { SITE, link, waLink, WA_MESSAGES } from '../data/site';
-import { PRODUCTS } from '../data/products';
+import { ALL_PRODUCTS, productName } from '../data/products';
 import { img } from '../lib/images';
+import { bakedPriceData, toJson } from '../lib/clientProducts';
 
 interface Props {
   title: string;
@@ -27,11 +28,20 @@ const ogImage = new URL(link('/og-image.jpg'), Astro.site);
 const seal = img('logo-seal.png');
 const wordmark = img('logo-wordmark.png');
 const curtainSeal = await getImage({ src: img('logo-seal-square.png'), width: 440, format: 'webp' });
-// small product photos for the order drawer, keyed by product slug
-const cartThumbs = Object.fromEntries(await Promise.all(PRODUCTS.map(async (p) => [
+// small product photos for the order drawer, keyed by product slug, for every product ever sold: an old order in a
+// visitor's browser still shows its photo and today's name (retired products have no page to link to)
+const cartThumbs = Object.fromEntries(await Promise.all(ALL_PRODUCTS.map(async (p) => [
   p.slug,
-  { src: (await getImage({ src: img(p.photo), width: 160, format: 'webp' })).src, href: link(`/shop/${p.slug}/`) },
+  {
+    src: (await getImage({ src: img(p.photo), width: 160, format: 'webp' })).src,
+    href: p.status === 'retired' ? '' : link(`/shop/${p.slug}/`),
+    name: productName(p),
+    status: p.status,
+  },
 ])));
+// prices and stock for every page (contract 2); src/scripts/live.ts overlays /api/live.json on top of it
+const priceData = bakedPriceData();
+const show = priceData.show;
 
 const nav = [
   { href: '/', label: 'Home', id: 'home' },
@@ -76,7 +86,8 @@ const jsonLd = {
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={ogImage} />
     <meta name="twitter:card" content="summary_large_image" />
-    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    <script type="application/ld+json" set:html={toJson(jsonLd)} />
+    <slot name="head" />
     <script is:inline>
       (function () {
         var d = document.documentElement;
@@ -215,6 +226,10 @@ const jsonLd = {
     <a class="wa-float" href={waLink(WA_MESSAGES.general)} target="_blank" rel="noopener" aria-label="Chat with Beezy Honey on WhatsApp">
       <Icon name="whatsapp" /><span>Chat on WhatsApp</span>
     </a>
+    <div class="offer-pill" data-offer role="note" aria-label="Offer" hidden>
+      <a class="offer-text" data-offer-text></a>
+      <button type="button" class="offer-x" data-offer-close aria-label="Hide this offer"><Icon name="close" /></button>
+    </div>
 
     <div class="scrim" aria-hidden="true"></div>
     <aside class="cart" id="cart" aria-label="Your order" data-lenis-prevent>
@@ -226,13 +241,23 @@ const jsonLd = {
         <p class="cart-empty" data-cart-empty>Your order is empty. Pick a honey from the <a href={link('/shop/')}>shop</a> and it will show up here.</p>
         <ol class="cart-list" data-cart-list></ol>
       </div>
-      <script type="application/json" id="cart-thumbs" set:html={JSON.stringify(cartThumbs)} />
+      <script type="application/json" id="cart-thumbs" set:html={toJson(cartThumbs)} />
       <div class="cart-foot" data-cart-foot hidden>
+        <div class="cart-total" data-cart-total hidden><span data-cart-total-label>Total</span><b data-cart-total-amount></b></div>
+        <p class="cart-delivery" data-delivery-note hidden={!show || !priceData.note}>{priceData.note}</p>
         <a class="btn btn-wa" data-cart-send href={waLink(WA_MESSAGES.general)} target="_blank" rel="noopener"><Icon name="whatsapp" />Send order on WhatsApp</a>
-        <p class="cart-note">WhatsApp opens with your order typed out. Send it, and we reply with the price and delivery details.</p>
+        <p class="cart-blocked" data-cart-blocked hidden>Nothing in your order can be ordered right now. Remove it, or pick another honey from the <a href={link('/shop/')}>shop</a>.</p>
+        <p class="cart-note" data-hide-prices hidden={show}>WhatsApp opens with your order typed out. Send it, and we reply with the price and delivery details.</p>
+        <p class="cart-note" data-show-prices hidden={!show}>WhatsApp opens with your order and prices typed out. Send it and we confirm delivery and payment.</p>
+        <p class="cart-ref" data-cart-ref hidden></p>
+        <div class="cart-sent" data-cart-sent role="status" hidden>
+          <p>Sent as <b data-cart-sent-ref></b></p>
+          <button type="button" class="cart-new" data-cart-new>Start a new order</button>
+        </div>
         <button type="button" class="cart-clear" data-cart-clear>Clear order</button>
       </div>
     </aside>
+    <script type="application/json" id="price-data" set:html={toJson(priceData)} />
 
     <script>
       import '../scripts/site';

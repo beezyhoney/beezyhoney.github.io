@@ -1,0 +1,108 @@
+---
+// One batch (owner and helper): details (code, harvested, packed on, best before, notes), Show / Hide in Know Your
+// Jar, Mark finished, Recall (confirm), Back to active, and Print labels. Version-checked (updateBatch).
+export const prerender = false;
+
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Badge from '../../../admin/components/Badge.astro';
+import ConfirmButton from '../../../admin/components/ConfirmButton.astro';
+import DateInput from '../../../admin/components/DateInput.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import TextField from '../../../admin/components/TextField.astro';
+import '../../../admin/catalog/catalog.css';
+import { failureFlash, redirectWithFlash, takeFlash, type Flash } from '../../../admin/flash';
+import { readForm, type FormReader } from '../../../admin/forms';
+import { dateIST, dayIST, monthLabel } from '../../../admin/format';
+import { S } from '../../../admin/catalog/strings';
+import { adminOf, bindings, publishAfter } from '../../../admin/catalog/page';
+import { formatKg } from '../../../lib/availability';
+import { first, toId } from '../../../server/db';
+import { getBatch, updateBatch, type BatchStatus } from '../../../server/stock';
+
+const admin = adminOf(Astro);
+const id = toId(Astro.params.id);
+const b0 = id ? await getBatch(bindings.DB, id) : null;
+if (!b0) return redirectWithFlash(Astro, '/admin/batches/', { key: 'flash.notFound' });
+const SELF = `/admin/batches/${b0.id}/`;
+
+let form: FormReader | null = null;
+let errors: Record<string, string> = {};
+let flash: Flash | null = null;
+if (Astro.request.method === 'POST') {
+  form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  const action = form.action(['save', 'show', 'hide', 'finish', 'recall', 'reactivate'] as const);
+  if (!action) return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  const version = form.version() ?? 0;
+  let input: Parameters<typeof updateBatch>[2] | null = null;
+  if (action === 'save') {
+    const code = form.text('code', { required: true, max: 24 });
+    const harvestedLabel = form.text('harvested_label', { required: true, max: 40, min: 3 });
+    const packedOn = form.date('packed_on', { required: true, max: dayIST() });
+    const bestBefore = form.month('best_before', { required: true });
+    const publicNote = form.optText('public_note', { max: 200 });
+    const privateNote = form.optText('private_note', { max: 500, multiline: true });
+    if (form.ok) input = { id: b0.id, version, code, harvestedLabel, packedOn: packedOn!, bestBefore: bestBefore!, publicNote, privateNote };
+  } else {
+    const status: Partial<Record<typeof action, BatchStatus>> = { finish: 'finished', recall: 'recalled', reactivate: 'active' };
+    input = action === 'show' || action === 'hide' ? { id: b0.id, version, isPublic: action === 'show' } : { id: b0.id, version, status: status[action]! };
+  }
+  if (input) {
+    const r = await updateBatch(bindings.DB, admin, input);
+    if (r.ok) {
+      await publishAfter(Astro, r.value.effects, `Batch ${b0.code}`);
+      return redirectWithFlash(Astro, SELF, { tone: 'ok', text: S.t(r.value.effects.publish ? 'bat.savedSite' : 'bat.saved') });
+    }
+    const map: Record<string, string> = { 'batch.code': 'code', 'batch.packedOn': 'packed_on', 'batch.bestBefore': 'best_before', 'batch.publicNote': 'public_note', 'batch.privateNote': 'private_note', 'batch.harvestedLabel': 'harvested_label' };
+    if (action !== 'save' || !r.field || !map[r.field]) return redirectWithFlash(Astro, SELF, failureFlash(r));
+    form.failText(map[r.field], r.message);
+  }
+  errors = form.messages();
+  flash = { tone: 'error', text: S.t('form.fixErrors') };
+  Astro.response.status = 422;
+} else {
+  flash = takeFlash(Astro);
+}
+const b = b0;
+const harvest = b.harvestId ? await first<{ harvested_on: string; qty: number }>(bindings.DB, 'SELECT harvested_on, qty FROM harvests WHERE id = ?', b.harvestId) : null;
+const val = (n: string, d: string) => (form ? form.raw(n) : d);
+const shown = b.isPublic && b.status !== 'recalled';
+const bbTone = { ok: 'ok', soon: 'warn', passed: 'bad' } as const;
+---
+<AdminLayout title={S.t('bat.detail', { code: b.code })} active="batches" flash={flash} back={{ href: '/admin/batches/', label: S.t('bat.title') }} subtitle={b.productName}>
+  {b.status !== 'recalled' && <a slot="actions" class="btn btn-primary" href={`/admin/labels/${b.id}/`}><Icon name="labels" />{S.t('bat.print')}</a>}
+  {b.status === 'recalled' && <p class="notice notice-bad section"><Icon name="alert" /><span>{S.t('bat.recalledNote')}</span></p>}
+  <section class="card section">
+    <dl class="kv">
+      <dt>{S.t('bat.status')}</dt><dd><Badge kind="batch" value={b.status} /></dd>
+      <dt>{S.t('bat.harvest')}</dt><dd>{harvest ? S.t('bat.harvestOf', { amount: formatKg(harvest.qty), date: dateIST(harvest.harvested_on) }) : S.t('bat.noHarvest')}</dd>
+      <dt>{S.t('bat.left')}</dt><dd>{b.estimatedLeft === null ? '—' : formatKg(b.estimatedLeft)}</dd>
+      <dt>{S.t('bat.bestBefore')}</dt><dd><Badge tone={bbTone[b.bestBeforeState]} text={`${monthLabel(b.bestBefore)} · ${S.t(`bat.bb.${b.bestBeforeState}`)}`} /></dd>
+      <dt>{S.t('bat.kyj')}</dt><dd>{shown ? S.t('bat.shown') : S.t('bat.hidden')}</dd>
+    </dl>
+    <form method="post" class="row" style="margin-top:16px">
+      <input type="hidden" name="version" value={b.version} />
+      {b.status !== 'recalled' && (b.isPublic
+        ? <button class="btn" name="_action" value="hide"><Icon name="close" />{S.t('bat.hide')}</button>
+        : <button class="btn" name="_action" value="show"><Icon name="website" />{S.t('bat.show')}</button>)}
+      {b.status === 'active' && <ConfirmButton value="finish" message={S.t('bat.finishConfirm', { code: b.code })} confirmLabel={S.t('bat.finish')}>{S.t('bat.finish')}</ConfirmButton>}
+      {b.status !== 'recalled' && <ConfirmButton value="recall" tone="danger" message={S.t('bat.recallConfirm', { code: b.code })} confirmLabel={S.t('bat.recall')}>{S.t('bat.recall')}</ConfirmButton>}
+      {b.status !== 'active' && <button class="btn" name="_action" value="reactivate"><Icon name="refresh" />{S.t('bat.reactivate')}</button>}
+    </form>
+  </section>
+  <section class="card section" aria-labelledby="bat-edit">
+    <h2 class="section-title" id="bat-edit" style="margin-bottom:12px">{S.t('bat.edit')}</h2>
+    <form method="post" data-draft={`batch-${b.id}`} novalidate>
+      <input type="hidden" name="version" value={b.version} />
+      <div class="grid-2">
+        <TextField name="code" label={S.t('harv.code')} value={val('code', b.code)} max={24} autocapitalize="characters" spellcheck={false} required error={errors.code} />
+        <TextField name="harvested_label" label={S.t('bat.harvestedLabel')} hint={S.t('bat.harvestedLabelHint')} value={val('harvested_label', b.harvestedLabel)} max={40} required error={errors.harvested_label} />
+        <DateInput name="packed_on" label={S.t('harv.packedOn')} value={val('packed_on', b.packedOn)} max={dayIST()} required error={errors.packed_on} />
+        <DateInput name="best_before" type="month" label={S.t('harv.bestBefore')} value={val('best_before', b.bestBefore)} required error={errors.best_before} />
+      </div>
+      <TextField name="public_note" label={S.t('harv.publicNote')} hint={S.t('harv.publicNoteHint')} value={val('public_note', b.publicNote ?? '')} max={200} optional error={errors.public_note} />
+      <TextField name="private_note" label={S.t('harv.privateNote')} value={val('private_note', b.privateNote ?? '')} multiline rows={2} max={500} optional error={errors.private_note} />
+      <button class="btn btn-primary" name="_action" value="save"><Icon name="check" />{S.t('bat.saveDetails')}</button>
+    </form>
+  </section>
+</AdminLayout>

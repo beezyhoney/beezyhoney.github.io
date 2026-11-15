@@ -1,0 +1,67 @@
+---
+// A number with its label and the change against an earlier period (▲ 12% vs last month).
+//   <StatTile label="Net sales" paise={now.net} prev={last.net} period="last month" href="/admin/sales/" />
+//   <StatTile label="New orders" value={3} hint="Oldest waited 5 h" />
+//   <StatTile label="Refunds" paise={r} prev={rPrev} better="down" />
+import Icon from './Icon.astro';
+import { inr, int, kg, pct } from '../format';
+import { t } from '../strings';
+
+interface Props {
+  label: string;
+  /** ready text or a plain number (shown with Indian grouping) */
+  value?: string | number | null;
+  /** an amount in paise (shown as ₹) */
+  paise?: number | null;
+  /** a weight in grams (shown as kg) */
+  grams?: number | null;
+  /** the earlier period's value in the same unit, to work out the change */
+  prev?: number | null;
+  /** change as a fraction (0.12 = +12%); worked out from `prev` when left out */
+  change?: number | null;
+  /** which way is good news (default 'up'); 'none' keeps the change neutral */
+  better?: 'up' | 'down' | 'none';
+  /** the earlier period, e.g. "last month" */
+  period?: string;
+  hint?: string;
+  href?: string;
+  /** red tile, e.g. a count that needs attention */
+  alert?: boolean;
+  class?: string;
+}
+const { label, value, paise, grams, prev, better = 'up', period = t('stat.lastMonth'), hint, href, alert, class: cls } = Astro.props;
+
+const current = paise ?? grams ?? (typeof value === 'number' ? value : null);
+const shown = paise !== undefined && paise !== null ? inr(paise)
+  : grams !== undefined && grams !== null ? kg(grams)
+  : typeof value === 'number' ? int(value)
+  : value ?? '—';
+
+let change = Astro.props.change;
+let isNew = false;
+if (change === undefined && prev !== undefined && prev !== null && current !== null) {
+  if (prev === 0) { change = current === 0 ? 0 : null; isNew = current > 0; }
+  else change = (current - prev) / Math.abs(prev);
+}
+const dir = change === null || change === undefined ? null : change > 0.0005 ? 'up' : change < -0.0005 ? 'down' : 'flat';
+const good = dir === 'flat' || better === 'none' ? 'flat' : dir === better ? 'good' : 'bad';
+const Tag = href ? 'a' : 'div';
+---
+<Tag class:list={['stat', cls, { 'tone-alert': alert }]} href={href}>
+  <span class="stat-label">{label}</span>
+  <span class="stat-value">{shown}</span>
+  {dir && (
+    <span class:list={['stat-change', `is-${good}`]}>
+      {dir === 'up' && <Icon name="up" />}
+      {dir === 'down' && <Icon name="down" />}
+      {dir === 'flat'
+        ? t('stat.same', { period })
+        : <>
+            <span class="sr-only">{t(dir === 'up' ? 'stat.up' : 'stat.down')}</span>
+            {pct(Math.abs(change ?? 0))} {t('stat.vs', { period })}
+          </>}
+    </span>
+  )}
+  {!dir && isNew && <span class="stat-change is-flat">{t('stat.new', { period })}</span>}
+  {hint && <span class="stat-hint">{hint}</span>}
+</Tag>

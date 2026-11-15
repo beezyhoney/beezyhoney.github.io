@@ -1,0 +1,11 @@
+---
+// "Website up to date ✓ (10:42 am)" chip. Starts neutral ("Website"); client/status.ts fills it from
+// GET /admin/api/status.json and keeps polling while an update is running. Any failure leaves it neutral.
+import { t } from '../strings';
+---
+<a class="site-chip" href="/admin/website/" data-site-chip data-state="unknown" aria-label={t('chip.label')} aria-describedby="site-chip-text">
+  <span class="site-chip-dot" aria-hidden="true"></span>
+  <span class="site-chip-text" id="site-chip-text">
+    <span class="chip-long" data-chip-long>{t('chip.unknown')}</span><span class="chip-short" data-chip-short>{t('chip.unknown')}</span>
+  </span>
+</a>

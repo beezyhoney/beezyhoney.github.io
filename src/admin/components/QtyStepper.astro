@@ -1,0 +1,56 @@
+---
+// Quantity with − and + buttons (48 px each). Without JavaScript it is a plain number box and the buttons are hidden.
+// The server reads it with form.int(name, { min, max }).
+//   <QtyStepper name={`qty_${line.id}`} label="Quantity" value={line.qty} min={1} max={99} />
+import Field from './Field.astro';
+import Icon from './Icon.astro';
+import { describedBy, fieldId } from './ids';
+import { t } from '../strings';
+
+interface Props {
+  name: string;
+  label: string;
+  value?: number | string | null;
+  min?: number;
+  max?: number;
+  step?: number;
+  id?: string;
+  hint?: string | null;
+  error?: string | null;
+  labelHidden?: boolean;
+  disabled?: boolean;
+  required?: boolean;
+  class?: string;
+}
+const { name, label, value = 1, min = 0, max = 999, step = 1, hint, error, labelHidden, disabled, required, class: cls } = Astro.props;
+const id = fieldId(name, Astro.props.id);
+const n = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+const atMin = Number.isFinite(n) && n <= min;
+const atMax = Number.isFinite(n) && n >= max;
+---
+<Field id={id} label={label} hint={hint} error={error} labelHidden={labelHidden} class={cls}>
+  <div class:list={['stepper', { 'is-invalid': !!error }]} data-stepper>
+    <button type="button" class="stepper-btn" data-step={-step} aria-controls={id} disabled={disabled || atMin}>
+      <Icon name="minus" /><span class="sr-only">{t('stepper.decrease')}</span>
+    </button>
+    <input
+      id={id}
+      name={name}
+      type="text"
+      inputmode="numeric"
+      pattern="[0-9]*"
+      autocomplete="off"
+      value={value === null ? '' : String(value)}
+      required={required}
+      disabled={disabled}
+      maxlength={String(max).length + 1}
+      data-min={min}
+      data-max={max}
+      aria-invalid={error ? 'true' : undefined}
+      aria-describedby={describedBy(id, hint, error)}
+    />
+    <button type="button" class="stepper-btn" data-step={step} aria-controls={id} disabled={disabled || atMax}>
+      <Icon name="plus" /><span class="sr-only">{t('stepper.increase')}</span>
+    </button>
+  </div>
+</Field>

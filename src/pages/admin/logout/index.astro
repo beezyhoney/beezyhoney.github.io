@@ -1,0 +1,46 @@
+---
+// /admin/logout/ — log out this device, or every device ("Log out on all devices"). Open path (works with an expired
+// session too). POST (_action = 'all' for every device) → 303 to the login page; the layout's logout button posts
+// here without an _action. GET shows the two choices. Logic: src/server/auth.ts (logoutPost, currentUser).
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import { currentUser, logoutPost } from '../../../server/auth';
+
+if (Astro.request.method === 'POST') return await logoutPost(env, Astro.request);
+
+const user = await currentUser(env, Astro.request);
+if (user === 'unavailable') {
+  Astro.response.status = 503;
+  Astro.response.headers.set('retry-after', '3600');
+}
+const title = user === 'unavailable' ? 'Admin login is not set up yet' : user ? 'Log out' : 'You are logged out';
+---
+<AdminLayout title={title} bare>
+  {user === 'unavailable' && <p>The admin cannot be opened until its login is set up.</p>}
+
+  {user === null && (
+    <div class="stack logout-body">
+      <p class="muted logout-who">You are not logged in on this device.</p>
+      <a class="btn btn-primary btn-lg btn-block" href="/admin/login/"><Icon name="next" />Log in</a>
+    </div>
+  )}
+
+  {user && user !== 'unavailable' && (
+    <form method="post" class="stack logout-body">
+      <p class="logout-who">Logged in as <strong>{user.email}</strong></p>
+      <button type="submit" class="btn btn-primary btn-lg btn-block" name="_action" value="this"><Icon name="logout" />Log out</button>
+      <button type="submit" class="btn btn-block" name="_action" value="all"><Icon name="logout" />Log out on all devices</button>
+      <p class="muted">“All devices” also logs out any phone or computer where you are still logged in, for example a lost phone, and cancels unused login codes. Your recovery codes keep working: if someone else may have them, make new ones first.</p>
+      <a class="btn btn-quiet btn-block" href="/admin/login/recovery/"><Icon name="refresh" />Make new recovery codes</a>
+      <a class="btn btn-quiet btn-block" href="/admin/">Stay logged in</a>
+    </form>
+  )}
+</AdminLayout>
+
+<style>
+  .logout-body { margin-top: 12px; }
+  .logout-who { margin: 0; text-align: center; overflow-wrap: anywhere; }
+</style>

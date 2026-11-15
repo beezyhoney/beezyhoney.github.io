@@ -1,0 +1,17 @@
+---
+// The one shared "Are you sure?" dialog. AdminLayout renders it once; client/confirm.ts fills and opens it for any
+// submit button or form with data-confirm. Pages never render this themselves.
+import { t } from '../strings';
+---
+<dialog class="dialog" id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-msg">
+  <form method="dialog">
+    <div class="dialog-body">
+      <h2 class="dialog-title" id="confirm-title" data-default={t('confirm.title')}>{t('confirm.title')}</h2>
+      <p class="dialog-msg" id="confirm-msg"></p>
+    </div>
+    <div class="dialog-actions">
+      <button type="submit" class="btn" value="cancel" data-confirm-cancel>{t('confirm.cancel')}</button>
+      <button type="submit" class="btn btn-primary" value="ok" data-confirm-yes data-default={t('confirm.ok')}>{t('confirm.ok')}</button>
+    </div>
+  </form>
+</dialog>

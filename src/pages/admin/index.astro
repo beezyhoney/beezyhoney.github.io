@@ -1,0 +1,181 @@
+---
+// Today (design §5 screen 1, amendments A3–A5): the find box (full or partial order code), what is waiting (New
+// orders with their age, to pack or send, confirmed but unpaid with ₹ to collect), alerts (stock low / sold out /
+// below zero per pool in kg or pieces, best-before within the warning window or passed, New orders waiting too long,
+// unanswered gift/bulk requests, website update not finished, backup too old, unusual order traffic, order recording
+// paused, test orders before go-live), this month so far against the same days last month, and the quick buttons.
+// Owner and helper.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../admin/AdminLayout.astro';
+import Badge from '../../admin/components/Badge.astro';
+import ConfirmButton from '../../admin/components/ConfirmButton.astro';
+import EmptyState from '../../admin/components/EmptyState.astro';
+import Icon from '../../admin/components/Icon.astro';
+import StatTile from '../../admin/components/StatTile.astro';
+import { redirectWithFlash, takeFlash } from '../../admin/flash';
+import { ageShort, dateIST, inr } from '../../admin/format';
+import { readForm } from '../../admin/forms';
+import type { IconName } from '../../admin/icons';
+import OrderRows from '../../admin/ops/OrderRows.astro';
+import { testOrderCount } from '../../admin/ops/data';
+import { S } from '../../admin/ops/strings';
+import { lastBackup } from '../../server/backup';
+import { listOrders, orderCounts } from '../../server/orders';
+import { getPublishStatus, publishNow } from '../../server/publish';
+import { unusualTraffic } from '../../server/ratelimit';
+import { monthToDate } from '../../server/sales';
+import { salesTotals } from '../../server/sales-queries';
+import { getSettings } from '../../server/settings';
+import { stockAlerts } from '../../server/stock';
+import { addTime, monthName, nowIso } from '../../server/time';
+
+const db = env.DB;
+const admin = Astro.locals.admin!;
+
+// Quick actions post here (_action), then 303 back with a flash.
+if (Astro.request.method === 'POST') {
+  const form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, '/admin/', { key: 'form.unreadable' });
+  const action = form.action(['publish_now'] as const);
+  if (action === 'publish_now') {
+    const ctx = (Astro.locals as { cfContext?: ExecutionContext }).cfContext;
+    if (!ctx) return redirectWithFlash(Astro, '/admin/', { key: 'flash.error' });
+    const r = await publishNow(env, ctx, admin);
+    return redirectWithFlash(Astro, '/admin/', { key: r.state === 'disabled' ? 'flash.publishOff' : 'flash.publishQueued' });
+  }
+  return redirectWithFlash(Astro, '/admin/', { key: 'form.unknownAction' });
+}
+
+const flash = takeFlash(Astro);
+const at = nowIso();
+const { values: settings } = await getSettings(db);
+const alertsCfg = settings.alerts;
+const mtd = monthToDate(at);
+const [counts, stock, publish, backup, traffic, now, before, newest, tests] = await Promise.all([
+  orderCounts(db, at, { newWaitingHours: alertsCfg.newWaitingHours, unansweredDays: alertsCfg.unansweredDays }),
+  stockAlerts(db, at),
+  getPublishStatus(env, at),
+  lastBackup(db),
+  unusualTraffic(db, settings.order_intake.perDay, at),
+  salesTotals(db, mtd.current),
+  salesTotals(db, mtd.previous),
+  listOrders(db, { tab: 'new', limit: 5 }),
+  settings.go_live_at === null ? testOrderCount(db) : Promise.resolve(0),
+]);
+
+type Alert = { tone: 'bad' | 'warn' | 'info'; icon: IconName; text: string; href: string };
+const alerts: Alert[] = [];
+for (const p of stock.pools) {
+  const key = p.level === 'negative' ? 'today2.alert.negative' : p.level === 'empty' ? 'today2.alert.empty' : 'today2.alert.low';
+  alerts.push({ tone: p.level === 'low' ? 'warn' : 'bad', icon: 'stock', text: S.t(key, { name: p.name, amount: p.amountText }), href: '/admin/stock/' });
+}
+for (const b of stock.bestBefore) {
+  alerts.push({
+    tone: b.state === 'passed' ? 'bad' : 'warn', icon: 'batches', href: '/admin/batches/',
+    text: S.t(b.state === 'passed' ? 'today2.alert.bestPassed' : 'today2.alert.bestSoon', { code: b.code, product: b.productName, month: monthName(b.bestBefore) }),
+  });
+}
+if (counts.newWaitingLong > 0) {
+  alerts.push({
+    tone: 'warn', icon: 'orders', href: '/admin/orders/?f=new',
+    text: counts.newWaitingLong === 1 ? S.t('today2.alert.newOldOne', { hours: alertsCfg.newWaitingHours }) : S.t('today2.alert.newOld', { count: counts.newWaitingLong, hours: alertsCfg.newWaitingHours }),
+  });
+}
+if (counts.requestsUnanswered > 0) alerts.push({ tone: 'warn', icon: 'requests', href: '/admin/requests/?show=unanswered', text: S.t('today2.alert.requests', { count: counts.requestsUnanswered }) });
+if (publish.state === 'failed') alerts.push({ tone: 'bad', icon: 'website', href: '/admin/website/', text: S.t('today2.alert.publishFailed') });
+if (!backup) alerts.push({ tone: 'info', icon: 'backup', href: '/admin/backup/', text: S.t('today2.alert.backupNone') });
+else if (backup.finishedAt < addTime(at, { days: -alertsCfg.backupStaleDays })) alerts.push({ tone: 'warn', icon: 'backup', href: '/admin/backup/', text: S.t('today2.alert.backupOld', { days: alertsCfg.backupStaleDays }) });
+for (const d of traffic) alerts.push({ tone: 'bad', icon: 'alert', href: '/admin/website/', text: S.t('today2.alert.traffic', { day: dateIST(d.day), count: d.count }) });
+if (!settings.order_intake.enabled) alerts.push({ tone: 'warn', icon: 'website', href: '/admin/website/', text: S.t('today2.alert.paused') });
+if (tests > 0) alerts.push({ tone: 'info', icon: 'info', href: '/admin/backup/', text: S.t('today2.alert.testOrders', { count: tests }) });
+
+const BADGE = { bad: 'bad', warn: 'warn', info: 'info' } as const;
+const period = S.t('today2.sameDays');
+---
+<AdminLayout title={S.t('today.title')} active="today" flash={flash}>
+  <section class="section" data-today="find" aria-labelledby="today-find">
+    <form class="card" method="get" action="/admin/orders/" role="search">
+      <label class="field-label" id="today-find" for="today-q">{S.t('search.findOrder')}</label>
+      <p class="field-hint" id="today-q-hint">{S.t('search.findOrderHint')}</p>
+      <div class="row find-row">
+        <input class="input" id="today-q" name="q" type="search" inputmode="text"
+          autocapitalize="characters" autocomplete="off" spellcheck="false" enterkeyhint="search"
+          placeholder="BZ-7K3QD" aria-describedby="today-q-hint" maxlength="80" />
+        <button type="submit" class="btn btn-primary"><Icon name="search" />{S.t('search.go')}</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="section" data-today="counts" aria-labelledby="today-waiting">
+    <div class="section-head"><h2 class="section-title" id="today-waiting">{S.t('today.waiting')}</h2></div>
+    <div class="tiles">
+      <StatTile label={S.t('today.newOrders')} value={counts.newCount} href="/admin/orders/?f=new" alert={counts.newWaitingLong > 0}
+        hint={counts.oldestNewAt ? S.t('today.oldest', { age: ageShort(counts.oldestNewAt) }) : S.t('today2.newHint.none')} />
+      <StatTile label={S.t('today.toPack')} value={counts.toSend} href="/admin/orders/?f=to_send" hint={S.t('today2.toSendHint')} />
+      <StatTile label={S.t('today.unpaid')} value={counts.unpaidPaise > 0 ? S.t('today.toCollect', { amount: inr(counts.unpaidPaise) }) : inr(0)}
+        href="/admin/orders/?f=unpaid" hint={S.t('today2.unpaidHint', { count: counts.unpaidCount })} />
+    </div>
+    {newest.rows.length > 0 && (
+      <div class="newlist">
+        <OrderRows rows={newest.rows} label={S.t('today.newOrders')} />
+        {counts.newCount > newest.rows.length && <a class="section-link" href="/admin/orders/?f=new">{S.t('orders.tab.all')} ({counts.newCount})</a>}
+      </div>
+    )}
+  </section>
+
+  <section class="section" data-today="alerts" aria-labelledby="today-alerts">
+    <div class="section-head"><h2 class="section-title" id="today-alerts">{S.t('today.alerts')}</h2>{alerts.length > 0 && <Badge tone="warn" text={String(alerts.length)} />}</div>
+    {alerts.length === 0 ? (
+      <EmptyState compact icon="ok" title={S.t('today.noAlerts')} />
+    ) : (
+      <ul class="linklist alerts">
+        {alerts.map((a) => (
+          <li><a href={a.href} class:list={['alert', `alert-${a.tone}`]}><span class="alert-icon"><Icon name={a.icon} /></span><span class="alert-text">{a.text}</span><Badge tone={BADGE[a.tone]} text={S.t(a.tone === 'bad' ? 'flash.tone.error' : a.tone === 'warn' ? 'flash.tone.warn' : 'flash.tone.info')} /></a></li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <section class="section" data-today="month" aria-labelledby="today-month">
+    <div class="section-head">
+      <h2 class="section-title" id="today-month">{S.t('today2.monthSoFar', { day: mtd.day })}</h2>
+      <a class="section-link" href="/admin/sales/">{S.t('nav.sales')}</a>
+    </div>
+    <div class="tiles">
+      <StatTile label={S.t('today2.netSales')} paise={now.netPaise} prev={before.netPaise} period={period} href="/admin/sales/" />
+      <StatTile label={S.t('today2.orders')} value={now.orders} prev={before.orders} period={period} />
+      <StatTile label={S.t('today2.honey')} grams={now.grams} prev={before.grams} period={period} />
+    </div>
+  </section>
+
+  <section class="section" data-today="quick" aria-labelledby="today-quick">
+    <div class="section-head"><h2 class="section-title" id="today-quick">{S.t('today.quick')}</h2></div>
+    <div class="grid-2">
+      <a class="btn btn-primary btn-lg" href="/admin/orders/new/"><Icon name="plus" />{S.t('today.newOrder')}</a>
+      <a class="btn btn-lg" href="/admin/orders/new/#paste"><Icon name="paste" />{S.t('today.pasteOrder')}</a>
+      <a class="btn btn-lg" href="/admin/harvests/new/"><Icon name="harvests" />{S.t('today.addHarvest')}</a>
+      <a class="btn btn-lg" href="/admin/stock/"><Icon name="scale" />{S.t('today.countStock')}</a>
+    </div>
+    <form method="post" action="/admin/" class="publish-form">
+      <ConfirmButton value="publish_now" size="lg" block icon="refresh" message={S.t('today.updateConfirm')} confirmLabel={S.t('today.updateWebsite')}>
+        {S.t('today.updateWebsite')}
+      </ConfirmButton>
+      {publish.state === 'disabled' && <p class="field-hint">{S.t('today2.publishDisabled')}</p>}
+    </form>
+  </section>
+</AdminLayout>
+
+<style>
+  .find-row { margin-top: 8px; flex-wrap: nowrap; }
+  .find-row .input { flex: 1 1 auto; width: auto; min-width: 0; }
+  .newlist { margin-top: 14px; display: grid; gap: 4px; }
+  .alerts a { gap: 12px; }
+  .alert-icon { flex: none; display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; border-radius: 50%; }
+  .alert-bad .alert-icon { background: var(--bad-bg); color: var(--bad-ink); }
+  .alert-warn .alert-icon { background: var(--warn-bg); color: var(--warn-ink); }
+  .alert-info .alert-icon { background: var(--info-bg); color: var(--info-ink); }
+  .alert-text { flex: 1 1 auto; min-width: 0; color: var(--choc); }
+  .publish-form { margin-top: 12px; display: grid; gap: 6px; }
+</style>

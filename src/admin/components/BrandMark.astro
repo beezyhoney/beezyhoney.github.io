@@ -1,0 +1,12 @@
+---
+// The honeycomb mark next to "Beezy Admin" (inline SVG, no image request).
+interface Props {
+  class?: string;
+}
+const { class: cls } = Astro.props;
+---
+<svg class:list={['brand-mark', cls]} viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+  <path d="M20 2.5 35.2 11.25v17.5L20 37.5 4.8 28.75v-17.5z" fill="#E08A12" />
+  <path d="M20 9.5 29.1 14.75v10.5L20 30.5 10.9 25.25v-10.5z" fill="#F2B632" stroke="#2B1A10" stroke-width="1.6" stroke-linejoin="round" />
+  <path d="M20 15.2 24.2 17.6v4.8L20 24.8l-4.2-2.4v-4.8z" fill="#2B1A10" />
+</svg>

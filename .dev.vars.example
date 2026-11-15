@@ -1,0 +1,19 @@
+# Copy to .dev.vars (gitignored) for astro dev / astro preview / wrangler --local. Placeholders only: never put a
+# real address or key in this file, because it is committed. Production uses `wrangler secret put <NAME>`.
+
+# Local admin without a login: used ONLY by `astro dev` on localhost/127.0.0.1 (compiled out of production builds).
+DEV_ADMIN_EMAIL=dev@example.test
+# Comma-separated emails that may log in to the admin (role owner). Real addresses live only in .dev.vars / Worker secrets.
+ADMIN_EMAILS=owner@example.test
+# Optional login aliases, comma-separated alias=target pairs: the owner types the alias (their @beezyhoney.in address,
+# forwarded by Email Routing) and the code is sent to the target, which must be in ADMIN_EMAILS (or an active helper).
+ADMIN_ALIASES=owner-alias@example.test=owner@example.test
+# 32 random bytes as 64 hex characters, e.g.  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+LOGIN_SECRET=replace-with-64-hex-characters
+# Key for the hashed IP rate-limit buckets (any random string locally).
+IP_HASH_KEY=dev-local-key
+# Local runs only: the real hosts plus localhost and 127.0.0.1 (which then act as public AND admin host). The deployed
+# Worker uses the PUBLIC_HOSTS of wrangler.jsonc, which never lists the local names.
+PUBLIC_HOSTS=beezyhoney.in,next.beezyhoney.in,localhost,127.0.0.1
+# Workers Builds deploy hook. Empty = "Publishing is off on this computer".
+DEPLOY_HOOK_URL=

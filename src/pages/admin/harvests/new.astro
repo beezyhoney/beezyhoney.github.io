@@ -1,0 +1,134 @@
+---
+// Add harvest (amendment A3; owner and helper): honey, date, kg, optional moisture %, hives and note → adds the kg to
+// the honey's stock AND makes a batch (code suggested <SHORT>-<YYMM>-<NN>, packed date, best before prefilled to
+// 24 months after the harvest month, public note, "Show in Know Your Jar" on by default). One batch in D1 (addHarvest).
+export const prerender = false;
+
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import DateInput from '../../../admin/components/DateInput.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import GramsInput from '../../../admin/components/GramsInput.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import Select from '../../../admin/components/Select.astro';
+import TextField from '../../../admin/components/TextField.astro';
+import Toggle from '../../../admin/components/Toggle.astro';
+import '../../../admin/catalog/catalog.css';
+import { failureFlash, redirectWithFlash, takeFlash, type Flash } from '../../../admin/flash';
+import { newFormKey, readForm, type FormReader } from '../../../admin/forms';
+import { dayIST } from '../../../admin/format';
+import { S } from '../../../admin/catalog/strings';
+import { adminOf, bindings, publishAfter } from '../../../admin/catalog/page';
+import { formatPoolAmount } from '../../../lib/availability';
+import { toJson } from '../../../lib/json';
+import { toId } from '../../../server/db';
+import { addHarvest, listPools } from '../../../server/stock';
+import { suggestBatchCodes } from '../../../server/products-admin';
+import { addMonths } from '../../../server/time';
+
+const admin = adminOf(Astro);
+const SELF = '/admin/harvests/new/';
+const today = dayIST();
+const pools = (await listPools(bindings.DB, { includeDrafts: true })).filter((p) => p.unit === 'g');
+
+let form: FormReader | null = null;
+let errors: Record<string, string> = {};
+let flash: Flash | null = null;
+
+if (Astro.request.method === 'POST') {
+  form = await readForm(Astro.request);
+  if (!form) return redirectWithFlash(Astro, SELF, { key: 'form.unreadable' });
+  if (form.action(['add'] as const) !== 'add') return redirectWithFlash(Astro, SELF, { key: 'form.unknownAction' });
+  const poolId = toId(form.raw('pool'));
+  if (!poolId) form.fail('pool', 'form.required');
+  const harvestedOn = form.date('harvested_on', { required: true, max: today });
+  const grams = form.grams('kg', { required: true, nonZero: true, max: 100_000_000 });
+  const moistRaw = form.raw('moisture').trim().replace(',', '.').replace('%', '').trim();
+  let moisture: number | null = null;
+  if (moistRaw) {
+    const m = Number(moistRaw);
+    if (!Number.isFinite(m) || m < 10 || m > 30) form.failText('moisture', S.t('harv.moistureBad'));
+    else moisture = Math.round(m * 10);
+  }
+  const hives = form.int('hives', { min: 1, max: 99_999 });
+  const note = form.optText('note', { max: 500, multiline: true });
+  const makeBatch = form.bool('make_batch');
+  const code = form.optText('code', { max: 24 });
+  const packedOn = form.date('packed_on', { max: today });
+  const bestBefore = form.month('best_before');
+  const publicNote = form.optText('public_note', { max: 200 });
+  const privateNote = form.optText('private_note', { max: 500, multiline: true });
+  if (form.ok && poolId && harvestedOn && grams) {
+    const r = await addHarvest(bindings.DB, admin, {
+      poolId, harvestedOn, amount: grams, note, hives, moisturePctX10: moisture, idemKey: form.key() ?? undefined,
+      batch: makeBatch ? {
+        ...(code ? { code } : {}), ...(packedOn ? { packedOn } : {}), ...(bestBefore ? { bestBefore } : {}),
+        isPublic: form.bool('is_public'), publicNote, privateNote,
+      } : false,
+    });
+    if (r.ok) {
+      await publishAfter(Astro, r.value.effects, 'Harvest added');
+      const pool = pools.find((p) => p.id === poolId)!;
+      const text = S.t('harv.saved', { name: pool.productName, amount: formatPoolAmount(grams, 'g'), total: formatPoolAmount(r.value.onHand, 'g') })
+        + (r.value.batchCode ? S.t('harv.savedBatch', { code: r.value.batchCode }) : '') + (r.value.startedTracking ? S.t('harv.savedTracking') : '');
+      return redirectWithFlash(Astro, '/admin/harvests/', { tone: 'ok', text });
+    }
+    const map: Record<string, string> = { poolId: 'pool', harvestedOn: 'harvested_on', amount: 'kg', hives: 'hives', moisturePctX10: 'moisture', note: 'note',
+      'batch.code': 'code', 'batch.packedOn': 'packed_on', 'batch.bestBefore': 'best_before', 'batch.publicNote': 'public_note', 'batch.privateNote': 'private_note' };
+    if (r.field && map[r.field]) form.failText(map[r.field], r.message);
+    else if (r.error === 'conflict') return redirectWithFlash(Astro, '/admin/harvests/', failureFlash(r));
+    else flash = { tone: 'error', text: r.message };
+  }
+  errors = form.messages();
+  flash ??= { tone: 'error', text: S.t('form.fixErrors') };
+  Astro.response.status = 422;
+} else {
+  flash = takeFlash(Astro);
+}
+
+const codes = await suggestBatchCodes(bindings.DB, pools.map((p) => p.productId), today);
+const suggestions: Record<number, string | null> = Object.fromEntries(pools.map((p) => [p.id, codes.get(p.productId) ?? null]));
+const pick = form?.raw('pool') ?? Astro.url.searchParams.get('pool') ?? '';
+const firstCode = suggestions[Number(pick)] ?? Object.values(suggestions)[0] ?? null;
+const bbDefault = addMonths(today.slice(0, 7), 24);
+const val = (n: string, d = '') => (form ? form.raw(n) : d);
+const on = (n: string, d: boolean) => (form ? form.bool(n) : d);
+---
+<AdminLayout title={S.t('harv.newTitle')} active="harvests" flash={flash} back={{ href: '/admin/harvests/', label: S.t('harv.title') }}>
+  {pools.length === 0 ? <EmptyState icon="harvests" title={S.t('harv.noPools')} /> : (
+    <form method="post" class="card" style="max-width:720px" data-draft="harvest-new" novalidate>
+      <input type="hidden" name="_key" value={form?.key() ?? newFormKey()} />
+      <Select name="pool" label={S.t('harv.honey')} hint={S.t('harv.honeyHint')} value={pick} placeholder={S.t('harv.honeyPick')} required error={errors.pool}
+        options={pools.map((p) => ({ value: p.id, label: p.name === p.productName ? `${p.productName} (${p.amountText})` : `${p.productName}: ${p.name} (${p.amountText})` }))} />
+      <div class="grid-2">
+        <DateInput name="harvested_on" label={S.t('harv.harvestedOn')} value={val('harvested_on', today)} max={today} required error={errors.harvested_on} />
+        <GramsInput name="kg" label={S.t('harv.kg')} hint={S.t('harv.kgHint')} raw={val('kg') || null} packs={[500, 250, 100]} required error={errors.kg} />
+      </div>
+      <div class="grid-2">
+        <TextField name="moisture" label={S.t('harv.moisture')} hint={S.t('harv.moistureHint')} value={val('moisture')} inputmode="decimal" max={5} optional error={errors.moisture} />
+        <TextField name="hives" label={S.t('harv.hives')} hint={S.t('harv.hivesHint')} value={val('hives')} inputmode="numeric" max={5} optional error={errors.hives} />
+      </div>
+      <TextField name="note" label={S.t('harv.note')} hint={S.t('harv.noteHint')} value={val('note')} multiline rows={2} max={500} optional error={errors.note} />
+
+      <fieldset class="fieldset" style="border-top:1px solid var(--line);padding-top:16px;margin-top:8px">
+        <legend class="section-title" style="padding-top:16px">{S.t('harv.batchTitle')}</legend>
+        <Toggle name="make_batch" label={S.t('harv.makeBatch')} checked={on('make_batch', true)} />
+        <TextField name="code" label={S.t('harv.code')} hint={firstCode ? S.t('harv.codeHint', { code: firstCode }) : S.t('harv.codeHintGeneric')} value={val('code')} placeholder={firstCode ?? ''} max={24} optional autocapitalize="characters" spellcheck={false} error={errors.code} />
+        <div class="grid-2">
+          <DateInput name="packed_on" label={S.t('harv.packedOn')} hint={S.t('harv.packedOnHint')} value={val('packed_on')} max={today} optional error={errors.packed_on} />
+          <DateInput name="best_before" type="month" label={S.t('harv.bestBefore')} hint={S.t('harv.bestBeforeHint')} value={val('best_before', bbDefault)} error={errors.best_before} />
+        </div>
+        <Toggle name="is_public" label={S.t('harv.public')} hint={S.t('harv.publicHint')} checked={on('is_public', true)} />
+        <TextField name="public_note" label={S.t('harv.publicNote')} hint={S.t('harv.publicNoteHint')} value={val('public_note')} max={200} optional error={errors.public_note} />
+        <TextField name="private_note" label={S.t('harv.privateNote')} value={val('private_note')} multiline rows={2} max={500} optional error={errors.private_note} />
+        <p class="field-hint">{S.t('harv.labelMrpNote')}</p>
+      </fieldset>
+      <div class="form-actions">
+        <button class="btn btn-primary btn-lg" name="_action" value="add"><Icon name="check" />{S.t('harv.save')}</button>
+      </div>
+      <script type="application/json" id="batch-suggestions" set:html={toJson(suggestions)}></script>
+    </form>
+  )}
+  <script>
+    import '../../../admin/catalog/harvest-form';
+  </script>
+</AdminLayout>

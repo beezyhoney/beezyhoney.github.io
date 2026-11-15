@@ -1,0 +1,28 @@
+---
+// Status chip. Either a known status (words and colour from status.ts + strings.ts) or your own text and tone.
+//   <Badge kind="order" value={o.status} />        → "New" (blue), "Sent", "Delivered" (green)…
+//   <Badge kind="stock" value="low" />              → "Low" (amber)
+//   <Badge tone="warn" text="Customer saw a different price" />
+import Icon from './Icon.astro';
+import { statusChip, type BadgeKind, type Tone } from '../status';
+import { t } from '../strings';
+
+interface Props {
+  kind?: BadgeKind;
+  value?: string;
+  tone?: Tone;
+  text?: string;
+  class?: string;
+}
+const { kind, value, tone, text, class: cls } = Astro.props;
+let finalTone: Tone = tone ?? 'neutral';
+let words = text ?? '';
+if (kind && value !== undefined) {
+  const chip = statusChip(kind, value);
+  finalTone = tone ?? chip.tone;
+  words = text ?? (chip.label ? t(chip.label) : chip.raw);
+}
+---
+<span class:list={['badge', `tone-${finalTone}`, cls]} data-status={value}>
+  {finalTone === 'bad' ? <Icon name="alert" /> : <span class="badge-dot" aria-hidden="true"></span>}{words}
+</span>

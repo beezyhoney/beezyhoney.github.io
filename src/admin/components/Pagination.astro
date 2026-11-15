@@ -1,0 +1,46 @@
+---
+// Previous / "Page 2 of 9" / Next. Links keep every other query parameter (filters) of the current URL.
+//   <Pagination url={Astro.url} page={page} pages={pages} />                 numbered pages
+//   <Pagination url={Astro.url} page={page} hasNext={rows.length > 50} />   when the total is unknown
+//   <Pagination prevHref={...} nextHref={...} />                           cursor paging (you build the links)
+import Icon from './Icon.astro';
+import { t } from '../strings';
+
+interface Props {
+  url?: URL;
+  page?: number;
+  pages?: number;
+  hasNext?: boolean;
+  /** query parameter for the page number (default 'page') */
+  param?: string;
+  prevHref?: string | null;
+  nextHref?: string | null;
+  label?: string;
+}
+const { url, page = 1, pages, hasNext, param = 'page', label = t('pager.label') } = Astro.props;
+
+function hrefFor(n: number): string | null {
+  if (!url) return null;
+  const u = new URL(url.href);
+  u.searchParams.delete('flash');
+  if (n <= 1) u.searchParams.delete(param);
+  else u.searchParams.set(param, String(n));
+  return `${u.pathname}${u.search}`;
+}
+const prevHref = Astro.props.prevHref !== undefined ? Astro.props.prevHref : page > 1 ? hrefFor(page - 1) : null;
+const nextHref = Astro.props.nextHref !== undefined ? Astro.props.nextHref
+  : (pages !== undefined ? page < pages : !!hasNext) ? hrefFor(page + 1) : null;
+const info = pages !== undefined ? t('pager.of', { page, pages }) : t('pager.page', { page });
+const show = !!prevHref || !!nextHref;
+---
+{show && (
+  <nav class="pager" aria-label={label}>
+    {prevHref
+      ? <a class="btn" href={prevHref} rel="prev"><Icon name="back" />{t('pager.prev')}</a>
+      : <span class="btn" aria-disabled="true"><Icon name="back" />{t('pager.prev')}</span>}
+    <span class="pager-info" aria-current="page">{info}</span>
+    {nextHref
+      ? <a class="btn" href={nextHref} rel="next">{t('pager.next')}<Icon name="next" /></a>
+      : <span class="btn" aria-disabled="true">{t('pager.next')}<Icon name="next" /></span>}
+  </nav>
+)}
