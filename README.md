@@ -1,6 +1,6 @@
 # Beezy Honey website
 
-Static site for Beezy Honey (Abinash Honey Farming), built with [Astro](https://astro.build), GSAP and Lenis, hosted on GitHub Pages. Orders go through WhatsApp; there are no prices on the site.
+Website and admin portal for Beezy Honey (Abinash Honey Farming), built with [Astro](https://astro.build), GSAP and Lenis, running on a Cloudflare Worker (static pages + D1 + Workers KV). Prices are shown on the site; orders go through WhatsApp and are recorded with a BZ- order code.
 
 ## Run locally
 
@@ -13,7 +13,7 @@ npm test         # unit + Worker tests (Vitest)
 
 ## Where things live
 
-- `src/data/catalog.snapshot.json`: the catalog: all 16 products (text, packs, prices, photos, colour grade, Honey Finder and bloom data), the shop sections, stock pools, website settings and Know Your Jar batches. The format is described field by field in `src/data/catalog.types.ts`. Before every build, `scripts/sync-catalog.mjs` checks it and copies it to `src/data/generated/catalog.json` (not committed), which `src/data/catalog.ts` loads. Later the admin portal's catalog replaces the snapshot as the source.
+- `src/data/catalog.snapshot.json`: the catalog: all 16 products (text, packs, prices, photos, colour grade, Honey Finder and bloom data), the shop sections, stock pools, website settings and Know Your Jar batches. The format is described field by field in `src/data/catalog.types.ts`. Before every build, `scripts/sync-catalog.mjs` checks it and copies it to `src/data/generated/catalog.json` (not committed), which `src/data/catalog.ts` loads. Production builds read the live catalog from the admin portal instead (CATALOG_URL), so the snapshot is only the fallback and the local default.
 - `src/data/products.ts`, `features.ts`, `batches.ts`: types and helpers; the data itself comes from the catalog. `src/data/prices.ts` holds the starting prices that seeded the catalog.
 - `src/data/site.ts`: phone, WhatsApp number, Instagram, FSSAI number and the pre-filled WhatsApp messages.
 - `src/assets/img/`: photos. Astro resizes them to WebP at build time. The catalog names a photo by its path inside this folder.
@@ -26,17 +26,21 @@ npm test         # unit + Worker tests (Vitest)
 
 The admin portal (orders, stock in kg, harvests and batches, prices, sales, invoices, backups) runs in a Cloudflare
 Worker next to the static pages, with D1 and Workers KV. Public pages stay prerendered; only `/api/*`, `/media/*` and
-`/admin/*` run in the Worker. Prices stay hidden on the site until the owner switches on **Show prices**.
+`/admin/*` run in the Worker. The owner switches prices on or off with **Show prices** (on since 16 Nov 2026).
 
 - `docs/OWNER-GUIDE.md`: how the owner uses the admin, in plain words.
 - `docs/RUNBOOK.md`: local development, tests, Cloudflare setup, deploy, cutover and recovery.
 - `docs/DEV-NOTES.md`: Worker, middleware, gates and local-state details.
 - `src/server/README.md` (server functions) and `src/admin/README.md` (admin screens).
 
-Until the cutover described in the runbook, the live site is still the GitHub Pages build below.
-
 ## Deploy
 
-Live at https://beezyhoney.in/ (custom domain; repository `beezyhoney/beezyhoney.github.io`, whose own address https://beezyhoney.github.io/ redirects there). Every push to `main` builds the site and deploys it through `.github/workflows/deploy.yml`. In the repository settings, Pages → Source must be **GitHub Actions**. The repository must be named `beezyhoney.github.io` in the `beezyhoney` organization, because the site is served from the root (no `base` in `astro.config.mjs`).
+Live at https://beezyhoney.in/ (also www., which redirects to it), with the admin at https://admin.beezyhoney.in/. Since 16 Nov 2026 the
+Cloudflare Worker `beezyhoney` serves everything; the domains are Worker custom domains listed in `wrangler.jsonc`.
 
-The domain is set in Settings → Pages → Custom domain, with **Enforce HTTPS** ticked. If it ever changes, also update `site` in `astro.config.mjs` and the sitemap line in `public/robots.txt`.
+- Cloudflare Workers Builds builds and deploys every push to `main` (`npm run build`, then `npm run deploy`).
+- Saving in the admin rebuilds the site through a deploy hook (secret `DEPLOY_HOOK_URL`). Price changes show within about a minute, with no rebuild.
+- Secrets live only in Cloudflare: `ADMIN_EMAILS`, `ADMIN_ALIASES`, `LOGIN_SECRET`, `IP_HASH_KEY` and `DEPLOY_HOOK_URL`. This repository is public, so never commit them.
+- To roll back, go to Cloudflare → Workers & Pages → beezyhoney → Deployments → Rollback. `docs/RUNBOOK.md` has the full steps, including going back to GitHub Pages.
+
+The old GitHub Pages workflow (`.github/workflows/deploy.yml`) and `CNAME` are kept as a fallback for the first two weeks only. They can be removed after 30 Nov 2026.
