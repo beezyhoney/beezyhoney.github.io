@@ -139,17 +139,14 @@ describe('random values and hashing', () => {
 });
 
 describe('step 1: asking for a code', () => {
-  it('an allowed email gets a code by email; the answer and cookie are the same for every email', async () => {
+  it('an allowed email gets a code by email and goes to the code step', async () => {
     const { e, sent } = testEnv();
     const a = await postLogin(e, { _action: 'send', email: ' Owner@Example.test ', next: '/admin/orders/' });
-    const b = await postLogin(e, { _action: 'send', email: 'stranger@example.test', next: '/admin/orders/' }, { ip: '203.0.113.2' });
-    for (const [r, email] of [[a, OWNER], [b, 'stranger@example.test']] as const) {
-      expect(r.kind).toBe('redirect');
-      const res = (r as { response: Response }).response;
-      expect(res.status).toBe(303);
-      expect(res.headers.get('location')).toBe('/admin/login/?step=code&note=sent&next=%2Fadmin%2Forders%2F');
-      expect(setCookies(res)).toEqual([`${LOGIN_COOKIE}=${encodeURIComponent(email)}; Max-Age=900; Path=/; HttpOnly; Secure; SameSite=Strict`]);
-    }
+    expect(a.kind).toBe('redirect');
+    const res = (a as { response: Response }).response;
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe('/admin/login/?step=code&note=sent&next=%2Fadmin%2Forders%2F');
+    expect(setCookies(res)).toEqual([`${LOGIN_COOKIE}=${encodeURIComponent(OWNER)}; Max-Age=900; Path=/; HttpOnly; Secure; SameSite=Strict`]);
     expect(sent).toEqual([{ from: 'login@beezyhoney.in', to: OWNER }]);
     const codes = await rows<{ email: string; code_hash: string; expires_at: string; attempts: number; ip_hash: string }>('SELECT * FROM login_codes');
     expect(codes).toHaveLength(1);
@@ -159,6 +156,30 @@ describe('step 1: asking for a code', () => {
     expect(codes[0].code_hash).not.toContain(code);
     expect(codes[0].ip_hash).toMatch(/^[0-9a-f]{32}$/);
     expect(e2eLastCode('stranger@example.test')).toBeNull();
+  });
+
+  it('an email that may not log in is told so: no code, no mail, no code step, no cookie', async () => {
+    const { e, sent } = testEnv();
+    for (const action of ['send', 'use_recovery']) {
+      const r = await postLogin(e, { _action: action, email: 'Stranger@Example.test', next: '/admin/orders/' }, { ip: '203.0.113.2' });
+      expect(r).toEqual({ kind: 'view', view: expect.objectContaining({ step: 'email', status: 403, error: LOGIN_ERRORS.noAccess, typedEmail: 'Stranger@Example.test' }) });
+    }
+    expect(sent).toEqual([]);
+    expect(await rows('SELECT * FROM login_codes')).toEqual([]);
+    expect(e2eLastCode('stranger@example.test')).toBeNull();
+    // a switched-off helper is refused the same way
+    await sql(`INSERT INTO admin_users (email, role, active, added_at, added_by, updated_at, updated_by)
+      VALUES ('off@example.test', 'helper', 0, ?1, ?2, ?1, ?2)`, T0, OWNER).run();
+    const off = await postLogin(e, { _action: 'send', email: 'off@example.test' }, { ip: '203.0.113.3' });
+    expect(off).toEqual({ kind: 'view', view: expect.objectContaining({ status: 403, error: LOGIN_ERRORS.noAccess }) });
+    expect(sent).toEqual([]);
+  });
+
+  it('refused emails still count against the connection: one IP cannot try emails without end', async () => {
+    const { e } = testEnv();
+    let last: unknown;
+    for (let i = 0; i <= LIMITS.attemptsPerIpHour; i++) last = await postLogin(e, { _action: 'send', email: `guess${i}@example.test` }, { ip: '203.0.113.9' });
+    expect(last).toEqual({ kind: 'view', view: expect.objectContaining({ step: 'email', status: 429, error: LOGIN_ERRORS.ipLimit }) });
   });
 
   it('an active helper may log in; a switched-off helper may not', async () => {

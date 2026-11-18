@@ -5,7 +5,7 @@ import { env } from 'cloudflare:workers';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addHelper } from '../../../src/admin/ops/people';
 import {
-  aliasesFor, authConfig, createRecoveryCodes, e2eLastCode, LIMITS, LOGIN_COOKIE, LOGIN_NOTES, loginGet, loginPost,
+  aliasesFor, authConfig, createRecoveryCodes, e2eLastCode, LIMITS, LOGIN_COOKIE, LOGIN_ERRORS, LOGIN_NOTES, loginGet, loginPost,
   maskEmail, parseAdminAliases, requestLoginCode, resolveLoginEmail, SESSION_COOKIE, sessionUser, verifyRecoveryCode,
   type AuthEnv,
 } from '../../../src/server/auth';
@@ -178,23 +178,24 @@ describe('logging in with an alias', () => {
 });
 
 describe('unknown and ignored aliases', () => {
-  it('an unknown alias gets the same answer as an owner alias, and no mail', async () => {
+  it('an unknown alias is refused like any unknown email, and no mail goes out', async () => {
     const { e, sent } = testEnv();
     const known = await postLogin(e, { _action: 'send', email: ALIAS });
+    expect(response(known).headers.get('location')).toBe('/admin/login/?step=code&note=sent');
     const unknown = await postLogin(e, { _action: 'send', email: 'ghost@shop.example.test' }, { ip: '203.0.113.2' });
-    expect(answerOf(unknown, 'ghost@shop.example.test')).toEqual(answerOf(known, ALIAS));
+    expect(unknown).toEqual({ kind: 'view', view: expect.objectContaining({ step: 'email', status: 403, error: LOGIN_ERRORS.noAccess, typedEmail: 'ghost@shop.example.test' }) });
     expect(sent).toEqual([{ to: OWNER }]);
     expect(await rows('SELECT email FROM login_codes')).toEqual([{ email: OWNER }]);
   });
 
-  it('an alias whose target may not log in is ignored: same answer, no mail, no code, no login', async () => {
+  it('an alias whose target may not log in is ignored: refused, no mail, no code, no login', async () => {
     const { e, sent } = testEnv();
-    const known = await postLogin(e, { _action: 'send', email: ALIAS });
+    await postLogin(e, { _action: 'send', email: ALIAS });
     sent.length = 0;
     await sql('DELETE FROM login_codes').run();
     for (const [i, alias] of ['stranger-alias@shop.example.test', 'off-alias@shop.example.test'].entries()) {
       const r = await postLogin(e, { _action: 'send', email: alias }, { ip: `203.0.113.${10 + i}` });
-      expect(answerOf(r, alias)).toEqual(answerOf(known, ALIAS));
+      expect(r).toEqual({ kind: 'view', view: expect.objectContaining({ step: 'email', status: 403, error: LOGIN_ERRORS.noAccess }) });
       const wrong = await postLogin(e, { _action: 'verify', code: '123456' }, { cookie: loginCookieFor(alias), ip: `203.0.113.${10 + i}`, at: at(1) });
       expect(wrong).toMatchObject({ kind: 'view', view: { step: 'code', status: 422, email: alias } });
     }

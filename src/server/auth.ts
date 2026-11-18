@@ -14,7 +14,9 @@
  * Flow (/admin/login/):
  *  1. Email step: the visitor types an email. If it may log in (and the limits allow), a 6-digit code (Web Crypto,
  *     no modulo bias) is stored HMAC-hashed in `login_codes` and emailed through LOGIN_MAIL (src/server/mail.ts).
- *     The page answers the same way for every email ("If this email may use the admin, a code is on its way").
+ *     An email that may not log in is told so on the spot ("This email does not have access to the admin"), no code
+ *     is made and the visitor does not reach the code step (owner decision 18 Nov 2026: a clear message is worth more
+ *     here than hiding which emails are admins; the per-IP limit still caps how many emails one connection can try).
  *  2. Code step: the newest unused code of that email, valid 10 minutes, single use, at most 5 tries (each try is
  *     counted in one atomic UPDATE … RETURNING before the code is compared, so parallel guesses cannot pass the limit).
  *     Or a recovery code instead (8 one-time codes, shown once at first login, made again from the recovery page).
@@ -713,8 +715,8 @@ export type LoginStep = 'email' | 'code' | 'recovery';
 
 /** Fixed notices the login page can show (by key in ?note=, so a link can never show made-up text). */
 export const LOGIN_NOTES = {
-  sent: 'If this email may use the admin, a 6-digit code is on its way to the inbox linked to it. It works for 10 minutes. The first time, check your spam folder too.',
-  resent: 'If this email may use the admin, a new code is on its way to the inbox linked to it. Use the newest email: older codes stop working.',
+  sent: 'A 6-digit code is on its way to the inbox linked to this email. It works for 10 minutes. The first time, check your spam folder too.',
+  resent: 'A new code is on its way to the inbox linked to this email. Use the newest email: older codes stop working.',
   limit15: 'Too many codes were asked for this email. Use the newest code you got, or wait 15 minutes and ask again.',
   limitday: 'Too many codes were asked for this email today. Use a recovery code, or try again tomorrow.',
   again: 'Please type your email again.',
@@ -725,6 +727,7 @@ export type LoginNote = keyof typeof LOGIN_NOTES;
 
 export const LOGIN_ERRORS = {
   email: 'Type your full email address, for example name@beezyhoney.in.',
+  noAccess: 'This email does not have access to the admin. Check the spelling, or ask an owner to add you as a helper.',
   wrong: 'That code is not right or has expired. Check the newest email from Beezy, or ask for a new code.',
   wrongRecovery: 'That recovery code is not right or was already used. Check it and try again.',
   ipLimit: 'Too many login tries from this connection. Please wait an hour and try again.',
@@ -824,8 +827,11 @@ export async function loginPost(
     const email = normaliseEmail(typed);
     if (!email) return view({ step: 'email', error: LOGIN_ERRORS.email, typedEmail: typed });
     const login = await resolveLoginEmail(e.DB, cfg, email);
-    const r = await requestLoginCode(e, cfg, { email: login, ip, sendCode: action === 'send', at, waitUntil: opts.waitUntil });
+    const allowed = (await roleFor(e.DB, cfg, login)) !== null;
+    // An email that may not log in only counts as one try of this IP: no code is made, no mail goes out.
+    const r = await requestLoginCode(e, cfg, { email: login, ip, sendCode: action === 'send' && allowed, at, waitUntil: opts.waitUntil });
     if (!r.ok && r.reason === 'ip_limit') return view({ step: 'email', status: 429, error: LOGIN_ERRORS.ipLimit, typedEmail: typed });
+    if (!allowed) return view({ step: 'email', status: 403, error: LOGIN_ERRORS.noAccess, typedEmail: typed });
     const note: LoginNote | undefined = action === 'use_recovery' ? undefined
       : r.ok ? 'sent' : r.reason === 'day_limit' ? 'limitday' : 'limit15';
     return redirect(stepUrl(action === 'send' ? 'code' : 'recovery', next, note), [loginCookie(email)]);
