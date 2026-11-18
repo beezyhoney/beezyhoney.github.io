@@ -26,6 +26,7 @@ export const EN = {
   'nav.group.reports': 'Reports',
   'nav.group.setup': 'Settings and help',
   'nav.today': 'Today',
+  'nav.dashboard': 'Dashboard',
   'nav.orders': 'Orders',
   'nav.requests': 'Requests',
   'nav.stock': 'Stock',

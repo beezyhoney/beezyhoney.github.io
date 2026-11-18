@@ -95,8 +95,13 @@ addresses (the Worker can only mail verified addresses).
 8. **Custom domains** (Worker → Settings → Domains & Routes → Add custom domain): `next.beezyhoney.in` (public, for the
    rehearsal) and `admin.beezyhoney.in` (admin). Cloudflare creates the DNS records and certificates.
 9. **Single Redirect for the admin root** (Rules → Redirect Rules): when hostname equals `admin.beezyhoney.in` and the
-   URI path does not start with `/admin`, redirect 302 to `https://admin.beezyhoney.in/admin/`. Without it the static
-   home page would show on the admin host.
+   URI path does not start with `/admin`, **and is not one of the admin's own static files** (`/_astro/…` holds the CSS,
+   JS and fonts; `/favicon.png`; `/apple-touch-icon.png`), redirect 302 to `https://admin.beezyhoney.in/admin/`. Without
+   the rule the static home page would show on the admin host. Without the exclusions the admin page loads with NO
+   styling (the CSS request is redirected to an HTML page; found 18 Nov 2026). Custom expression:
+   `(http.host eq "admin.beezyhoney.in" and not starts_with(http.request.uri.path, "/admin") and not starts_with(http.request.uri.path, "/_astro/") and not http.request.uri.path in {"/favicon.png" "/apple-touch-icon.png"})`.
+   After any change, check that `curl -I https://admin.beezyhoney.in/_astro/<the css file named in the login page>`
+   answers `200 text/css`, not 302.
 10. **WAF rate limiting rule** (free, one rule): URI Path equals `/api/orders.json`, counted per IP, more than 10 requests
     in 10 seconds → block for 10 seconds.
 11. **Check:** `https://next.beezyhoney.in/api/health.json` shows `{"ok":true,…}`; `https://next.beezyhoney.in/admin/`

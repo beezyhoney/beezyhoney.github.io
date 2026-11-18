@@ -1,0 +1,147 @@
+/* Dashboard screen: tokens come from admin.css. Same rules as the rest of the admin: tone steps instead of lines and
+   shadows, 16 px minimum text, 48 px tap targets, no colour as the only signal (every bar and box also shows its number). */
+
+/* ---------- controls ---------- */
+.dash-controls { display: grid; gap: 4px; margin: 0 0 8px; }
+.dash-controls .tabs { margin-bottom: 8px; }
+.dash-ranges { margin: 0 0 24px; }
+/* on a phone the five ranges sit in one row you can swipe, like the tabs above them */
+@media (max-width: 699px) {
+  .dash-ranges { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px 20px; padding: 0 16px 6px; scrollbar-width: none; }
+  .dash-ranges::-webkit-scrollbar { display: none; }
+  .dash-ranges .chip { flex: none; white-space: nowrap; }
+}
+.dash-note { color: var(--ink-2); margin: 0 0 24px; }
+
+/* ---------- what stands out ---------- */
+.insights { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.insight {
+  display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; border-radius: 18px;
+  color: var(--choc); text-decoration: none;
+}
+.insight p { margin: 0; font-weight: 700; line-height: 1.35; }
+.insight .ico { margin-top: 1px; flex: none; }
+.insight-good { background: var(--ok-bg); color: var(--ok-ink); }
+.insight-warn { background: var(--warn-bg); color: var(--warn-ink); }
+.insight-bad { background: var(--bad-bg); color: var(--bad-ink); }
+.insight-info { background: var(--paper); color: var(--choc); }
+.insight-info .ico { color: var(--honey-deep); }
+a.insight { transition: transform .18s var(--ease); }
+a.insight:hover { transform: translateY(-2px); }
+.insight-calm { background: var(--paper); border-radius: 18px; padding: 16px 18px; color: var(--ink-2); }
+
+/* ---------- panels ---------- */
+.dash-grid { display: grid; gap: 16px; margin: 0 0 40px; }
+@media (min-width: 900px) {
+  .dash-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .dash-grid.is-wide-first { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+}
+.dash-stack { display: grid; gap: 16px; margin: 0 0 40px; }
+.panel { background: var(--paper); border-radius: var(--radius); padding: 20px 20px 22px; min-width: 0; }
+@media (min-width: 700px) { .panel { padding: 24px 28px 28px; } }
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; margin: 0 0 4px; }
+.panel-title { font-size: 1.25rem; font-weight: 700; line-height: 1.25; letter-spacing: -.01em; }
+.panel-sub { color: var(--ink-2); margin: 0 0 16px; }
+.panel-head + .panel-sub { margin-top: 0; }
+.panel-head:not(:has(+ .panel-sub)) { margin-bottom: 16px; }
+.panel-link { font-weight: 700; min-height: var(--tap); display: inline-flex; align-items: center; }
+.panel .empty { background: var(--cream); }
+
+/* ---------- trend chart ---------- */
+.trend .chart-caption { font-size: 1.25rem; letter-spacing: -.01em; margin-bottom: 4px; }
+.chart-key { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0 0 12px; color: var(--ink-2); font-weight: 700; }
+.key { display: inline-flex; align-items: center; gap: 8px; }
+.key::before { content: ""; width: 26px; height: 0; border-top: 3px solid var(--choc); }
+.key-before::before { border-top: 3px dashed var(--ink-3); }
+.trend-area { fill: var(--honey-soft); opacity: .75; }
+.trend-now { fill: none; stroke: var(--choc); stroke-width: 2.75; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.trend-before { fill: none; stroke: var(--ink-3); stroke-width: 2.25; stroke-dasharray: 7 6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.trend-hit { fill: transparent; transition: fill .12s; }
+.trend-hit:hover { fill: rgba(43, 26, 16, .07); }
+
+/* ---------- ranked bars ---------- */
+.rank { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+.rank-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.rank-label { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+a.rank-label { color: var(--choc); text-decoration-color: var(--honey); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.rank-value { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rank-track { position: relative; height: 12px; border-radius: 999px; background: var(--fill); }
+.rank-fill { display: block; height: 100%; min-width: 4px; border-radius: 999px; background: var(--choc); transition: width .5s var(--ease); }
+.is-ok .rank-fill { background: var(--choc); }
+.is-warn .rank-fill { background: var(--honey); }
+.is-bad .rank-fill { background: var(--bad); }
+.is-muted .rank-fill { background: var(--ink-3); }
+.is-muted .rank-value { color: var(--ink-2); }
+.rank-mark { position: absolute; top: -5px; width: 4px; height: 22px; margin-left: -2px; border-radius: 2px; background: var(--amber); box-shadow: 0 0 0 2px var(--paper); }
+.rank-hint { margin: 6px 0 0; color: var(--ink-2); font-size: 1rem; }
+
+/* ---------- share bar ---------- */
+.stack-bar { display: flex; gap: 3px; height: 30px; border-radius: 12px; overflow: hidden; background: var(--fill); }
+.seg { display: block; min-width: 4px; }
+.seg-1 { background: var(--choc); }
+.seg-2 { background: var(--honey-deep); }
+.seg-3 { background: var(--amber); }
+.seg-4 { background: var(--ink-3); }
+.seg-5 { background: #D6BC8C; }
+.seg-6 { background: var(--info); }
+.stack-key { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 14px; }
+.stack-key li { display: grid; grid-template-columns: 14px minmax(0, 1fr); align-items: start; gap: 12px; }
+.swatch-dot { width: 14px; height: 14px; margin-top: 5px; border-radius: 5px; }
+.stack-text { display: grid; gap: 1px; min-width: 0; }
+.stack-name { font-weight: 700; overflow-wrap: break-word; }
+.stack-meta { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.stack-pct { font-weight: 700; color: var(--choc); }
+
+/* ---------- heat grid ---------- */
+.heat-wrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+.heat { width: 100%; border-collapse: separate; border-spacing: 5px; min-width: 360px; }
+.heat th { font-weight: 700; color: var(--ink-2); text-align: center; padding: 2px 2px 6px; font-size: 1rem; }
+.heat tbody th { text-align: left; padding: 0 8px 0 0; white-space: nowrap; color: var(--choc); }
+.heat-cell { height: 46px; text-align: center; border-radius: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.lv-0 { background: var(--cream); color: var(--ink-3); font-weight: 400; }
+.lv-1 { background: var(--honey-soft); color: var(--choc); }
+.lv-2 { background: #F6C873; color: var(--choc); }
+.lv-3 { background: var(--honey); color: var(--choc); }
+.lv-4 { background: var(--choc); color: var(--cream); }
+
+/* ---------- lists ---------- */
+.dash-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.dash-list > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 14px; align-items: center; padding: 12px 14px; border-radius: 14px; background: var(--cream); }
+.dash-list .dl-main { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.dash-list .dl-sub { grid-column: 1; color: var(--ink-2); font-size: 1rem; }
+.dash-list .dl-end { grid-column: 2; grid-row: 1 / span 2; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; display: grid; justify-items: end; gap: 4px; }
+.dash-list .is-plus { color: var(--ok); }
+.dash-list .is-minus { color: var(--bad); }
+.dash-list a { color: var(--choc); text-decoration-color: var(--honey); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.wait-list > li { padding: 0; background: none; }
+.wait-list a.wait {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 14px; align-items: center;
+  padding: 12px 16px; min-height: 60px; border-radius: 14px; background: var(--cream);
+  color: var(--choc) !important; text-decoration: none; transition: background-color .18s var(--ease);
+}
+.wait-list a.wait:hover { background: var(--hover); }
+.wait-list a.wait.is-late { background: var(--warn-bg); color: var(--warn-ink) !important; }
+.wait-ref { font-weight: 700; letter-spacing: .02em; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.wait-sub { grid-column: 1; color: inherit; opacity: .85; }
+.wait-amount { grid-column: 2; grid-row: 1 / span 2; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* a panel already has its title, so a chart inside keeps its caption for screen readers only */
+.panel .chart-caption { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* a table cell that holds a number */
+.dtable .cell-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+/* the tables inside a panel sit tighter, and their headings may wrap, so nothing needs a sideways scroll */
+.panel .table-wrap { background: none; }
+@media (min-width: 700px) {
+  .panel .dtable th { white-space: normal; padding: 12px 10px; }
+  .panel .dtable td { padding: 12px 10px; }
+  .panel .dtable td.is-primary { min-width: 9.5rem; }
+  .panel .dtable th:first-child, .panel .dtable td:first-child { padding-left: 14px; }
+}
+/* on a phone each row is a card: a shade darker than the panel, with room for the longer words */
+@media (max-width: 699px) {
+  .panel .has-cards .dtable tr { background: var(--cream); }
+  .panel .has-cards .dtable td { grid-template-columns: minmax(8.5rem, 44%) minmax(0, 1fr); }
+  .panel .has-cards .badge { white-space: normal; }
+}
+@media (max-width: 699px) { .has-cards .dtable .cell-num { text-align: left; } }

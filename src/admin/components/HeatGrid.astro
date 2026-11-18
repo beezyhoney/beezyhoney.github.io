@@ -1,0 +1,36 @@
+---
+// A small table of numbers whose boxes get darker the bigger the number is (5 steps). Every box shows its number, so
+// nothing depends on colour alone. Use it for "orders by weekday and time of day".
+//   <HeatGrid label="When customers order" cols={['Night', 'Morning', 'Afternoon', 'Evening']}
+//             rows={[{ label: 'Monday', cells: [0, 2, 1, 4] }, { label: 'Tuesday', cells: [0, 0, 1, 1] }]} />
+interface Row {
+  label: string;
+  cells: number[];
+}
+interface Props {
+  rows: Row[];
+  cols: string[];
+  /** screen-reader name of the table */
+  label: string;
+  class?: string;
+}
+const { rows, cols, label, class: cls } = Astro.props;
+const peak = Math.max(0, ...rows.flatMap((r) => r.cells));
+const level = (v: number) => (v <= 0 || peak <= 0 ? 0 : Math.min(4, Math.ceil((v / peak) * 4)));
+---
+<div class:list={['heat-wrap', cls]}>
+  <table class="heat">
+    <caption class="sr-only">{label}</caption>
+    <thead>
+      <tr><td></td>{cols.map((c) => <th scope="col">{c}</th>)}</tr>
+    </thead>
+    <tbody>
+      {rows.map((r) => (
+        <tr>
+          <th scope="row">{r.label}</th>
+          {r.cells.map((v) => <td class={`heat-cell lv-${level(v)}`}>{v}</td>)}
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>

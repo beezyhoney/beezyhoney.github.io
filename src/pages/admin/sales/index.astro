@@ -81,7 +81,7 @@ const exportTo = lastDay > today ? today : lastDay;
 
   <section class="section" aria-label={period.label}>
     <div class="tiles">
-      <StatTile label={S.t('sales.net')} paise={totals.netPaise} prev={previous.netPaise} period={vs} />
+      <StatTile label={S.t('sales.net')} paise={totals.netPaise} prev={previous.netPaise} period={vs} feature />
       <StatTile label={S.t('sales.orders')} value={totals.orders} prev={previous.orders} period={vs} />
       <StatTile label={S.t('sales.kg')} grams={totals.grams} prev={previous.grams} period={vs} />
       <StatTile label={S.t('sales.units')} value={totals.units} prev={previous.units} period={vs} />

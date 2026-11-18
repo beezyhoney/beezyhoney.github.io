@@ -14,6 +14,7 @@ export const ICONS = {
   products: '<path d="M8 3.5h8M9 3.5v2.5M15 3.5v2.5"/><path d="M7 6h10a1.5 1.5 0 0 1 1.5 1.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V7.5A1.5 1.5 0 0 1 7 6z"/><path d="M5.5 11h13"/>',
   prices: '<path d="M7 4.5h10M7 9h10"/><path d="M7 4.5h3.5a4.5 4.5 0 0 1 0 9H7l8 6.5"/>',
   website: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.4 2.4 3.5 5.3 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.3-3.5-8.5S9.6 5.9 12 3.5z"/>',
+  dashboard: '<rect x="3.5" y="3.5" width="7" height="9" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/><rect x="3.5" y="15.5" width="7" height="5" rx="1.5"/>',
   sales: '<path d="M4 20.5h16"/><path d="M6.5 20.5v-6M11 20.5v-10M15.5 20.5v-7.5M20 20.5V5.5" />',
   activity: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   people: '<circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M15.5 5.2a3.5 3.5 0 0 1 0 6.6M18 14.8c1.9.7 3.1 2.4 3.5 5.2"/>',

@@ -1,12 +1,17 @@
 ---
-// The honeycomb mark next to "Beezy Admin" (inline SVG, no image request).
+// The official Beezy Honey seal on a round paper plate, so the dark linework reads on the chocolate side menu.
+// The pictures are the owner's logo files (src/assets/img/logo-seal-square.png), only resized for the admin
+// (src/admin/assets/brand-seal-128.webp for menus, brand-seal-256.webp for the login page). No drawn stand-in.
+import seal128 from '../assets/brand-seal-128.webp?url';
+import seal256 from '../assets/brand-seal-256.webp?url';
+
 interface Props {
   class?: string;
+  /** the bigger picture for the login page */
+  large?: boolean;
 }
-const { class: cls } = Astro.props;
+const { class: cls, large } = Astro.props;
 ---
-<svg class:list={['brand-mark', cls]} viewBox="0 0 40 40" aria-hidden="true" focusable="false">
-  <path d="M20 2.5 35.2 11.25v17.5L20 37.5 4.8 28.75v-17.5z" fill="#E08A12" />
-  <path d="M20 9.5 29.1 14.75v10.5L20 30.5 10.9 25.25v-10.5z" fill="#F2B632" stroke="#2B1A10" stroke-width="1.6" stroke-linejoin="round" />
-  <path d="M20 15.2 24.2 17.6v4.8L20 24.8l-4.2-2.4v-4.8z" fill="#2B1A10" />
-</svg>
+<span class:list={['brand-mark', { 'is-large': large }, cls]}>
+  <img src={large ? seal256 : seal128} width="128" height="128" alt="" decoding="async" />
+</span>

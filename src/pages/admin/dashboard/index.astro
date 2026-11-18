@@ -1,0 +1,449 @@
+---
+// Dashboard (owner and helper): four views of the shop in one place.
+//   Overview            the numbers that matter from the other three, with "what stands out"
+//   Sales               trend against the range before, best sellers, product kinds, channels, when customers order
+//   Stock               honey and pieces in stock, how long each lasts, weekly flow, best-before watch, latest changes
+//   Orders and delivery how far orders get, time between the steps, how long delivery takes, what is waiting now
+// ?view=overview|sales|stock|orders  ?range=7|30|90|month|fy. Read-only; every number comes from src/server/dashboard.ts.
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../admin/AdminLayout.astro';
+import Badge from '../../../admin/components/Badge.astro';
+import BarChart from '../../../admin/components/BarChart.astro';
+import EmptyState from '../../../admin/components/EmptyState.astro';
+import HeatGrid from '../../../admin/components/HeatGrid.astro';
+import Icon from '../../../admin/components/Icon.astro';
+import RankBars from '../../../admin/components/RankBars.astro';
+import StackBar from '../../../admin/components/StackBar.astro';
+import StatTile from '../../../admin/components/StatTile.astro';
+import Tabs from '../../../admin/components/Tabs.astro';
+import TrendChart from '../../../admin/components/TrendChart.astro';
+import '../../../admin/dashboard/dashboard.css';
+import { D } from '../../../admin/dashboard/strings';
+import { ageShort, dateTimeIST, dayMonthIST, inr, int, kg, monthLabel } from '../../../admin/format';
+import { S } from '../../../admin/ops/strings';
+import { formatPoolAmount } from '../../../lib/availability';
+import {
+  alignTo, cumulative, ordersDash, overviewDash, RANGES, rangeFromParam, salesDash, stockDash, WEEKDAYS,
+  type Insight, type RangeKey,
+} from '../../../server/dashboard';
+
+const db = env.DB;
+const q = Astro.url.searchParams;
+const VIEWS = ['overview', 'sales', 'stock', 'orders'] as const;
+type View = (typeof VIEWS)[number];
+const view: View = (VIEWS as readonly string[]).includes(q.get('view') ?? '') ? (q.get('view') as View) : 'overview';
+const range = rangeFromParam(q.get('range'));
+const showRange = view !== 'stock';
+const href = (v: View, r: RangeKey = range.key) => `/admin/dashboard/?view=${v}${v === 'stock' ? '' : `&range=${r}`}`;
+
+const VS: Record<RangeKey, string> = { '7': D.t('dash.vs.7'), '30': D.t('dash.vs.30'), '90': D.t('dash.vs.90'), month: D.t('dash.vs.month'), fy: D.t('dash.vs.fy') };
+const RANGE_LABEL: Record<RangeKey, string> = { '7': D.t('dash.range.7'), '30': D.t('dash.range.30'), '90': D.t('dash.range.90'), month: D.t('dash.range.month'), fy: D.t('dash.range.fy') };
+const vs = VS[range.key];
+
+// one view's data (the overview reads the other three)
+const overview = view === 'overview' ? await overviewDash(db, range) : null;
+const sales = view === 'sales' ? await salesDash(db, range) : overview?.sales ?? null;
+const orders = view === 'orders' ? await ordersDash(db, range) : overview?.orders ?? null;
+const stock = view === 'stock' ? await stockDash(db) : overview?.stock ?? null;
+const insights: Insight[] = view === 'overview' ? overview!.insights : view === 'sales' ? sales!.insights : view === 'orders' ? orders!.insights : stock!.insights;
+
+const dayWord = (n: number) => D.t(n === 1 ? 'dash.day' : 'dash.days');
+function insightText(i: Insight): string {
+  const v: Record<string, string | number> = { ...i.vars, vs };
+  if (typeof i.vars.days === 'number') v.unit = dayWord(i.vars.days);
+  if (typeof i.vars.part === 'number') v.part = D.t(`dash.part.${i.vars.part}` as 'dash.part.0');
+  if (typeof i.vars.paise === 'number') v.amount = inr(i.vars.paise);
+  return D.t(`insight.${i.id}` as 'insight.sales.up', v);
+}
+const insightHref = (i: Insight) => (i.id.startsWith('sales') ? href('sales') : i.id.startsWith('orders') ? href('orders') : href('stock'));
+const insightIcon = { good: 'ok', warn: 'alert', bad: 'alert', info: 'info' } as const;
+
+// ── sales pieces ──
+const series = sales?.series ?? [];
+const seriesTitle = (key: string) => (range.by === 'month' ? monthLabel(key) : dayMonthIST(key));
+const labels = series.map((p) => p.label);
+const titles = series.map((p) => seriesTitle(p.key));
+const nowTotals = series.map((p) => p.netPaise);
+const beforeTotals = alignTo((sales?.previousSeries ?? []).map((p) => p.netPaise), series.length);
+const bestIndex = sales?.best ? series.findIndex((p) => p.key === sales.best!.key) : -1;
+const productMax = Math.max(1, ...(sales?.byProduct.products ?? []).map((p) => p.paise));
+const topProducts = (sales?.byProduct.products ?? []).filter((p) => p.paise > 0).slice(0, view === 'overview' ? 5 : 8).map((p) => ({
+  label: p.name, value: inr(p.paise), pct: (p.paise / productMax) * 100,
+  hint: p.grams > 0 ? D.t('dash.sales.packs', { packs: int(p.units), kg: kg(p.grams) }) : D.t('dash.sales.packsOnly', { packs: int(p.units) }),
+  href: p.productId ? `/admin/products/${p.productId}/` : undefined,
+}));
+const channelTotal = (sales?.channels ?? []).reduce((s, c) => s + c.netPaise, 0);
+const channelParts = (sales?.channels ?? []).map((c) => ({
+  label: S.t(`ops.channel.${c.channel}` as 'ops.channel.website'), value: inr(c.netPaise), share: channelTotal ? (c.netPaise * 100) / channelTotal : 0,
+}));
+const kindParts = (sales?.byProduct.categories ?? []).filter((c) => c.paise > 0).map((c) => ({ label: c.name, value: inr(c.paise), share: c.sharePct }));
+const heatRows = [1, 2, 3, 4, 5, 6, 0].map((wd) => ({
+  label: WEEKDAYS[wd],
+  cells: [0, 1, 2, 3].map((part) => sales?.heat.find((h) => h.weekday === wd && h.part === part)?.orders ?? 0),
+}));
+const heatCols = [0, 1, 2, 3].map((p) => D.t(`dash.partShort.${p}` as 'dash.partShort.0'));
+const bestText = sales?.best && sales.best.netPaise > 0
+  ? D.t(range.by === 'month' ? 'dash.best.month' : 'dash.best.day', { when: seriesTitle(sales.best.key), amount: inr(sales.best.netPaise) }) : '';
+
+// ── orders pieces ──
+const f = orders?.funnel;
+const funnelItems = f ? ([
+  ['received', f.received], ['confirmed', f.confirmed], ['packed', f.packed], ['sent', f.sent], ['delivered', f.delivered],
+] as const).map(([k, n]) => ({
+  label: D.t(`dash.orders.step.${k}` as 'dash.orders.step.received'), value: int(n), pct: f.received ? (n * 100) / f.received : 0,
+  hint: k === 'received' || !f.received ? undefined : `${Math.round((n * 100) / f.received)}%`,
+})) : [];
+const st = orders?.stages;
+const stageRows = st ? ([
+  ['pack', st.confirmToPack], ['send', st.packToSend], ['deliver', st.sendToDeliver], ['total', st.confirmToDeliver],
+] as const).filter(([, v]) => v !== null) : [];
+const stageMax = Math.max(0.1, ...stageRows.map(([, v]) => v as number));
+const stageItems = stageRows.map(([k, v]) => ({
+  label: D.t(`dash.orders.stage.${k}` as 'dash.orders.stage.pack'), value: D.t('dash.orders.stageValue', { days: v as number, unit: dayWord(v as number) }),
+  pct: ((v as number) / stageMax) * 100, tone: k === 'total' ? undefined : ('muted' as const),
+}));
+const bucketMax = Math.max(1, ...(orders?.buckets ?? []).map((b) => b.count));
+const bucketTotal = (orders?.buckets ?? []).reduce((s, b) => s + b.count, 0);
+const bucketItems = (orders?.buckets ?? []).map((b) => ({ label: D.t(`dash.bucket.${b.id}` as 'dash.bucket.d1'), value: int(b.count), pct: (b.count * 100) / bucketMax }));
+const deliveredBars = (orders?.deliveredSeries ?? []).map((p) => ({ label: p.label, value: p.value, title: seriesTitle(p.key) }));
+const openNow = orders ? orders.open.confirmed + orders.open.packed + orders.open.shipped : 0;
+const pipeline: [string, number][] = orders
+  ? [[D.t('dash.step.confirmed'), orders.open.confirmed], [D.t('dash.step.packed'), orders.open.packed], [D.t('dash.step.shipped'), orders.open.shipped]]
+  : [];
+const pipelineMax = Math.max(1, ...pipeline.map(([, n]) => n));
+const pipelineItems = pipeline.map(([label, n]) => ({ label, value: int(n), pct: (n * 100) / pipelineMax }));
+const stepTone = { confirmed: 'info', packed: 'honey', shipped: 'ok' } as const;
+
+// ── stock pieces ──
+const gramPools = (stock?.pools ?? []).filter((p) => p.unit === 'g' && p.productStatus !== 'retired');
+const gramMax = Math.max(1, ...gramPools.filter((p) => p.trackStock).map((p) => Math.max(0, p.onHand)));
+const levelItems = gramPools.slice().sort((a, b) => Number(b.trackStock) - Number(a.trackStock) || b.onHand - a.onHand || a.name.localeCompare(b.name)).map((p) => ({
+  label: p.name,
+  value: p.trackStock ? p.amountText : D.t('dash.stock.notCounted'),
+  pct: p.trackStock ? (Math.max(0, p.onHand) * 100) / gramMax : 0,
+  mark: p.trackStock && p.lowAt !== null && p.lowAt > 0 ? (p.lowAt * 100) / gramMax : undefined,
+  tone: !p.trackStock ? ('muted' as const) : p.level === 'negative' || p.level === 'empty' ? ('bad' as const) : p.level === 'low' ? ('warn' as const) : undefined,
+  hint: p.trackStock && p.equivalents ? p.equivalents : undefined,
+  href: `/admin/stock/${p.id}/`,
+}));
+const piecePools = (stock?.pools ?? []).filter((p) => p.unit === 'piece' && p.productStatus !== 'retired');
+const pieceMax = Math.max(1, ...piecePools.filter((p) => p.trackStock).map((p) => Math.max(0, p.onHand)));
+const pieceItems = piecePools.map((p) => ({
+  label: p.name, value: p.trackStock ? p.amountText : D.t('dash.stock.notCounted'), pct: p.trackStock ? (Math.max(0, p.onHand) * 100) / pieceMax : 0,
+  mark: p.trackStock && p.lowAt !== null && p.lowAt > 0 ? (p.lowAt * 100) / pieceMax : undefined,
+  tone: !p.trackStock ? ('muted' as const) : p.level === 'negative' || p.level === 'empty' ? ('bad' as const) : p.level === 'low' ? ('warn' as const) : undefined,
+  href: `/admin/stock/${p.id}/`,
+}));
+const levelBadge = (level: string) => (level === 'negative' ? 'negative' : level === 'empty' ? 'out' : level === 'low' ? 'low' : 'in');
+const lastsText = (days: number | null) => (days === null ? D.t('dash.stock.lastsNone') : days === 0 ? D.t('dash.stock.lastsZero') : D.t('dash.stock.lasts', { n: int(days), unit: dayWord(days) }));
+const coverRows = stock?.cover ?? [];
+const lowest = coverRows.slice(0, 5);
+const coverMax = Math.max(30, ...lowest.map((p) => p.daysOfCover ?? 0));
+const flowBars = (pick: 'harvested' | 'sold') => (stock?.flow ?? []).map((w) => ({ label: dayMonthIST(w.week), title: D.t('dash.weekOf', { date: dayMonthIST(w.week) }), value: w[pick] }));
+const bbTone = { passed: 'bad', soon: 'warn', ok: 'ok' } as const;
+---
+<AdminLayout title={D.t('dash.title')} active="dashboard" subtitle={D.t('dash.sub')}>
+  <div class="dash-controls">
+    <Tabs label={D.t('dash.views')} items={VIEWS.map((v) => ({ href: href(v), label: D.t(`dash.view.${v}` as 'dash.view.sales'), current: v === view }))} />
+    {showRange ? (
+      <nav class="chips dash-ranges" aria-label={D.t('dash.ranges')}>
+        {RANGES.map((r) => <a class="chip" href={href(view, r)} aria-current={r === range.key ? 'true' : undefined}>{RANGE_LABEL[r]}</a>)}
+      </nav>
+    ) : (
+      <p class="dash-note">{D.t('dash.stockNow')}</p>
+    )}
+  </div>
+
+  <section class="section" aria-labelledby="dash-insights">
+    <div class="section-head"><h2 class="section-title" id="dash-insights">{D.t('dash.insights')}</h2></div>
+    {insights.length === 0 ? (
+      <p class="insight-calm">{D.t('dash.noInsights')}</p>
+    ) : (
+      <ul class="insights">
+        {insights.map((i) => (
+          <li><a class={`insight insight-${i.tone}`} href={insightHref(i)}><Icon name={insightIcon[i.tone]} /><p>{insightText(i)}</p></a></li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  {/* ───────────── Overview ───────────── */}
+  {view === 'overview' && overview && sales && orders && stock && (
+    <>
+      <section class="section" aria-label={D.t('dash.view.overview')}>
+        <div class="tiles">
+          <StatTile feature label={S.t('sales.net')} paise={sales.totals.netPaise} prev={sales.previous.netPaise} period={vs} href={href('sales')} />
+          <StatTile label={S.t('sales.orders')} value={sales.totals.orders} prev={sales.previous.orders} period={vs} href={href('sales')} />
+          <StatTile label={D.t('dash.orders.delivered')} value={orders.stages.delivered} prev={orders.previousDelivered} period={vs} href={href('orders')} />
+          <StatTile label={D.t('dash.orders.open')} value={openNow} hint={D.t('dash.orders.openHint')} href={href('orders')} />
+          <StatTile label={D.t('dash.orders.late')} value={orders.open.late} alert={orders.open.late > 0} hint={D.t('dash.orders.lateHint')} href={href('orders')} />
+          <StatTile label={D.t('dash.stock.honey')} grams={stock.honeyGrams} hint={D.t('dash.stock.honeyHint')} href={href('stock')} />
+        </div>
+      </section>
+
+      <div class="dash-grid is-wide-first">
+        <section class="panel" aria-labelledby="ov-sales">
+          <div class="panel-head"><h2 class="panel-title" id="ov-sales">{D.t('dash.overview.sales')}</h2><a class="panel-link" href={href('sales')}>{D.t('dash.details')}</a></div>
+          <TrendChart caption={D.t('dash.running', { vs })} labels={labels} titles={titles} format="money"
+            current={cumulative(nowTotals)} previous={cumulative(beforeTotals)} legend={{ now: D.t('dash.legend.now'), before: D.t('dash.legend.beforeVs', { vs }) }} />
+        </section>
+        <section class="panel" aria-labelledby="ov-pipe">
+          <div class="panel-head"><h2 class="panel-title" id="ov-pipe">{D.t('dash.overview.pipeline')}</h2><a class="panel-link" href={href('orders')}>{D.t('dash.details')}</a></div>
+          <p class="panel-sub">{D.t('dash.overview.pipelineSub')}</p>
+          {openNow === 0
+            ? <EmptyState compact icon="ok" title={D.t('dash.orders.nowNone')} />
+            : <RankBars label={D.t('dash.overview.pipeline')} items={pipelineItems} />}
+        </section>
+      </div>
+
+      <div class="dash-grid">
+        <section class="panel" aria-labelledby="ov-low">
+          <div class="panel-head"><h2 class="panel-title" id="ov-low">{D.t('dash.overview.lowest')}</h2><a class="panel-link" href={href('stock')}>{D.t('dash.details')}</a></div>
+          <p class="panel-sub">{D.t('dash.overview.lowestSub')}</p>
+          {lowest.length === 0
+            ? <EmptyState compact icon="stock" title={D.t('dash.stock.coverNone')} />
+            : <RankBars label={D.t('dash.overview.lowest')} items={lowest.map((p) => ({
+                label: p.name, value: lastsText(p.daysOfCover), pct: ((p.daysOfCover ?? 0) * 100) / coverMax,
+                tone: (p.daysOfCover ?? 0) < 14 ? ('bad' as const) : (p.daysOfCover ?? 0) < 30 ? ('warn' as const) : undefined, href: `/admin/stock/${p.id}/`,
+              }))} />}
+        </section>
+        <section class="panel" aria-labelledby="ov-best">
+          <div class="panel-head"><h2 class="panel-title" id="ov-best">{D.t('dash.overview.best')}</h2><a class="panel-link" href={href('sales')}>{D.t('dash.details')}</a></div>
+          <p class="panel-sub">{D.t('dash.sales.topSub')}</p>
+          {topProducts.length === 0
+            ? <EmptyState compact icon="sales" title={D.t('dash.sales.none')} />
+            : <RankBars label={D.t('dash.overview.best')} items={topProducts} />}
+        </section>
+      </div>
+    </>
+  )}
+
+  {/* ───────────── Sales ───────────── */}
+  {view === 'sales' && sales && (
+    <>
+      <section class="section" aria-label={D.t('dash.view.sales')}>
+        <div class="tiles">
+          <StatTile feature label={S.t('sales.net')} paise={sales.totals.netPaise} prev={sales.previous.netPaise} period={vs} />
+          <StatTile label={S.t('sales.orders')} value={sales.totals.orders} prev={sales.previous.orders} period={vs} />
+          <StatTile label={S.t('sales.avg')} paise={sales.totals.averageOrderPaise} prev={sales.previous.averageOrderPaise} period={vs} />
+          <StatTile label={S.t('sales.kg')} grams={sales.totals.grams} prev={sales.previous.grams} period={vs} />
+          <StatTile label={S.t('sales.collected')} paise={sales.totals.collectedPaise} prev={sales.previous.collectedPaise} period={vs}
+            hint={sales.totals.netPaise > 0 ? D.t('dash.sales.collectedPct', { pct: Math.round((sales.totals.collectedPaise * 100) / sales.totals.netPaise) }) : undefined} />
+          <StatTile label={S.t('sales.outstanding')} paise={sales.totals.outstandingPaise} prev={sales.previous.outstandingPaise} period={vs} better="down"
+            alert={sales.totals.outstandingPaise > 0} href={sales.totals.outstandingPaise > 0 ? '/admin/orders/?f=unpaid' : undefined} />
+        </div>
+      </section>
+
+      <div class="dash-stack">
+        <section class="panel" aria-labelledby="s-run">
+          <div class="panel-head"><h2 class="panel-title" id="s-run">{D.t('dash.running', { vs })}</h2></div>
+          <p class="panel-sub">{D.t('dash.running.sub')}</p>
+          <TrendChart caption={D.t('dash.running', { vs })} labels={labels} titles={titles} format="money" height={220}
+            current={cumulative(nowTotals)} previous={cumulative(beforeTotals)} legend={{ now: D.t('dash.legend.now'), before: D.t('dash.legend.beforeVs', { vs }) }} />
+        </section>
+        <section class="panel" aria-labelledby="s-bars">
+          <div class="panel-head"><h2 class="panel-title" id="s-bars">{D.t(range.by === 'month' ? 'dash.trend.month' : 'dash.trend.day')}</h2>{bestText && <span class="muted">{bestText}</span>}</div>
+          <BarChart caption={D.t(range.by === 'month' ? 'dash.trend.month' : 'dash.trend.day')} format="money" highlight={bestIndex >= 0 ? bestIndex : undefined}
+            data={series.map((p, i) => ({ label: p.label, title: titles[i], value: p.netPaise }))} />
+        </section>
+      </div>
+
+      <div class="dash-grid is-wide-first">
+        <section class="panel" aria-labelledby="s-top">
+          <div class="panel-head"><h2 class="panel-title" id="s-top">{D.t('dash.sales.top')}</h2></div>
+          <p class="panel-sub">{D.t('dash.sales.topSub')}</p>
+          {topProducts.length === 0
+            ? <EmptyState compact icon="sales" title={D.t('dash.sales.none')} />
+            : <RankBars label={D.t('dash.sales.top')} items={topProducts} />}
+        </section>
+        <div class="dash-stack">
+          <section class="panel" aria-labelledby="s-kinds">
+            <div class="panel-head"><h2 class="panel-title" id="s-kinds">{D.t('dash.sales.kinds')}</h2></div>
+            {kindParts.length === 0 ? <p class="muted">{D.t('dash.sales.none')}</p> : <StackBar label={D.t('dash.sales.kinds')} parts={kindParts} />}
+          </section>
+          <section class="panel" aria-labelledby="s-chan">
+            <div class="panel-head"><h2 class="panel-title" id="s-chan">{D.t('dash.sales.channels')}</h2></div>
+            {channelParts.length === 0 ? <p class="muted">{D.t('dash.sales.none')}</p> : <StackBar label={D.t('dash.sales.channels')} parts={channelParts} />}
+          </section>
+        </div>
+      </div>
+
+      <section class="panel dash-stack" aria-labelledby="s-when">
+        <div class="panel-head"><h2 class="panel-title" id="s-when">{D.t('dash.sales.when')}</h2></div>
+        <p class="panel-sub">{D.t('dash.sales.whenSub')}</p>
+        <HeatGrid label={D.t('dash.sales.when')} cols={heatCols} rows={heatRows} />
+      </section>
+    </>
+  )}
+
+  {/* ───────────── Stock ───────────── */}
+  {view === 'stock' && stock && (
+    <>
+      <section class="section" aria-label={D.t('dash.view.stock')}>
+        <div class="tiles">
+          <StatTile feature label={D.t('dash.stock.honey')} grams={stock.honeyGrams} hint={D.t('dash.stock.honeyHint')} />
+          <StatTile label={D.t('dash.stock.pieces')} value={stock.pieces} hint={D.t('dash.stock.piecesHint')} />
+          <StatTile label={D.t('dash.stock.worth')} paise={stock.worthPaise} hint={D.t('dash.stock.worthHint')} />
+          <StatTile label={D.t('dash.stock.attention')} value={stock.attention} alert={stock.attention > 0} hint={D.t('dash.stock.attentionHint')} href="/admin/stock/" />
+          <StatTile label={D.t('dash.stock.untracked')} value={stock.untracked} href="/admin/stock/count/" />
+        </div>
+      </section>
+
+      <div class="dash-grid">
+        <section class="panel" aria-labelledby="k-levels">
+          <div class="panel-head"><h2 class="panel-title" id="k-levels">{D.t('dash.stock.levels')}</h2></div>
+          <p class="panel-sub">{D.t('dash.stock.levelsSub')}</p>
+          <RankBars label={D.t('dash.stock.levels')} items={levelItems} />
+        </section>
+        <div class="dash-stack">
+          {pieceItems.length > 0 && (
+            <section class="panel" aria-labelledby="k-pieces">
+              <div class="panel-head"><h2 class="panel-title" id="k-pieces">{D.t('dash.stock.pieces')}</h2></div>
+              <RankBars label={D.t('dash.stock.pieces')} items={pieceItems} />
+            </section>
+          )}
+          <section class="panel" aria-labelledby="k-batches">
+            <div class="panel-head"><h2 class="panel-title" id="k-batches">{D.t('dash.stock.batches')}</h2><a class="panel-link" href="/admin/batches/">{D.t('dash.details')}</a></div>
+            <p class="panel-sub">{D.t('dash.stock.batchesSub')}</p>
+            {stock.batches.length === 0 ? <EmptyState compact icon="batches" title={D.t('dash.stock.noBatches')} /> : (
+              <ul class="dash-list">
+                {stock.batches.map((b) => (
+                  <li>
+                    <span class="dl-main"><a href={`/admin/batches/${b.id}/`}>{b.code}</a> · {b.productName}</span>
+                    <span class="dl-sub">{D.t('dash.bbDate', { month: monthLabel(b.bestBefore) })}</span>
+                    <span class="dl-end"><Badge tone={bbTone[b.state]} text={D.t(`dash.bb.${b.state}` as 'dash.bb.ok')} /></span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
+
+      <section class="panel dash-stack" aria-labelledby="k-cover">
+        <div class="panel-head"><h2 class="panel-title" id="k-cover">{D.t('dash.stock.cover')}</h2></div>
+        <p class="panel-sub">{D.t('dash.stock.coverSub')}</p>
+        {coverRows.length === 0 ? <EmptyState compact icon="stock" title={D.t('dash.stock.coverNone')} /> : (
+          <div class="table-wrap has-cards">
+            <table class="dtable">
+              <thead>
+                <tr>
+                  <th scope="col">{D.t('dash.stock.col.stock')}</th>
+                  <th scope="col" class="end">{D.t('dash.stock.col.onHand')}</th>
+                  <th scope="col" class="end">{D.t('dash.stock.col.sold')}</th>
+                  <th scope="col" class="end">{D.t('dash.stock.col.lasts')}</th>
+                  <th scope="col">{D.t('dash.stock.col.status')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {coverRows.map((p) => (
+                  <tr class:list={[{ 'tone-row-bad': p.level === 'negative' || p.level === 'empty', 'tone-row-warn': p.level === 'low' }]}>
+                    <td class="is-primary" data-label={D.t('dash.stock.col.stock')}><a class="row-link" href={`/admin/stock/${p.id}/`}>{p.name}</a></td>
+                    <td class="cell-num end" data-label={D.t('dash.stock.col.onHand')}>{p.amountText}</td>
+                    <td class="cell-num end" data-label={D.t('dash.stock.col.sold')}>{formatPoolAmount(p.used30, p.unit)}</td>
+                    <td class="cell-num end" data-label={D.t('dash.stock.col.lasts')}>{lastsText(p.daysOfCover)}</td>
+                    <td data-label={D.t('dash.stock.col.status')}><Badge kind="stock" value={levelBadge(p.level)} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <div class="dash-grid">
+        <section class="panel" aria-labelledby="k-in">
+          <div class="panel-head"><h2 class="panel-title" id="k-in">{D.t('dash.stock.harvested')}</h2></div>
+          <BarChart caption={D.t('dash.stock.harvested')} format="grams" height={160} data={flowBars('harvested')} maxLabels={{ phone: 3, desktop: 4 }} />
+        </section>
+        <section class="panel" aria-labelledby="k-out">
+          <div class="panel-head"><h2 class="panel-title" id="k-out">{D.t('dash.stock.sold')}</h2></div>
+          <BarChart caption={D.t('dash.stock.sold')} format="grams" height={160} data={flowBars('sold')} maxLabels={{ phone: 3, desktop: 4 }} />
+        </section>
+      </div>
+
+      <section class="panel dash-stack" aria-labelledby="k-moves">
+        <div class="panel-head"><h2 class="panel-title" id="k-moves">{D.t('dash.stock.moves')}</h2><a class="panel-link" href="/admin/activity/">{D.t('dash.details')}</a></div>
+        {stock.moves.length === 0 ? <p class="muted">{D.t('dash.stock.noMoves')}</p> : (
+          <ul class="dash-list">
+            {stock.moves.map((m) => (
+              <li>
+                <span class="dl-main">{m.poolName}</span>
+                <span class="dl-sub">{D.t(`dash.reason.${m.reason}` as 'dash.reason.other')} · {dateTimeIST(m.at)}</span>
+                <span class:list={['dl-end', m.delta > 0 ? 'is-plus' : 'is-minus']}>{m.delta > 0 ? '+' : '−'}{formatPoolAmount(Math.abs(m.delta), m.unit)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
+  )}
+
+  {/* ───────────── Orders and delivery ───────────── */}
+  {view === 'orders' && orders && st && f && (
+    <>
+      <section class="section" aria-label={D.t('dash.view.orders')}>
+        <div class="tiles">
+          <StatTile feature label={D.t('dash.orders.received')} value={f.received} prev={orders.previousReceived} period={vs} />
+          <StatTile label={D.t('dash.orders.delivered')} value={st.delivered} prev={orders.previousDelivered} period={vs} />
+          <StatTile label={D.t('dash.orders.speed')} hint={D.t('dash.orders.speedHint')}
+            value={st.confirmToDeliver === null ? '—' : D.t('dash.orders.speedValue', { days: st.confirmToDeliver, unit: dayWord(st.confirmToDeliver) })} />
+          <StatTile label={D.t('dash.orders.late')} value={orders.open.late} alert={orders.open.late > 0} hint={D.t('dash.orders.lateHint')} />
+          <StatTile label={D.t('dash.orders.response')} hint={D.t('dash.orders.responseHint')}
+            value={orders.response.within24Pct === null ? '—' : `${orders.response.within24Pct}%`} />
+          <StatTile label={D.t('dash.orders.unpaid')} paise={orders.unpaidDelivered.paise} alert={orders.unpaidDelivered.orders > 0}
+            hint={orders.unpaidDelivered.orders > 0 ? S.t('today2.unpaidHint', { count: orders.unpaidDelivered.orders }) : undefined}
+            href={orders.unpaidDelivered.orders > 0 ? '/admin/orders/?f=unpaid' : undefined} />
+        </div>
+      </section>
+
+      <div class="dash-grid is-wide-first">
+        <section class="panel" aria-labelledby="o-funnel">
+          <div class="panel-head"><h2 class="panel-title" id="o-funnel">{D.t('dash.orders.funnel')}</h2></div>
+          <p class="panel-sub">{D.t('dash.orders.funnelSub')}</p>
+          {f.received === 0 ? <EmptyState compact icon="orders" title={D.t('dash.sales.none')} /> : <RankBars label={D.t('dash.orders.funnel')} items={funnelItems} />}
+          {(f.cancelled > 0 || f.spam > 0) && <p class="rank-hint" style="margin-top:16px">{D.t('dash.orders.dropped', { cancelled: int(f.cancelled), spam: int(f.spam) })}</p>}
+        </section>
+        <section class="panel" aria-labelledby="o-stages">
+          <div class="panel-head"><h2 class="panel-title" id="o-stages">{D.t('dash.orders.stages')}</h2></div>
+          <p class="panel-sub">{D.t('dash.orders.stagesSub')}</p>
+          {stageItems.length === 0 ? <EmptyState compact icon="orders" title={D.t('dash.orders.noStages')} /> : <RankBars label={D.t('dash.orders.stages')} items={stageItems} />}
+        </section>
+      </div>
+
+      <div class="dash-grid">
+        <section class="panel" aria-labelledby="o-hist">
+          <div class="panel-head"><h2 class="panel-title" id="o-hist">{D.t('dash.orders.hist')}</h2></div>
+          <p class="panel-sub">{D.t('dash.orders.histSub')}</p>
+          {bucketTotal === 0 ? <EmptyState compact icon="orders" title={D.t('dash.orders.noStages')} /> : <RankBars label={D.t('dash.orders.hist')} items={bucketItems} />}
+        </section>
+        <section class="panel" aria-labelledby="o-del">
+          <div class="panel-head"><h2 class="panel-title" id="o-del">{D.t('dash.orders.deliveredChart')}</h2></div>
+          <BarChart caption={D.t('dash.orders.deliveredChart')} format="int" height={170} data={deliveredBars} emptyText={D.t('dash.orders.noStages')} />
+        </section>
+      </div>
+
+      <section class="panel dash-stack" aria-labelledby="o-now">
+        <div class="panel-head"><h2 class="panel-title" id="o-now">{D.t('dash.orders.now')}</h2><a class="panel-link" href="/admin/orders/?f=to_send">{D.t('dash.orders.more')}</a></div>
+        <p class="panel-sub">{D.t('dash.orders.nowSub')}</p>
+        {orders.open.list.length === 0 ? <EmptyState compact icon="ok" title={D.t('dash.orders.nowNone')} /> : (
+          <ul class="dash-list wait-list">
+            {orders.open.list.map((o) => (
+              <li>
+                <a class:list={['wait', { 'is-late': o.late }]} href={`/admin/orders/${o.id}/`}>
+                  <span class="wait-ref">{o.ref}<Badge tone={stepTone[o.status]} text={D.t(`dash.step.${o.status}` as 'dash.step.confirmed')} />{o.late && <Badge tone="warn" text={D.t('dash.orders.late.badge')} />}</span>
+                  <span class="wait-sub">{D.t('dash.orders.since', { age: ageShort(o.since) })}</span>
+                  <span class="wait-amount">{inr(o.totalPaise)}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
+  )}
+
+  <p class="dash-note">{D.t('dash.updated')}</p>
+</AdminLayout>

@@ -13,7 +13,7 @@ export interface AdminUser {
 }
 
 export type NavKey =
-  | 'today' | 'orders' | 'requests' | 'stock' | 'harvests' | 'batches' | 'labels' | 'invoices'
+  | 'today' | 'dashboard' | 'orders' | 'requests' | 'stock' | 'harvests' | 'batches' | 'labels' | 'invoices'
   | 'products' | 'prices' | 'website' | 'sales' | 'activity' | 'people' | 'backup' | 'help' | 'styleguide';
 
 export type NavGroup = 'main' | 'daily' | 'shop' | 'reports' | 'setup';
@@ -32,6 +32,7 @@ export interface NavItem {
 
 export const NAV: readonly NavItem[] = [
   { key: 'today', href: '/admin/', label: 'nav.today', icon: 'today', group: 'main' },
+  { key: 'dashboard', href: '/admin/dashboard/', label: 'nav.dashboard', icon: 'dashboard', group: 'main' },
   { key: 'orders', href: '/admin/orders/', label: 'nav.orders', icon: 'orders', group: 'daily' },
   { key: 'requests', href: '/admin/requests/', label: 'nav.requests', icon: 'requests', group: 'daily' },
   { key: 'stock', href: '/admin/stock/', label: 'nav.stock', icon: 'stock', group: 'daily' },

@@ -81,7 +81,7 @@ export function periodFromParams(q: { period?: string | null; month?: string | n
 }
 
 /** WHERE for the sales of a period on orders alias `o`; binds two parameters: from, to */
-const SOLD_WHERE = "o.status IN ('confirmed', 'packed', 'shipped', 'delivered') AND o.is_test = 0 AND o.confirmed_at >= ? AND o.confirmed_at < ?";
+export const SOLD_WHERE = "o.status IN ('confirmed', 'packed', 'shipped', 'delivered') AND o.is_test = 0 AND o.confirmed_at >= ? AND o.confirmed_at < ?";
 
 export interface SalesTotals {
   orders: number;

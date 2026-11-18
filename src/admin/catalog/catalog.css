@@ -23,11 +23,12 @@
 .checklist .no { color: var(--bad); }
 .current-photo { display: flex; gap: 12px; align-items: center; margin: 4px 0 10px; }
 .current-photo img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; background: var(--cream-2); }
-.picker-details > summary { display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap); padding: 0 16px; border: 2px solid var(--line-strong); border-radius: 999px; font-weight: 700; cursor: pointer; list-style: none; background: var(--white); }
+.picker-details > summary { display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap); padding: 0 18px; border: 0; border-radius: 999px; font-weight: 700; cursor: pointer; list-style: none; background: var(--fill); transition: background-color .18s var(--ease); }
+.picker-details > summary:hover { background: var(--fill-2); }
 .picker-details > summary::-webkit-details-marker { display: none; }
 .picker-details[open] > summary { margin-bottom: 12px; }
 .gal-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 10px; }
-.gal-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 10px 12px; align-items: start; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--white); }
+.gal-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 10px 12px; align-items: start; padding: 12px; border: 0; border-radius: 16px; background: var(--cream); }
 .gal-row img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; background: var(--cream-2); }
 .gal-row .field { margin-bottom: 6px; }
 .gal-tools { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -70,7 +71,7 @@ html.no-js .gal-move { display: none; }
 .stock-amount { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .stock-big { font-size: 2.25rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .pack-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.history { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
+.history { list-style: none; margin: 0; padding: 0; border-radius: var(--radius); background: var(--paper); overflow: hidden; }
 .history li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 12px 16px; border-top: 1px solid var(--line); }
 .history li:first-child { border-top: 0; }
 .history .h-delta { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }

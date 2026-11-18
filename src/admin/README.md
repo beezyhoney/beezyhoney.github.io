@@ -347,6 +347,10 @@ Details:
 | `DataTable` | see below |
 | `StatTile` | `<StatTile label="Net sales" paise={now.net} prev={last.net} period="last month" href="/admin/sales/" />` |
 | `BarChart` | `<BarChart caption="Sales per month" format="money" highlight={11} data={months.map((m) => ({ label: 'Nov', title: 'Nov 2026', value: m.netPaise }))} />` |
+| `TrendChart` | `<TrendChart caption="Sales so far" format="money" labels={days} titles={titles} current={cumulative(now)} previous={cumulative(before)} legend={{ now: 'This range', before: 'Before' }} />`: a line with a flat area, and a dashed line for the period before |
+| `RankBars` | `<RankBars items={[{ label: 'Murungai Honey', value: '₹12,400', pct: 100, hint: '30 packs', tone: 'warn', mark: 20, href: '…' }]} />`: ranked rows with a bar (plain HTML, wraps on phones); `mark` draws a tick such as the low-stock level |
+| `StackBar` | `<StackBar label="Where orders come from" parts={[{ label: 'WhatsApp', value: '₹9,000', share: 60 }, …]} />`: one bar split into parts with a key that names every part |
+| `HeatGrid` | `<HeatGrid label="When customers order" cols={['Night', 'Morning']} rows={[{ label: 'Monday', cells: [0, 2] }, …]} />`: numbers in boxes that get darker the bigger they are |
 | `EmptyState` | `<EmptyState icon="orders" title="No new orders" text="Orders from the website show up here."><a class="btn btn-primary" href="/admin/orders/new/">New order</a></EmptyState>` |
 | `Tabs` | `<Tabs label="Order filters" items={[{ href: '/admin/orders/?f=new', label: 'New', count: 3, current: f === 'new' }, …]} />` |
 | `Pagination` | `<Pagination url={Astro.url} page={page} pages={pages} />` or `hasNext={rows.length > PAGE}`; `prevHref`/`nextHref` for cursor paging |
@@ -398,7 +402,15 @@ For inputs inside cells (Prices grid, Count all), write the table by hand with t
 **StatTile**: `value` (text or a number with Indian grouping), `paise` (→ ₹), `grams` (→ kg); `prev` (same unit) works
 out "▲ 12% vs last month", or pass `change` as a fraction; `better="down"` when falling is good (refunds, discounts),
 `better="none"` to keep it neutral; `period` (default "last month"); `hint`; `href` makes the tile a link; `alert` makes
-it red. A `prev` of 0 shows "New since last month". Put tiles in `<div class="tiles">`.
+it red; `feature` makes it the one chocolate tile with an amber number (use it once per screen). A `prev` of 0 shows
+"New since last month". Put tiles in `<div class="tiles">`.
+
+**Dashboard** (`/admin/dashboard/`, `src/pages/admin/dashboard/index.astro`): four views, `?view=overview|sales|stock|orders`,
+and `?range=7|30|90|month|fy` (every range ends today and is compared with the period just before, or the same days of
+last month / last year). All numbers come from `src/server/dashboard.ts` (one `db.batch` per view, read only); the
+words are in `src/admin/dashboard/strings.ts` and the styles in `src/admin/dashboard/dashboard.css`. The "What stands
+out" cards are plain rules (`salesInsights`, `ordersInsights`, `stockInsights`), not guesses: each one is a sentence with
+numbers from the shop. Tests: `test/unit/admin-ops/dashboard.test.ts`.
 
 **BarChart**: `format` (`money` = paise, `grams`, `int`), `highlight` (index of the bar to stand out), `height` (px,
 default 180), `maxLabels` (`{ phone: 6, desktop: 14 }`), `emptyText` (shown when every value is 0). Each point is
@@ -413,11 +425,11 @@ use the tokens (`var(--honey)`, `var(--line)` …).
 | Class | Use |
 |---|---|
 | `section` + `section-head` / `section-title` / `section-link` | A block of the page with its `<h2>` and an optional "See all" link on the right |
-| `card` | White box with padding and a soft shadow |
+| `card` | Paper-coloured box with padding (no border or shadow: it stands out by tone against the page) |
 | `stack` | Vertical spacing between children |
 | `row`, `row-between` | Wrapping horizontal row with gaps; `row-between` spreads the ends |
 | `grid-2`, `grid-3` | As many columns as fit (each at least 280 px / 210 px wide), so one column on phones |
-| `tiles` | Grid for `StatTile`s (at least 156 px each: two per row on a phone) |
+| `tiles` | Grid for `StatTile`s (at least 150 px each: two per row on a phone; a `feature` tile takes the whole row) |
 | `form-actions` | Row of buttons at the end of a short form |
 | `actionbar` | Sticky bar at the bottom (above the phone tab bar) for the Save button of long forms |
 | `switch-list` | Stack of `Toggle`s with dividers |

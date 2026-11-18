@@ -110,7 +110,7 @@ const stepHref = (s: 'email' | 'code' | 'recovery') => loginUrl(next, s === 'ema
 
 <style>
   .login-body { margin-top: 12px; }
-  .login-intro, .login-for { margin: 0; text-align: center; overflow-wrap: anywhere; }
+  .login-intro, .login-for { margin: 0 0 14px; text-align: center; overflow-wrap: anywhere; }
   .login-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; }
   .login-form :global(input[name='code']) { font-size: 1.5rem; letter-spacing: .3em; text-align: center; }
   .login-form :global(input[name='recovery']) { font-size: 1.25rem; letter-spacing: .12em; text-align: center; text-transform: uppercase; }

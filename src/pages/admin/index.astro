@@ -111,7 +111,7 @@ const period = S.t('today2.sameDays');
   <section class="section" data-today="counts" aria-labelledby="today-waiting">
     <div class="section-head"><h2 class="section-title" id="today-waiting">{S.t('today.waiting')}</h2></div>
     <div class="tiles">
-      <StatTile label={S.t('today.newOrders')} value={counts.newCount} href="/admin/orders/?f=new" alert={counts.newWaitingLong > 0}
+      <StatTile label={S.t('today.newOrders')} value={counts.newCount} href="/admin/orders/?f=new" alert={counts.newWaitingLong > 0} feature
         hint={counts.oldestNewAt ? S.t('today.oldest', { age: ageShort(counts.oldestNewAt) }) : S.t('today2.newHint.none')} />
       <StatTile label={S.t('today.toPack')} value={counts.toSend} href="/admin/orders/?f=to_send" hint={S.t('today2.toSendHint')} />
       <StatTile label={S.t('today.unpaid')} value={counts.unpaidPaise > 0 ? S.t('today.toCollect', { amount: inr(counts.unpaidPaise) }) : inr(0)}

@@ -134,7 +134,7 @@ Any other Host is blocked by Vite itself (403 "Blocked request") before the Work
    Every other on-demand response gets `nosniff`.
 6. **Lazy jobs**: a signed-in admin GET calls `maybeRunJobsLazily()`. It runs `runDueJobs()` in `waitUntil`, at most once per isolate every 5 minutes. This is the fallback if the cron is late.
 7. **Paths without the trailing slash** (`/admin`, `/api`, `/foo`) get Astro's `301` to the slash form before the middleware runs, on every host, exactly like any unknown path. The slash form then gets the host rules above (for example `/admin/` on the public host → 404), so the redirect reveals nothing.
-8. **Admin host root**: `admin.beezyhoney.in/` matches the static home page, which is served before the Worker runs. Production needs the zone's Single Redirect rule (hostname is `admin.beezyhoney.in` and the path does not start with `/admin` → 302 to `/admin/`), as amendment A1 says.
+8. **Admin host root**: `admin.beezyhoney.in/` matches the static home page, which is served before the Worker runs. Production needs the zone's Single Redirect rule (hostname is `admin.beezyhoney.in` and the path does not start with `/admin` → 302 to `/admin/`), as amendment A1 says. The rule MUST skip the admin's own static files (`/_astro/*`, `/favicon.png`, `/apple-touch-icon.png`), which are also served before the Worker: a plain "not /admin" rule redirects the CSS and JS to the login page and the admin shows unstyled (seen 18 Nov 2026). Exact expression in RUNBOOK §3 step 9.
 
 ## Tests
 

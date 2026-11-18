@@ -1,0 +1,95 @@
+---
+// Inline SVG line chart with a flat area under the line (no library, no gradient), and an optional dashed line for the
+// period before so you can see at a glance whether you are ahead or behind. Hover a day to read both values; a hidden
+// table carries every value for screen readers.
+//   <TrendChart caption="Sales so far" format="money" labels={days.map((d) => d.label)} titles={days.map((d) => d.title)}
+//               current={cumulative(now)} previous={cumulative(before)} legend={{ now: 'This range', before: 'Before' }} />
+import { labelStep, niceMax, visibleLabels } from '../chart';
+import { inr, int, kg } from '../format';
+import { t } from '../strings';
+
+interface Props {
+  /** short label under each point ('15', 'Nov') */
+  labels: string[];
+  /** longer label for the tooltip and the screen-reader table ('15 Nov') */
+  titles?: string[];
+  current: number[];
+  /** the earlier period, point by point */
+  previous?: number[];
+  caption: string;
+  /** words for the two lines, shown as a key under the caption */
+  legend?: { now: string; before: string };
+  /** how values are written: paise as ₹, grams as kg, or plain counts */
+  format?: 'money' | 'int' | 'grams';
+  height?: number;
+  maxLabels?: { phone?: number; desktop?: number };
+  emptyText?: string;
+  class?: string;
+}
+const { labels, titles, current, previous, caption, legend, format = 'int', height = 200, maxLabels = {}, emptyText = t('chart.noData'), class: cls } = Astro.props;
+const fmt = (v: number) => (format === 'money' ? inr(Math.round(v)) : format === 'grams' ? kg(v) : int(Math.round(v)));
+const n = labels.length;
+const slot = 10;
+const width = Math.max(1, n) * slot;
+const peak = Math.max(0, ...current, ...(previous ?? []));
+const top = niceMax(peak);
+const y = (v: number) => (top > 0 ? 100 - (Math.max(0, v) / top) * 100 : 100);
+const x = (i: number) => i * slot + slot / 2;
+const line = (values: number[]) => values.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(2)} ${y(v).toFixed(2)}`).join(' ');
+const area = n > 0 ? `${line(current)} L${x(n - 1).toFixed(2)} 100 L${x(0).toFixed(2)} 100 Z` : '';
+const phoneShown = visibleLabels(n, labelStep(n, maxLabels.phone ?? 6));
+const deskShown = visibleLabels(n, labelStep(n, maxLabels.desktop ?? 14));
+const yLabels = [top, top / 2, 0].map(fmt);
+const yWidth = Math.max(...yLabels.map((l) => l.length));
+const allZero = top === 0;
+---
+<figure class:list={['chart', 'trend', cls]} style={`--chart-h:${height}px`}>
+  <figcaption class="chart-caption">{caption}</figcaption>
+  {legend && (
+    <p class="chart-key" aria-hidden="true">
+      <span class="key key-now">{legend.now}</span>
+      {previous && <span class="key key-before">{legend.before}</span>}
+    </p>
+  )}
+  {allZero ? (
+    <p class="chart-empty">{emptyText}</p>
+  ) : (
+    <div class="chart-body">
+      <div class="chart-y" aria-hidden="true" style={`width:${yWidth}ch`}>
+        <span style="top:0">{yLabels[0]}</span>
+        <span style="top:50%">{yLabels[1]}</span>
+        <span style="top:100%">{yLabels[2]}</span>
+      </div>
+      <div class="chart-plot">
+        <svg class="chart-svg" viewBox={`0 0 ${width} 100`} preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <line class="chart-grid" x1="0" x2={width} y1="0.5" y2="0.5" />
+          <line class="chart-grid" x1="0" x2={width} y1="50" y2="50" />
+          <path class="trend-area" d={area} />
+          {previous && <path class="trend-before" d={line(previous)} />}
+          <path class="trend-now" d={line(current)} />
+          <line class="chart-base" x1="0" x2={width} y1="100" y2="100" />
+          {labels.map((_, i) => (
+            <rect class="trend-hit" x={i * slot} y="0" width={slot} height="100">
+              <title>{`${titles?.[i] ?? labels[i]}: ${fmt(current[i] ?? 0)}${previous ? ` (${fmt(previous[i] ?? 0)})` : ''}`}</title>
+            </rect>
+          ))}
+        </svg>
+        <div class="chart-x" style={`--n:${n}`} aria-hidden="true">
+          {labels.map((l, i) => <span class:list={{ 'show-p': phoneShown.has(i), 'show-d': deskShown.has(i) }}>{l}</span>)}
+        </div>
+      </div>
+    </div>
+  )}
+  {/* the div clips the table: a table ignores width:1px and would stretch the page on a phone */}
+  <div class="sr-only">
+    <table>
+      <caption>{t('chart.table')}</caption>
+      <thead>
+        <tr><th scope="col">{t('chart.label')}</th><th scope="col">{legend?.now ?? t('chart.value')}</th>{previous && <th scope="col">{legend?.before ?? ''}</th>}</tr>
+      </thead>
+      <tbody>
+        {labels.map((l, i) => <tr><th scope="row">{titles?.[i] ?? l}</th><td>{fmt(current[i] ?? 0)}</td>{previous && <td>{fmt(previous[i] ?? 0)}</td>}</tr>)}
+      </tbody>
+    </table>
+  </div>
+</figure>

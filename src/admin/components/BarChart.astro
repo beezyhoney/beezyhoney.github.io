@@ -69,11 +69,14 @@ const yWidth = Math.max(...yLabels.map((l) => l.length));
       </div>
     </div>
   )}
-  <table class="sr-only">
-    <caption>{t('chart.table')}</caption>
-    <thead><tr><th scope="col">{t('chart.label')}</th><th scope="col">{t('chart.value')}</th></tr></thead>
-    <tbody>
-      {data.map((d) => <tr><th scope="row">{d.title ?? d.label}</th><td>{fmt(d.value)}</td></tr>)}
-    </tbody>
-  </table>
+  {/* the div clips the table: a table ignores width:1px and would stretch the page on a phone */}
+  <div class="sr-only">
+    <table>
+      <caption>{t('chart.table')}</caption>
+      <thead><tr><th scope="col">{t('chart.label')}</th><th scope="col">{t('chart.value')}</th></tr></thead>
+      <tbody>
+        {data.map((d) => <tr><th scope="row">{d.title ?? d.label}</th><td>{fmt(d.value)}</td></tr>)}
+      </tbody>
+    </table>
+  </div>
 </figure>

@@ -16,6 +16,8 @@ import '@fontsource/mukta-malar/400.css';
 import '@fontsource/mukta-malar/700.css';
 import '@fontsource/bodoni-moda/500.css';
 import './admin.css';
+// The official wordmark (src/assets/img/logo-wordmark.png) recoloured cream for the chocolate side menu and login panel.
+import wordCream from './assets/brand-wordmark-cream.webp?url';
 import BrandMark from './components/BrandMark.astro';
 import ConfirmDialog from './components/ConfirmDialog.astro';
 import FlashMessage from './components/FlashMessage.astro';
@@ -72,6 +74,10 @@ const strings = JSON.stringify(clientStrings()).replace(/</g, '\\u003c');
 
     {bare ? (
       <main class="bare-main" id="main" tabindex="-1">
+        <div class="bare-art" aria-hidden="true">
+          <BrandMark large />
+          <img class="bare-word" src={wordCream} width="640" height="78" alt="" decoding="async" />
+        </div>
         <div class="bare-card">
           <span class="brand"><BrandMark /><span class="brand-name">{t('app.name')}</span></span>
           {shownFlash && <FlashMessage flash={shownFlash} id="page-flash" />}
@@ -85,7 +91,10 @@ const strings = JSON.stringify(clientStrings()).replace(/</g, '\\u003c');
         <aside class="sidenav" aria-label={t('nav.label')}>
           <a class="brand" href="/admin/">
             <BrandMark />
-            <span><span class="brand-name">{t('app.brand')}</span><span class="brand-sub">{t('app.admin')}</span></span>
+            <span class="brand-text">
+              <img class="brand-word" src={wordCream} width="640" height="78" alt="" decoding="async" />
+              <span class="brand-name">{t('app.brand')}</span><span class="brand-sub">{t('app.admin')}</span>
+            </span>
           </a>
           <nav aria-label={t('nav.label')}>
             {groups.map((g) => (

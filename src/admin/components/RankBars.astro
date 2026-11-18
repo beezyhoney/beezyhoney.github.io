@@ -1,0 +1,43 @@
+---
+// A ranked list with a bar behind each row (plain HTML and CSS, so it wraps on a phone and reads well with a screen
+// reader). Use it for best sellers, stock levels, steps of an order. The bar is a length from 0 to 100; `mark` draws
+// a tick (e.g. the low-stock level); `tone` colours the bar.
+//   <RankBars items={[{ label: 'Murungai Honey', value: '₹12,400', pct: 100, hint: '30 packs · 7.5 kg' },
+//                     { label: 'Forest Honey', value: '₹8,000', pct: 64, href: '/admin/products/3/' }]} />
+interface Item {
+  label: string;
+  /** the number, already written ('₹12,400', '7.5 kg') */
+  value: string;
+  /** bar length, 0–100 */
+  pct: number;
+  /** small line under the bar */
+  hint?: string;
+  /** a tick on the bar, 0–100 */
+  mark?: number;
+  tone?: 'ok' | 'warn' | 'bad' | 'muted';
+  href?: string;
+}
+interface Props {
+  items: Item[];
+  /** screen-reader name of the list */
+  label?: string;
+  class?: string;
+}
+const { items, label, class: cls } = Astro.props;
+const clamp = (n: number) => Math.min(100, Math.max(0, Number.isFinite(n) ? n : 0));
+---
+<ul class:list={['rank', cls]} aria-label={label}>
+  {items.map((i) => (
+    <li class:list={['rank-row', i.tone && `is-${i.tone}`]}>
+      <div class="rank-top">
+        {i.href ? <a class="rank-label" href={i.href}>{i.label}</a> : <span class="rank-label">{i.label}</span>}
+        <span class="rank-value">{i.value}</span>
+      </div>
+      <div class="rank-track" aria-hidden="true">
+        <span class="rank-fill" style={`width:${clamp(i.pct)}%`}></span>
+        {i.mark !== undefined && <span class="rank-mark" style={`left:${clamp(i.mark)}%`}></span>}
+      </div>
+      {i.hint && <p class="rank-hint">{i.hint}</p>}
+    </li>
+  ))}
+</ul>

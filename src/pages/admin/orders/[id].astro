@@ -613,7 +613,7 @@ const steps = [
 </AdminLayout>
 
 <style>
-  .gobyline { margin-bottom: 16px; position: sticky; top: calc(var(--topbar-h) + 4px); z-index: 5; padding-top: 8px; padding-bottom: 8px; box-shadow: var(--shadow); }
+  .gobyline { margin-bottom: 16px; position: sticky; top: calc(var(--topbar-h) + 4px); z-index: 5; padding-top: 8px; padding-bottom: 8px; box-shadow: var(--shadow-float); }
   .summary-badges { margin-bottom: 12px; }
   .summary-kv { margin-bottom: 4px; }
   .big { font-size: 1.5rem; font-weight: 700; }
@@ -621,9 +621,9 @@ const steps = [
   .center { text-align: center; margin-top: 6px; }
   .cpaid { display: grid; gap: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
   .mismatch { align-items: flex-start; }
-  .line { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px 14px; display: grid; gap: 12px; background: var(--white); margin: 0; }
+  .line { border: 0; border-radius: 16px; padding: 14px 16px 16px; display: grid; gap: 12px; background: var(--cream); margin: 0; }
   .line-legend { font-weight: 700; padding: 0 6px; }
-  .line-new { background: var(--cream); }
+  .line-new { background: var(--honey-soft); }
   .line-foot { align-items: center; }
   .line-other > summary { list-style: none; width: fit-content; }
   .line-other > summary::-webkit-details-marker { display: none; }

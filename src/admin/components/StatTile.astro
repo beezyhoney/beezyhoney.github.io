@@ -27,9 +27,11 @@ interface Props {
   href?: string;
   /** red tile, e.g. a count that needs attention */
   alert?: boolean;
+  /** the one tile that matters most on a screen: a chocolate field with an amber number */
+  feature?: boolean;
   class?: string;
 }
-const { label, value, paise, grams, prev, better = 'up', period = t('stat.lastMonth'), hint, href, alert, class: cls } = Astro.props;
+const { label, value, paise, grams, prev, better = 'up', period = t('stat.lastMonth'), hint, href, alert, feature, class: cls } = Astro.props;
 
 const current = paise ?? grams ?? (typeof value === 'number' ? value : null);
 const shown = paise !== undefined && paise !== null ? inr(paise)
@@ -47,7 +49,7 @@ const dir = change === null || change === undefined ? null : change > 0.0005 ? '
 const good = dir === 'flat' || better === 'none' ? 'flat' : dir === better ? 'good' : 'bad';
 const Tag = href ? 'a' : 'div';
 ---
-<Tag class:list={['stat', cls, { 'tone-alert': alert }]} href={href}>
+<Tag class:list={['stat', cls, { 'tone-alert': alert, 'is-feature': feature && !alert }]} href={href}>
   <span class="stat-label">{label}</span>
   <span class="stat-value">{shown}</span>
   {dir && (
