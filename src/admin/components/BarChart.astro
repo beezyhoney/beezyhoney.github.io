@@ -55,7 +55,7 @@ const yWidth = Math.max(...yLabels.map((l) => l.length));
           <line class="chart-grid" x1="0" x2={layout.width} y1="0.5" y2="0.5" />
           <line class="chart-grid" x1="0" x2={layout.width} y1="50" y2="50" />
           {layout.bars.map((b, i) => (
-            <rect class:list={['chart-bar', { 'is-hi': i === highlight }]} x={b.x} y={b.y} width={b.w} height={b.h}>
+            <rect class:list={['chart-bar', { 'is-hi': i === highlight }]} x={b.x} y={b.y} width={b.w} height={b.h} style={`--i:${i}`}>
               <title>{`${data[i].title ?? data[i].label}: ${fmt(data[i].value)}`}</title>
             </rect>
           ))}

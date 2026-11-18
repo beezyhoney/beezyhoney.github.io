@@ -727,8 +727,67 @@ a.stat.is-feature:hover { background: var(--cocoa); }
   .bare-card { align-self: center; margin: 0 auto; width: min(500px, calc(100% - 64px)); padding: 40px 40px 44px; }
 }
 
+/* ---------- motion ----------
+   Only transform and opacity move, nothing waits for a script (content is never hidden if JavaScript fails), and
+   everything is switched off for people who ask their device for less motion (the rule at the very end).
+   1. a page arrives in order: the heading, then each block, 55 ms apart
+   2. stat tiles pop in one after another; their numbers count up (client/motion.ts)
+   3. bars grow from the baseline, lines are drawn left to right (see also dashboard/dashboard.css)
+   4. the More sheet slides up, dialogs scale in, a saving button shows a spinner
+   5. moving between admin screens cross-fades only the content: the side menu and tab bar stay where they are */
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+@keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes grow-y { from { transform: scaleY(0); } }
+@keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(14px) scale(.97); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: no-preference) {
+  .main > * { animation: rise .55s var(--ease) both; }
+  .main > :nth-child(2) { animation-delay: 55ms; }
+  .main > :nth-child(3) { animation-delay: 110ms; }
+  .main > :nth-child(4) { animation-delay: 165ms; }
+  .main > :nth-child(5) { animation-delay: 220ms; }
+  .main > :nth-child(6) { animation-delay: 275ms; }
+  .main > :nth-child(7) { animation-delay: 330ms; }
+  .main > :nth-child(n+8) { animation-delay: 385ms; }
+
+  .tiles > .stat { animation: pop .5s var(--ease) both; }
+  .tiles > :nth-child(1) { animation-delay: 140ms; }
+  .tiles > :nth-child(2) { animation-delay: 200ms; }
+  .tiles > :nth-child(3) { animation-delay: 260ms; }
+  .tiles > :nth-child(4) { animation-delay: 320ms; }
+  .tiles > :nth-child(5) { animation-delay: 380ms; }
+  .tiles > :nth-child(n+6) { animation-delay: 440ms; }
+
+  .chart-bar { transform-box: fill-box; transform-origin: 50% 100%; animation: grow-y .7s var(--ease) both; animation-delay: calc(min(var(--i, 0), 45) * 14ms + 150ms); }
+
+  .more-sheet:popover-open { animation: sheet-up .38s var(--ease) both; }
+  .more-sheet:popover-open::backdrop { animation: fade-in .3s ease both; }
+  .dialog[open] { animation: dialog-in .28s var(--ease) both; }
+  .dialog[open]::backdrop { animation: fade-in .25s ease both; }
+
+  /* a form that is saving: the main button shows it is working */
+  form.is-submitting button[type="submit"].btn-primary::after,
+  form.is-submitting button[type="submit"].btn-honey::after {
+    content: ""; flex: none; width: 1em; height: 1em; border: 2.5px solid currentColor; border-right-color: transparent; border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+
+  /* admin screens cross-fade; the parts that stay the same do not move (Chrome and Edge; others just load the page) */
+  @view-transition { navigation: auto; }
+  .sidenav { view-transition-name: sidenav; }
+  .tabbar { view-transition-name: tabbar; }
+  .topbar { view-transition-name: topbar; }
+  ::view-transition-old(root) { animation: fade-out .16s ease both; }
+  ::view-transition-new(root) { animation: fade-in .22s ease both; }
+}
+@keyframes fade-out { to { opacity: 0; } }
+
 /* ---------- print ---------- */
 @media print {
+  .admin *, .admin *::before, .admin *::after { animation: none !important; }
   .sidenav, .tabbar, .topbar, .more-sheet, .session-banner, .flash, .skip, .page-actions, .actionbar, .draft-bar { display: none !important; }
   body.admin { background: var(--white); }
   .shell { display: block; }

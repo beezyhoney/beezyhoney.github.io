@@ -551,6 +551,13 @@ When the login has expired, the endpoint must answer **401/403** (or redirect to
 
 ## Look and accessibility rules
 
+- **Motion** (`admin.css` "motion" block, `dashboard/dashboard.css`, `client/motion.ts`): only `transform` and `opacity`
+  move, no library, and nothing waits for a script, so content is never hidden if JavaScript fails. Pages rise in order,
+  stat tiles pop, bars grow, lines are drawn, stat numbers count up once (the server's text is put back exactly at the
+  end), sheets and dialogs slide or scale in, a saving form shows a spinner, and moving between admin screens
+  cross-fades only the content (CSS `@view-transition`; the side menu and tab bar keep their place). Every animation sits
+  inside `@media (prefers-reduced-motion: no-preference)` and the script stops when the device asks for less motion.
+  Add new motion the same way. A bar needs `style="--i:{index}"` to stagger.
 - **Phone first.** Check every screen at 390 × 844 first, then 1440 × 900. No sideways scrolling (wide grids go in
   `table-wrap`, which scrolls by itself).
 - **16 px minimum** for all text (body is 17 px). **48 px minimum** tap targets: every `.btn`, input, select, tab,

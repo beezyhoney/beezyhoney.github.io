@@ -125,6 +125,32 @@ a.rank-label { color: var(--choc); text-decoration-color: var(--honey); text-dec
 .wait-sub { grid-column: 1; color: inherit; opacity: .85; }
 .wait-amount { grid-column: 2; grid-row: 1 / span 2; font-weight: 700; font-variant-numeric: tabular-nums; }
 
+/* ---------- motion (switched off by prefers-reduced-motion at the end of admin.css) ---------- */
+@keyframes sweep { from { clip-path: inset(-20px 100% -20px -20px); } to { clip-path: inset(-20px -20px -20px -20px); } }
+@keyframes reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes grow-x { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: no-preference) {
+  .trend .chart-svg { animation: sweep 1.2s var(--ease) .2s both; }
+  .stack-bar { animation: reveal .9s var(--ease) .25s both; }
+  .rank-fill { transform-origin: 0 50%; animation: grow-x .9s var(--ease) both; animation-delay: .2s; }
+  .rank-row:nth-child(2) .rank-fill { animation-delay: .27s; }
+  .rank-row:nth-child(3) .rank-fill { animation-delay: .34s; }
+  .rank-row:nth-child(4) .rank-fill { animation-delay: .41s; }
+  .rank-row:nth-child(5) .rank-fill { animation-delay: .48s; }
+  .rank-row:nth-child(6) .rank-fill { animation-delay: .55s; }
+  .rank-row:nth-child(7) .rank-fill { animation-delay: .62s; }
+  .rank-row:nth-child(n+8) .rank-fill { animation-delay: .69s; }
+  .rank-mark { animation: fade-in .4s ease 1.1s both; }
+  .heat-cell { animation: pop .45s var(--ease) both; animation-delay: calc((var(--r, 0) + var(--c, 0)) * 45ms + 200ms); }
+  .heat tbody tr:nth-child(1) { --r: 0; } .heat tbody tr:nth-child(2) { --r: 1; } .heat tbody tr:nth-child(3) { --r: 2; }
+  .heat tbody tr:nth-child(4) { --r: 3; } .heat tbody tr:nth-child(5) { --r: 4; } .heat tbody tr:nth-child(6) { --r: 5; } .heat tbody tr:nth-child(7) { --r: 6; }
+  .heat tbody td:nth-of-type(1) { --c: 0; } .heat tbody td:nth-of-type(2) { --c: 1; } .heat tbody td:nth-of-type(3) { --c: 2; } .heat tbody td:nth-of-type(4) { --c: 3; }
+  .insights > li { animation: pop .5s var(--ease) both; }
+  .insights > li:nth-child(2) { animation-delay: 70ms; }
+  .insights > li:nth-child(3) { animation-delay: 140ms; }
+  .insights > li:nth-child(4) { animation-delay: 210ms; }
+}
+
 /* a panel already has its title, so a chart inside keeps its caption for screen readers only */
 .panel .chart-caption { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 

@@ -3,6 +3,7 @@
 import { initConfirmLinks } from './confirm';
 import { initDrafts } from './drafts';
 import { initEnhance } from './enhance';
+import { initMotion } from './motion';
 import { initSession } from './session';
 import { initStatusChip } from './status';
 import { initSubmit } from './submit';
@@ -14,6 +15,7 @@ function start(): void {
   initConfirmLinks();
   initSession();
   initStatusChip();
+  initMotion();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
